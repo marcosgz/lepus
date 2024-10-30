@@ -43,7 +43,7 @@ You can configure the Lepus using the `Lepus.configure` method. The configuratio
 ```ruby
 Lepus.configure do |config|
   config.connection_name = 'MyApp'
-  config.rabbitmq_url = 'amqp://guest:guest@localhost:5672'
+  config.rabbitmq_url = ENV.fetch('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672')
 end
 ```
 
