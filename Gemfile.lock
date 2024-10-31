@@ -4,6 +4,8 @@ PATH
     lepus (0.0.1.beta1)
       bunny
       concurrent-ruby
+      multi_json
+      thor
       zeitwerk
 
 GEM
@@ -91,6 +93,7 @@ GEM
     standard-performance (1.4.0)
       lint_roller (~> 1.1)
       rubocop-performance (~> 1.21.0)
+    thor (1.3.2)
     unicode-display_width (2.6.0)
     webmock (3.24.0)
       addressable (>= 2.8.0)
@@ -104,7 +107,6 @@ PLATFORMS
 DEPENDENCIES
   dotenv
   lepus!
-  multi_json (~> 1.15)
   pry
   rspec
   rubocop

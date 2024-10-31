@@ -55,7 +55,7 @@ module Lepus
           begin
             require "rails"
             require_relative "rails"
-            Kernel.require File.expand_path("config/environment", Dir.pwd)
+            require File.expand_path("config/environment", Dir.pwd)
           rescue LoadError
             # Rails not found
           end
@@ -80,7 +80,7 @@ module Lepus
 
         unless stopped?
           reap_and_replace_terminated_forks
-          interruptible_sleep(1.second)
+          interruptible_sleep(1)
         end
       end
     ensure
