@@ -27,5 +27,5 @@ module Lepus
     end
   end
 
-  # ActiveSupport.run_load_hooks(:lepus, Lepus)
+  ActiveSupport.run_load_hooks(:lepus, self)
 end
