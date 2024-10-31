@@ -69,10 +69,13 @@ module Lepus
     @loader ||= Zeitwerk::Loader.for_gem(warn_on_extra_files: false).tap do |loader|
       loader.inflector.inflect "json" => "JSON"
       loader.inflector.inflect "cli" => "CLI"
-      loader.ignore("#{__dir__}/rails")
+      loader.collapse("#{__dir__}/rails/railtie")
+      loader.collapse("#{__dir__}/rails/log_subscriber")
+      # loader.ignore("#{__dir__}/rails")
       loader.ignore("#{__dir__}/puma")
       loader.ignore("#{__dir__}/cli")
       loader.ignore("#{__dir__}/middlewares")
+      loader.log! if ENV["DEBUG"]
     end
   end
 
@@ -117,7 +120,3 @@ end
 if defined?(::Rails)
   require_relative "lepus/rails"
 end
-
-# if defined?(Puma)
-#   require_relative "lepus/puma/plugin"
-# end

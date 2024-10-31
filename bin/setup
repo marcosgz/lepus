@@ -4,3 +4,4 @@ IFS=$'\n\t'
 set -vx
 
 bundle install
+find gemfiles -type f \( -iname "*.gemfile" ! -iname "*.lock" \) -exec bundle install --gemfile {} \;
