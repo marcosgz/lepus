@@ -195,6 +195,8 @@ We provide a Puma plugin if you want to run the Lepus's supervisor together with
 plugin :lepus
 ```
 
+**Note**: The Puma plugin is only available if you are using Puma 6.x or higher.
+
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. You can also run `bin/console` for an interactive prompt that will allow you to experiment.

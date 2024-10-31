@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  ruby2-test:
+  test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
