@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "log_subscriber"
-
 module Lepus
   class Railtie < ::Rails::Railtie
     config.lepus = ActiveSupport::OrderedOptions.new

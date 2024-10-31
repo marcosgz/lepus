@@ -37,6 +37,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "bunny", ">= 0.0.0"
+  spec.add_dependency "thor", ">= 0.0.0"
   spec.add_dependency "zeitwerk", ">= 0.0.0"
   spec.add_dependency "concurrent-ruby", ">= 0.0.0"
   spec.add_dependency "multi_json", ">= 0.0.0"
