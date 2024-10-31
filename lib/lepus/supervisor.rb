@@ -55,7 +55,7 @@ module Lepus
           begin
             require "rails"
             require_relative "rails"
-            require File.expand_path("config/environment", Dir.pwd)
+            Kernel.require File.expand_path("config/environment", Dir.pwd)
           rescue LoadError
             # Rails not found
           end

@@ -9,7 +9,7 @@ module Lepus
     initializer "lepus.app_executor", before: :run_prepare_callbacks do |app|
       config.lepus.app_executor ||= app.executor
       if ::Rails.respond_to?(:error) && config.lepus.on_thread_error.nil?
-        config.lepus.on_thread_error = ->(exception) { Rails.error.report(exception, handled: false) }
+        config.lepus.on_thread_error = ->(exception) { ::Rails.error.report(exception, handled: false) }
       elsif config.lepus.on_thread_error.nil?
         config.lepus.on_thread_error = ->(exception) { Lepus.logger.error(exception) }
       end
