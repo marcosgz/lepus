@@ -18,7 +18,7 @@ RSpec.describe Lepus::Process do
 
   describe ".prune" do
     it "deletes all processes that are not running" do
-      prune = described_class.register(last_heartbeat_at: Time.now - 5 * 60, name: "prune-me")
+      described_class.register(last_heartbeat_at: Time.now - 5 * 60, name: "prune-me")
       keep = described_class.register(last_heartbeat_at: Time.now, name: "keep-me")
 
       described_class.prune
@@ -58,7 +58,7 @@ RSpec.describe Lepus::Process do
   describe "#deregister" do
     it "removes the process from the registry and deregisters supervisees" do
       supervisor1 = described_class.register(name: "supervisor-1")
-      supervisee1 = described_class.register(name: "supervisee-1", supervisor_id: supervisor1.id)
+      described_class.register(name: "supervisee-1", supervisor_id: supervisor1.id)
 
       supervisor2 = described_class.register(name: "supervisor-2")
       supervisee2 = described_class.register(name: "supervisee-2", supervisor_id: supervisor2.id)

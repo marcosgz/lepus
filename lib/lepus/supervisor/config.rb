@@ -30,10 +30,13 @@ module Lepus
       end
 
       def consumers
-        @consumers ||= begin
-          Lepus.eager_load_consumers!
-          Lepus::Consumer.descendants.reject(&:abstract_class?).map(&:name)
-        end
+        @consumers ||= Dir[Lepus.config.consumers_directory.join("**/*.rb")].map { |path| Pathname.new(path) }.map do |path|
+          next unless path.extname == ".rb"
+
+          path.relative_path_from(Lepus.config.consumers_directory).to_s.sub(/\.rb$/, "").split("/").map do |part|
+            part.split("_").collect(&:capitalize).join
+          end.join("::")
+        end.compact
       end
 
       protected
