@@ -37,8 +37,15 @@ RSpec.describe Lepus::Supervisor::Config do
         allow(Dir).to receive(:[]).and_return([
           "/tmp/lepus/consumers/ignore.js",
           "/tmp/lepus/consumers/exclude",
+          "/tmp/lepus/consumers/application_consumer.rb",
           "/tmp/lepus/consumers/foo_consumer.rb",
           "/tmp/lepus/consumers/namespaced/bar_consumer.rb"
+        ])
+        allow(File).to receive(:readlines).and_return([""])
+        expect(File).to receive(:readlines).with("/tmp/lepus/consumers/application_consumer.rb").and_return([
+          "class ApplicationConsumer < Lepus::Consumer",
+          "  self.abstract_class = true",
+          "end"
         ])
       end
 

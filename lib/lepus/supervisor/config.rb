@@ -32,6 +32,7 @@ module Lepus
       def consumers
         @consumers ||= Dir[Lepus.config.consumers_directory.join("**/*.rb")].map { |path| Pathname.new(path) }.map do |path|
           next unless path.extname == ".rb"
+          next if File.readlines(path.to_s).grep(/abstract_class\s*=\s*true/).any?
 
           path.relative_path_from(Lepus.config.consumers_directory).to_s.sub(/\.rb$/, "").split("/").map do |part|
             part.split("_").collect(&:capitalize).join
