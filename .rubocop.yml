@@ -25,7 +25,7 @@ RSpec/MultipleExpectations:
 RSpec/ExampleLength:
   Enabled: false
 
-Rspec/MultipleMemoizedHelpers:
+RSpec/MultipleMemoizedHelpers:
   Enabled: false
 
 RSpec/MessageSpies:

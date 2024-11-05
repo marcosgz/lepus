@@ -57,6 +57,7 @@ module Lepus
         end
 
         setup_consumers
+        check_bunny_connection
 
         run_process_callbacks(:boot) do
           sync_std_streams
@@ -70,6 +71,11 @@ module Lepus
       if configuration.consumers.empty?
         abort "No consumers found. Exiting..."
       end
+    end
+
+    def check_bunny_connection
+      temp_bunny = Lepus.config.create_connection(suffix: "(boot-check)")
+      temp_bunny.close
     end
 
     def start_processes
