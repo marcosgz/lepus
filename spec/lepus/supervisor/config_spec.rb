@@ -26,32 +26,14 @@ RSpec.describe Lepus::Supervisor::Config do
   describe "#consumers" do
     after { reset_config! }
 
-    it "returns an empty array if no consumers are configured" do
-      Lepus.config.consumers_directory = Pathname.new("/tmp/lepus/consumers")
-      expect(config.consumers).to eq([])
-    end
+    it "returns all consumer classes that inherit from Lepus::Consumer" do
+      my_consumer = Class.new(Lepus::Consumer)
+      abstract_consumer = Class.new(Lepus::Consumer) { self.abstract_class = true }
+      stub_const("MyConsumer", my_consumer)
+      stub_const("AbstractConsumer", abstract_consumer)
 
-    context "when consumers are configured" do
-      before do
-        Lepus.config.consumers_directory = Pathname.new("/tmp/lepus/consumers")
-        allow(Dir).to receive(:[]).and_return([
-          "/tmp/lepus/consumers/ignore.js",
-          "/tmp/lepus/consumers/exclude",
-          "/tmp/lepus/consumers/application_consumer.rb",
-          "/tmp/lepus/consumers/foo_consumer.rb",
-          "/tmp/lepus/consumers/namespaced/bar_consumer.rb"
-        ])
-        allow(File).to receive(:readlines).and_return([""])
-        expect(File).to receive(:readlines).with("/tmp/lepus/consumers/application_consumer.rb").and_return([
-          "class ApplicationConsumer < Lepus::Consumer",
-          "  self.abstract_class = true",
-          "end"
-        ])
-      end
-
-      it "returns the list of consumers" do
-        expect(config.consumers).to eq(["FooConsumer", "Namespaced::BarConsumer"])
-      end
+      expect(config.consumers).to include("MyConsumer")
+      expect(config.consumers).not_to include("AbstractConsumer")
     end
   end
 end

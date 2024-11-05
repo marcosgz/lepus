@@ -7,7 +7,7 @@ module Lepus
     method_option :pidfile, type: :string, default: nil
     method_option :require_file, type: :string, aliases: "-r", default: nil
 
-    desc "start FirstConsumer,SeconConsumer ... ,NthConsumer", "Run Consumer"
+    desc "start FirstConsumer,SecondConsumer ... ,NthConsumer", "Run Consumer"
     default_command :start
 
     def start(consumers = "")

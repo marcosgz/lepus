@@ -10,13 +10,8 @@ module Lepus
     class << self
       def start(**options)
         # Lepus.config.supervisor = true
-        configuration = Config.new(**options)
-
-        if configuration.consumers.any?
-          new(configuration).tap(&:start)
-        else
-          abort "No consumers configured. Exiting..."
-        end
+        config = Config.new(**options)
+        new(config).tap(&:start)
       end
     end
 
@@ -61,9 +56,19 @@ module Lepus
           end
         end
 
+        setup_consumers
+
         run_process_callbacks(:boot) do
           sync_std_streams
         end
+      end
+    end
+
+    def setup_consumers
+      Lepus.eager_load_consumers!
+
+      if configuration.consumers.empty?
+        abort "No consumers found. Exiting..."
       end
     end
 
