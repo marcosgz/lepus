@@ -46,7 +46,15 @@ module Lepus::Processes
       super
     end
 
+    def set_procline
+      procline consumer_class.name
+    end
+
     def setup_consumer!
+      if consumer_class.config.nil?
+        raise Lepus::InvalidConsumerConfigError, "Consumer #{consumer_class.name} has no configuration"
+      end
+
       @bunny = Thread.current[:lepus_bunny] || Lepus.config.create_connection
       @channel = Thread.current[:lepus_channel] || begin
         @bunny.create_channel(nil, 1, true).tap do |channel|
