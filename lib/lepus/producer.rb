@@ -9,7 +9,7 @@ module Lepus
     }.freeze
 
     DEFAULT_PUBLISH_OPTIONS = {
-      expiration: 7 * (60 * 60 * 24),
+      expiration: 7 * (60 * 60 * 24)
     }.freeze
 
     def initialize(exchange_name, **options)

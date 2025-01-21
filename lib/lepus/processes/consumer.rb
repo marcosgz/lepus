@@ -16,6 +16,18 @@ module Lepus::Processes
       super.merge(consumer_class: consumer_class.to_s)
     end
 
+    def before_fork
+      return unless @consumer_class.respond_to?(:before_fork, true)
+
+      @consumer_class.send(:before_fork)
+    end
+
+    def after_fork
+      return unless @consumer_class.respond_to?(:after_fork, true)
+
+      @consumer_class.send(:after_fork)
+    end
+
     private
 
     SLEEP_INTERVAL = 5
@@ -77,8 +89,9 @@ module Lepus::Processes
           main_queue.bind(@exchange, **opts)
         end
 
+        consumer_instance = consumer_class.new
         consumer_wrapper = Lepus::ConsumerWrapper.new(
-          consumer_class.new,
+          consumer_instance,
           main_queue.channel,
           main_queue,
           "#{consumer_class.name}-#{n + 1}"

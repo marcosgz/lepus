@@ -44,15 +44,15 @@ RSpec.describe Lepus::Producer do
   end
 
   describe "#publish" do
-    let(:options) { { expiration: 60 } }
+    let(:options) { {expiration: 60} }
 
     context "when the message is different than String" do
-      let(:message) { { key: "value" } }
+      let(:message) { {key: "value"} }
 
       it "publishes the message to the exchange as JSON" do
-        bunny = instance_double("Bunny::Session")
-        channel = instance_double("Bunny::Channel")
-        exchange = instance_double("Bunny::Exchange")
+        bunny = instance_double(Bunny::Session)
+        channel = instance_double(Bunny::Channel)
+        exchange = instance_double(Bunny::Exchange)
 
         allow(producer).to receive(:bunny).and_return(bunny)
         expect(bunny).to receive(:with_channel).and_yield(channel)
@@ -63,8 +63,7 @@ RSpec.describe Lepus::Producer do
 
         expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
         expect(exchange).to have_received(:publish).with(MultiJson.dump(message),
-          described_class::DEFAULT_PUBLISH_OPTIONS.merge(options).merge(content_type: "application/json")
-        )
+          described_class::DEFAULT_PUBLISH_OPTIONS.merge(options).merge(content_type: "application/json"))
       end
     end
 
@@ -72,9 +71,9 @@ RSpec.describe Lepus::Producer do
       let(:message) { "test message" }
 
       it "publishes the message to the exchange as text" do
-        bunny = instance_double("Bunny::Session")
-        channel = instance_double("Bunny::Channel")
-        exchange = instance_double("Bunny::Exchange")
+        bunny = instance_double(Bunny::Session)
+        channel = instance_double(Bunny::Channel)
+        exchange = instance_double(Bunny::Exchange)
 
         allow(producer).to receive(:bunny).and_return(bunny)
         expect(bunny).to receive(:with_channel).and_yield(channel)
@@ -85,8 +84,7 @@ RSpec.describe Lepus::Producer do
 
         expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
         expect(exchange).to have_received(:publish).with(message,
-          described_class::DEFAULT_PUBLISH_OPTIONS.merge(options).merge(content_type: "text/plain")
-        )
+          described_class::DEFAULT_PUBLISH_OPTIONS.merge(options).merge(content_type: "text/plain"))
       end
     end
   end

@@ -12,10 +12,14 @@ module Lepus::Processes
         self.class.send(:"before_#{name}_callbacks").each do |method|
           send(method)
         end
-        yield if block_given?
+
+        result = yield if block_given?
+
         self.class.send(:"after_#{name}_callbacks").each do |method|
           send(method)
         end
+
+        result
       end
     end
 
@@ -25,6 +29,7 @@ module Lepus::Processes
         base.instance_variable_set(:@after_boot_callbacks, after_boot_callbacks.dup)
         base.instance_variable_set(:@before_shutdown_callbacks, before_shutdown_callbacks.dup)
         base.instance_variable_set(:@after_shutdown_callbacks, after_shutdown_callbacks.dup)
+        super
       end
 
       def before_boot(*methods)

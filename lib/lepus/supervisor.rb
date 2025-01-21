@@ -79,7 +79,9 @@ module Lepus
     end
 
     def start_processes
-      configuration.configured_processes.each { |configured_process| start_process(configured_process) }
+      configuration.configured_processes.each do |configured_process|
+        start_process(configured_process)
+      end
     end
 
     def supervise
@@ -104,7 +106,9 @@ module Lepus
         instance.mode = :fork
       end
 
+      process_instance.before_fork
       pid = fork do
+        process_instance.after_fork
         process_instance.start
       end
 
