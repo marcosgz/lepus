@@ -25,7 +25,7 @@ module Lepus
         return if @abstract_class == true
         return @config if defined?(@config)
 
-        name = name.split("::").last.gsub(/([a-z\d])([A-Z])/, '\1_\2').downcase
+        name = Primitive::String.new(self).underscore.split("/").last
         @config = ConsumerConfig.new(queue: name, exchange: name)
       end
 
@@ -43,7 +43,7 @@ module Lepus
         if middleware.is_a?(Symbol) || middleware.is_a?(String)
           begin
             require_relative "middlewares/#{middleware}"
-            class_name = middleware.to_s.split("_").map(&:capitalize).join
+            class_name = Primitive::String.new(middleware).classify
             class_name = "JSON" if class_name == "Json"
             middleware = Lepus::Middlewares.const_get(class_name)
           rescue LoadError, NameError

@@ -8,7 +8,8 @@ module Lepus::Processes
 
     def initialize(class_name:, **options)
       @consumer_class = class_name
-      @consumer_class = @consumer_class.constantize if @consumer_class.is_a?(String)
+      @consumer_class = Lepus::Primitive::String.new(@consumer_class).constantize if @consumer_class.is_a?(String)
+
       super(**options)
     end
 

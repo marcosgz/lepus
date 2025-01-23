@@ -3,6 +3,7 @@
 module Lepus::Processes
   module Interruptible
     def wake_up
+      puts "[Interruptible |> #{self.class.name}] Waking up process..."
       interrupt
     end
 
@@ -11,6 +12,7 @@ module Lepus::Processes
     SELF_PIPE_BLOCK_SIZE = 11
 
     def interrupt
+      puts "[Interruptible |> #{self.class.name}] Interrupting process..."
       self_pipe[:writer].write_nonblock(".")
     rescue Errno::EAGAIN, Errno::EINTR
       # Ignore writes that would block and retry

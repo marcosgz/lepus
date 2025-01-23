@@ -2,7 +2,7 @@
 
 module Lepus
   class Supervisor < Processes::Base
-    include LifecycleHooks
+    # include LifecycleHooks
     include Maintenance
     include Signals
     include Pidfiled
@@ -25,17 +25,17 @@ module Lepus
     def start
       boot
 
-      run_start_hooks
+      # run_start_hooks
 
       start_processes
-      launch_maintenance_task
+      # launch_maintenance_task
 
       supervise
     end
 
     def stop
       super
-      run_stop_hooks
+      # run_stop_hooks
     end
 
     private

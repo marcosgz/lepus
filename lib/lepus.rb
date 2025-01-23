@@ -47,6 +47,9 @@ module Lepus
   class InvalidConsumerConfigError < Error
   end
 
+  class ShutdownError < Error
+  end
+
   module Processes
     class ProcessMissingError < RuntimeError
       def initialize
