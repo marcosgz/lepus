@@ -177,7 +177,7 @@ module Lepus
 
     def reap_terminated_forks
       loop do
-        pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
+        pid, _ = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
 
         # if (terminated_fork = forks.delete(pid)) && (!status.exited? || status.exitstatus > 0)

@@ -104,9 +104,9 @@ module Lepus::Processes
         end
         main_queue.subscribe_with(consumer_wrapper)
       end
-    rescue Bunny::TCPConnectionFailed, Bunny::PossibleAuthenticationFailureError => e
+    rescue Bunny::TCPConnectionFailed, Bunny::PossibleAuthenticationFailureError
       raise Lepus::ShutdownError
-    rescue Lepus::InvalidConsumerConfigError => e
+    rescue Lepus::InvalidConsumerConfigError
       raise Lepus::ShutdownError
     end
   end

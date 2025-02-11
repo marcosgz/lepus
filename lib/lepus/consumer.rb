@@ -104,7 +104,7 @@ module Lepus
           nest_middleware(middleware, next_middleware)
         end
         .call(message)
-    rescue Exception => ex
+    rescue Exception => ex # rubocop:disable Lint/RescueException
       # @TODO: add error handling
       logger.error(ex)
 
