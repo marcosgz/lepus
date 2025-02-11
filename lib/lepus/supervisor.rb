@@ -2,7 +2,7 @@
 
 module Lepus
   class Supervisor < Processes::Base
-    # include LifecycleHooks
+    include LifecycleHooks
     include Maintenance
     include Signals
     include Pidfiled
@@ -25,17 +25,17 @@ module Lepus
     def start
       boot
 
-      # run_start_hooks
+      run_start_hooks
 
       start_processes
-      # launch_maintenance_task
+      launch_maintenance_task
 
       supervise
     end
 
     def stop
       super
-      # run_stop_hooks
+      run_stop_hooks
     end
 
     private
@@ -125,6 +125,7 @@ module Lepus
         term_forks
 
         shutdown_timeout = 5
+        puts "\nWaiting up to #{shutdown_timeout} seconds for processes to terminate gracefully..."
         Timer.wait_until(shutdown_timeout, -> { all_forks_terminated? }) do
           reap_terminated_forks
         end
@@ -179,10 +180,6 @@ module Lepus
       loop do
         pid, _ = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
-
-        # if (terminated_fork = forks.delete(pid)) && (!status.exited? || status.exitstatus > 0)
-        #   handle_claimed_jobs_by(terminated_fork, status)
-        # end
 
         configured_processes.delete(pid)
       end
