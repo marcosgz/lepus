@@ -8,7 +8,8 @@ module Lepus::Processes
 
     def initialize(class_name:, **options)
       @consumer_class = class_name
-      @consumer_class = @consumer_class.constantize if @consumer_class.is_a?(String)
+      @consumer_class = Lepus::Primitive::String.new(@consumer_class).constantize if @consumer_class.is_a?(String)
+
       super(**options)
     end
 
@@ -51,7 +52,7 @@ module Lepus::Processes
     end
 
     def shutdown
-      @consumers.to_a.each(&:cancel)
+      @subscriptions.to_a.each(&:cancel)
       @channel&.close
       @bunny&.close
 
@@ -70,8 +71,10 @@ module Lepus::Processes
       @bunny = Thread.current[:lepus_bunny] || Lepus.config.create_connection
       @channel = Thread.current[:lepus_channel] || begin
         @bunny.create_channel(nil, 1, true).tap do |channel|
-          channel.prefetch(1)
-          channel.on_uncaught_exception { |error| handle_thread_error(error) }
+          channel.prefetch(1) # @TODO make this configurable
+          channel.on_uncaught_exception { |error|
+            handle_thread_error(error)
+          }
         end
       end
 
@@ -83,7 +86,7 @@ module Lepus::Processes
         @error_queue = @channel.queue(*args)
       end
 
-      @consumers = Array.new((_threads = 1)) do |n| # may add multiple consumers in the future, need to test how this works
+      @subscriptions = Array.new((_threads = 1)) do |n| # may add multiple consumers in the future
         main_queue = @channel.queue(*consumer_class.config.consumer_queue_args)
         consumer_class.config.binds_args.each do |opts|
           main_queue.bind(@exchange, **opts)
@@ -101,9 +104,10 @@ module Lepus::Processes
         end
         main_queue.subscribe_with(consumer_wrapper)
       end
-      # rescue Lepus::InvalidConsumerConfigError => e
-      #   # shutdown if the consumer config is invalid
-      #   raise e
+    rescue Bunny::TCPConnectionFailed, Bunny::PossibleAuthenticationFailureError
+      raise Lepus::ShutdownError
+    rescue Lepus::InvalidConsumerConfigError
+      raise Lepus::ShutdownError
     end
   end
 end

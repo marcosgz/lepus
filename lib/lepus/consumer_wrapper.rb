@@ -36,6 +36,8 @@ module Lepus
         channel.reject(delivery_tag)
       when :requeue
         channel.reject(delivery_tag, true)
+      when :nack
+        channel.nack(delivery_tag, false, true)
       else
         raise Lepus::InvalidConsumerReturnError, result
       end

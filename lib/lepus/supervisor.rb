@@ -125,6 +125,7 @@ module Lepus
         term_forks
 
         shutdown_timeout = 5
+        puts "\nWaiting up to #{shutdown_timeout} seconds for processes to terminate gracefully..."
         Timer.wait_until(shutdown_timeout, -> { all_forks_terminated? }) do
           reap_terminated_forks
         end
@@ -177,12 +178,8 @@ module Lepus
 
     def reap_terminated_forks
       loop do
-        pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
+        pid, _ = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
-
-        if (terminated_fork = forks.delete(pid)) && (!status.exited? || status.exitstatus > 0)
-          handle_claimed_jobs_by(terminated_fork, status)
-        end
 
         configured_processes.delete(pid)
       end
@@ -194,18 +191,10 @@ module Lepus
       Lepus.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
         if (terminated_fork = forks.delete(pid))
           payload[:fork] = terminated_fork
-          handle_claimed_jobs_by(terminated_fork, status)
 
           start_process(configured_processes.delete(pid))
         end
       end
-    end
-
-    def handle_claimed_jobs_by(terminated_fork, status)
-      # if registered_process = process.supervisees.find_by(name: terminated_fork.name)
-      #   error = Processes::ProcessExitError.new(status)
-      #   registered_process.fail_all_claimed_executions_with(error)
-      # end
     end
 
     def all_forks_terminated?

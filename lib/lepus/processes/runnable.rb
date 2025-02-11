@@ -55,20 +55,21 @@ module Lepus::Processes
     end
 
     def shutting_down?
-      stopped? || (running_as_fork? && supervisor_went_away?) || finished? || !registered?
+      stopped? || (running_as_fork? && supervisor_went_away?) || !registered? # || finished?
     end
 
     def run
       raise NotImplementedError
     end
 
-    def finished?
-      running_inline? && all_work_completed?
-    end
+    # @TODO Add it to the inline mode
+    # def finished?
+    #   running_inline? && all_work_completed?
+    # end
 
-    def all_work_completed?
-      false
-    end
+    # def all_work_completed?
+    #   false
+    # end
 
     def shutdown
     end
@@ -76,9 +77,9 @@ module Lepus::Processes
     def set_procline
     end
 
-    def running_inline?
-      mode.inline?
-    end
+    # def running_inline?
+    #   mode.inline?
+    # end
 
     def running_async?
       mode.async?

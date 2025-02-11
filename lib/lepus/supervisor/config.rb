@@ -6,7 +6,7 @@ require "logger"
 module Lepus
   class Supervisor < Processes::Base
     class Config
-      class Process < Struct.new(:process_class, :attributes)
+      class ProcessStruct < Struct.new(:process_class, :attributes)
         def instantiate
           process_class.new(**attributes)
         end
@@ -37,7 +37,7 @@ module Lepus
 
       def consumer_processes
         @consumer_processes ||= consumers.map do |class_name|
-          Process.new(Lepus::Processes::Consumer, {class_name: class_name})
+          ProcessStruct.new(Lepus::Processes::Consumer, {class_name: class_name})
         end
       end
     end

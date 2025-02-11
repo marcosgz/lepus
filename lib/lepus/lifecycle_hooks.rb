@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Lepus
+  # @TODO: Move after/before fork hooks to this module
   module LifecycleHooks
     def self.included(base)
       base.extend ClassMethods

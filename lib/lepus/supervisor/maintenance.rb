@@ -3,9 +3,6 @@ module Lepus
     module Maintenance
       def self.included(base)
         base.send :include, InstanceMethods
-        base.class_eval do
-          after_boot :fail_orphaned_executions
-        end
       end
 
       module InstanceMethods
@@ -30,12 +27,6 @@ module Lepus
         def prune_dead_processes
           wrap_in_app_executor do
             Lepus::Process.prune(excluding: process)
-          end
-        end
-
-        def fail_orphaned_executions
-          wrap_in_app_executor do
-            # ClaimedExecution.orphaned.fail_all_with(Processes::ProcessMissingError.new)
           end
         end
       end

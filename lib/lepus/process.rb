@@ -115,9 +115,6 @@ module Lepus
     end
 
     def prune
-      # error = Lepus::Processes::ProcessPrunedError.new(last_heartbeat_at)
-      # fail_all_claimed_executions_with(error)
-
       deregister(pruned: true)
     end
 
