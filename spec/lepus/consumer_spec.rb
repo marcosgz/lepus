@@ -116,6 +116,14 @@ RSpec.describe Lepus::Consumer do
       ).to be :requeue
     end
 
+    it "allows returning :nack" do
+      allow(instance).to receive(:perform).and_return(:nack)
+
+      expect(
+        instance.process_delivery(delivery_info, metadata, payload)
+      ).to be :nack
+    end
+
     it "raises an error if #perform does not return a valid symbol" do
       allow(instance).to receive(:perform).and_return(:blorg)
 
@@ -167,6 +175,20 @@ RSpec.describe Lepus::Consumer do
 
     it "returns :requeue when called in #perform" do
       expect(instance.perform(message)).to eq(:requeue)
+    end
+  end
+
+  describe "#nack" do
+    let(:instance) do
+      Class.new(Lepus::Consumer) do
+        def perform(_message)
+          nack
+        end
+      end.new
+    end
+
+    it "returns :nack when called in #perform" do
+      expect(instance.perform(message)).to eq(:nack)
     end
   end
 

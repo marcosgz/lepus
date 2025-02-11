@@ -25,7 +25,7 @@ module Lepus
         return if @abstract_class == true
         return @config if defined?(@config)
 
-        name = Primitive::String.new(self).underscore.split("/").last
+        name = Primitive::String.new(to_s).underscore.split("/").last
         @config = ConsumerConfig.new(queue: name, exchange: name)
       end
 
@@ -43,13 +43,14 @@ module Lepus
         if middleware.is_a?(Symbol) || middleware.is_a?(String)
           begin
             require_relative "middlewares/#{middleware}"
-            class_name = Primitive::String.new(middleware).classify
+            class_name = Primitive::String.new(middleware.to_s).classify
             class_name = "JSON" if class_name == "Json"
             middleware = Lepus::Middlewares.const_get(class_name)
           rescue LoadError, NameError
             raise ArgumentError, "Middleware #{middleware} not found"
           end
         end
+
         middlewares << middleware.new(**opts)
       end
 
@@ -103,6 +104,11 @@ module Lepus
           nest_middleware(middleware, next_middleware)
         end
         .call(message)
+    rescue Exception => ex
+      # @TODO: add error handling
+      logger.error(ex)
+
+      reject!
     end
 
     protected
@@ -136,6 +142,14 @@ module Lepus
     end
     alias_method :requeue, :requeue!
 
+    # Helper method to nack a message.
+    #
+    # @return [:nack]
+    def nack!
+      :nack
+    end
+    alias_method :nack, :nack!
+
     private
 
     def work_proc
@@ -153,7 +167,7 @@ module Lepus
     end
 
     def verify_result(result)
-      return if %i[ack reject requeue].include?(result)
+      return if %i[ack reject requeue nack].include?(result)
 
       raise InvalidConsumerReturnError, result
     end

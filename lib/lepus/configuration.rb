@@ -5,6 +5,7 @@ module Lepus
   class Configuration
     DEFAULT_RABBITMQ_URL = "amqp://guest:guest@localhost:5672"
     DEFAULT_RECOVERY_ATTEMPTS = 10
+    DEFAULT_RECOVERY_INTERVAL = 5.0
     DEFAULT_RECOVER_FROM_CONNECTION_CLOSE = true
     DEFAULT_CONSUMERS_DIRECTORY = Pathname.new("app/consumers")
 
@@ -19,6 +20,9 @@ module Lepus
 
     # @return [Integer] max number of recovery attempts, nil means forever
     attr_accessor :recovery_attempts
+
+    # @return [Integer] the interval in seconds between network recovery attempts.
+    attr_accessor :recovery_interval
 
     # @return [Pathname] the directory where the consumers are stored.
     attr_reader :consumers_directory
@@ -40,6 +44,7 @@ module Lepus
       @connection_name = "Lepus (#{Lepus::VERSION})"
       @rabbitmq_url = ENV.fetch("RABBITMQ_URL", DEFAULT_RABBITMQ_URL) || DEFAULT_RABBITMQ_URL
       @recovery_attempts = DEFAULT_RECOVERY_ATTEMPTS
+      @recovery_interval = DEFAULT_RECOVERY_INTERVAL
       @recover_from_connection_close = DEFAULT_RECOVER_FROM_CONNECTION_CLOSE
       @consumers_directory = DEFAULT_CONSUMERS_DIRECTORY
       @process_heartbeat_interval = 60
@@ -67,18 +72,16 @@ module Lepus
         connection_name: connection_name,
         recover_from_connection_close: recover_from_connection_close,
         recovery_attempts: recovery_attempts,
+        network_recovery_interval: recovery_interval,
         recovery_attempts_exhausted: recovery_attempts_exhausted
       }.compact
     end
 
-    # @return [Proc] that is passed to Bunny’s recovery_attempts_exhausted block. Nil if recovery_attempts is nil.
+    # @return [Proc, NilClass] Proc that is passed to Bunny’s recovery_attempts_exhausted block.
     def recovery_attempts_exhausted
-      return nil unless recovery_attempts
+      return unless recovery_attempts
 
       proc do
-        # We need to have this since Bunny’s multi-threading is cumbersome here.
-        # Session reconnection seems not to be done in the main thread. If we want to
-        # achieve a restart of the app we need to modify the thread behaviour.
         Thread.current.abort_on_exception = true
         raise Lepus::MaxRecoveryAttemptsExhaustedError
       end

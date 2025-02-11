@@ -31,10 +31,6 @@ module Lepus
   class Error < StandardError
   end
 
-  # Error that is raised when the Bunny recovery attempts are exhausted.
-  class MaxRecoveryAttemptsExhaustedError < Error
-  end
-
   # Error that is raised when an invalid value is returned from {#work}
   class InvalidConsumerReturnError < Error
     def initialize(value)
@@ -50,33 +46,8 @@ module Lepus
   class ShutdownError < Error
   end
 
-  module Processes
-    class ProcessMissingError < RuntimeError
-      def initialize
-        super("The process that was running this job no longer exists")
-      end
-    end
-
-    class ProcessExitError < RuntimeError
-      def initialize(status)
-        message = "Process pid=#{status.pid} exited unexpectedly."
-        if status.exitstatus
-          message += " Exited with status #{status.exitstatus}."
-        end
-
-        if status.signaled?
-          message += " Received unhandled signal #{status.termsig}."
-        end
-
-        super(message)
-      end
-    end
-
-    class ProcessPrunedError < RuntimeError
-      def initialize(last_heartbeat_at)
-        super("Process was found dead and pruned (last heartbeat at: #{last_heartbeat_at}")
-      end
-    end
+  # Error that is raised when the Bunny recovery attempts are exhausted.
+  class MaxRecoveryAttemptsExhaustedError < ShutdownError
   end
 
   extend self
