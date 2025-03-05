@@ -8,13 +8,9 @@ module Lepus
       auto_delete: false
     }.freeze
 
-    DEFAULT_PUBLISH_OPTIONS = {
-      expiration: 7 * (60 * 60 * 24)
-    }.freeze
-
     def initialize(exchange_name, **options)
       @exchange_name = exchange_name
-      @exchange_options = DEFAULT_EXCHANGE_OPTIONS.merge(options)
+      @exchange_options = options
     end
 
     def publish(message, **options)
