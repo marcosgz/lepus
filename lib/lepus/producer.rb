@@ -22,17 +22,15 @@ module Lepus
         MultiJson.dump(message)
       end
 
-      bunny.with_channel do |channel|
-        exchange = channel.exchange(@exchange_name, @exchange_options)
-        exchange.publish(
-          payload,
-          options
-        )
+      Lepus.with_connection do |bunny|
+        bunny.with_channel do |channel|
+          exchange = channel.exchange(@exchange_name, @exchange_options)
+          exchange.publish(
+            payload,
+            options
+          )
+        end
       end
-    end
-
-    def bunny
-      Thread.current[:lepus_bunny] ||= Lepus.config.create_connection(suffix: "producer")
     end
   end
 end

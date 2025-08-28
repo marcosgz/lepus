@@ -54,7 +54,7 @@ RSpec.describe Lepus::Producer do
         channel = instance_double(Bunny::Channel)
         exchange = instance_double(Bunny::Exchange)
 
-        allow(producer).to receive(:bunny).and_return(bunny)
+        allow(Lepus).to receive(:with_connection).and_yield(bunny)
         expect(bunny).to receive(:with_channel).and_yield(channel)
         allow(channel).to receive(:exchange).and_return(exchange)
         allow(exchange).to receive(:publish)
@@ -77,7 +77,7 @@ RSpec.describe Lepus::Producer do
         channel = instance_double(Bunny::Channel)
         exchange = instance_double(Bunny::Exchange)
 
-        allow(producer).to receive(:bunny).and_return(bunny)
+        allow(Lepus).to receive(:with_connection).and_yield(bunny)
         expect(bunny).to receive(:with_channel).and_yield(channel)
         allow(channel).to receive(:exchange).and_return(exchange)
         allow(exchange).to receive(:publish)
