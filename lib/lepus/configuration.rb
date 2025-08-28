@@ -73,6 +73,15 @@ module Lepus
       @consumers_directory = value.is_a?(Pathname) ? value : Pathname.new(value)
     end
 
+    def connection_pool
+      return @connection_pool if defined?(@connection_pool)
+
+      @connection_pool = Lepus::ConnectionPool.new(
+        size: connection_pool_size,
+        timeout: connection_pool_timeout,
+      )
+    end
+
     protected
 
     def connection_config

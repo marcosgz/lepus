@@ -106,4 +106,20 @@ RSpec.describe Lepus::Configuration do
       expect(configuration.connection_pool_timeout).to eq(3.5)
     end
   end
+
+  describe "#connection_pool" do
+    it "builds a ConnectionPool using the default pool config" do
+      configuration.connection_pool_size = 10
+      configuration.connection_pool_timeout = 10.0
+
+      expect(conn_pool = configuration.connection_pool).to be_an_instance_of(Lepus::ConnectionPool)
+      expect(conn_pool.pool_size).to eq(10)
+      expect(conn_pool.timeout).to eq(10.0)
+    end
+
+    it "memoizes connection_pool" do
+      conn_pool = configuration.connection_pool
+      expect(configuration.connection_pool).to be(conn_pool)
+    end
+  end
 end
