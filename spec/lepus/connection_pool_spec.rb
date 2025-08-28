@@ -12,7 +12,7 @@ RSpec.describe Lepus::ConnectionPool do
   end
   let(:pool_size) { 3 }
   let(:timeout) { 1.0 }
-  let(:pool) { described_class.new(pool_size: pool_size, timeout: timeout) }
+  let(:pool) { described_class.new(size: pool_size, timeout: timeout) }
 
   before do
     allow(Lepus).to receive(:config).and_return(
@@ -28,7 +28,7 @@ RSpec.describe Lepus::ConnectionPool do
 
     it "uses default values when not specified" do
       default_pool = described_class.new
-      expect(default_pool.pool_size).to eq(Lepus::ConnectionPool::DEFAULT_POOL_SIZE)
+      expect(default_pool.pool_size).to eq(Lepus::ConnectionPool::DEFAULT_SIZE)
       expect(default_pool.timeout).to eq(Lepus::ConnectionPool::DEFAULT_TIMEOUT)
     end
   end
@@ -58,7 +58,7 @@ RSpec.describe Lepus::ConnectionPool do
 
     it "raises ConnectionPoolTimeoutError when pool is exhausted" do
       # Create a small pool and try to exhaust it
-      small_pool = described_class.new(pool_size: 1, timeout: 0.1)
+      small_pool = described_class.new(size: 1, timeout: 0.1)
 
       # Hold one connection
       small_pool.with_connection do |conn|
