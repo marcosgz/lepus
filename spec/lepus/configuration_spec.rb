@@ -70,4 +70,40 @@ RSpec.describe Lepus::Configuration do
       expect(configuration.consumers_directory).to eq(Pathname.new("lib/consumers"))
     end
   end
+
+  describe "connection pool configuration" do
+    it "has a default connection_pool_size" do
+      expect(configuration.connection_pool_size).to eq(Lepus::ConnectionPool::DEFAULT_SIZE)
+    end
+
+    it "allows setting the connection_pool_size" do
+      configuration.connection_pool_size = 10
+
+      expect(configuration.connection_pool_size).to eq(10)
+    end
+
+    it "has a default connection_pool_timeout" do
+      expect(configuration.connection_pool_timeout).to eq(Lepus::ConnectionPool::DEFAULT_TIMEOUT)
+    end
+
+    it "allows setting the connection_pool_timeout" do
+      configuration.connection_pool_timeout = 10.0
+
+      expect(configuration.connection_pool_timeout).to eq(10.0)
+    end
+
+    it "accepts integer values for connection_pool_size" do
+      configuration.connection_pool_size = 5
+
+      expect(configuration.connection_pool_size).to be_a(Integer)
+      expect(configuration.connection_pool_size).to eq(5)
+    end
+
+    it "accepts float values for connection_pool_timeout" do
+      configuration.connection_pool_timeout = 3.5
+
+      expect(configuration.connection_pool_timeout).to be_a(Float)
+      expect(configuration.connection_pool_timeout).to eq(3.5)
+    end
+  end
 end

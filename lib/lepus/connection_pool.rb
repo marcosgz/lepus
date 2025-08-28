@@ -6,13 +6,13 @@ module Lepus
   # Connection pool for managing Bunny connections efficiently
   # Similar to the connection_pool gem but using concurrent-ruby primitives
   class ConnectionPool
-    DEFAULT_POOL_SIZE = 5
+    DEFAULT_SIZE = 5
     DEFAULT_TIMEOUT = 5.0
 
     attr_reader :pool_size, :timeout
 
-    def initialize(pool_size: DEFAULT_POOL_SIZE, timeout: DEFAULT_TIMEOUT)
-      @pool_size = pool_size
+    def initialize(size: DEFAULT_SIZE, timeout: DEFAULT_TIMEOUT)
+      @pool_size = size
       @timeout = timeout
       @available = Concurrent::Array.new
       @in_use = Concurrent::Array.new

@@ -15,6 +15,12 @@ module Lepus
     # @return [String] the name for the RabbitMQ connection.
     attr_accessor :connection_name
 
+    # @return [Integer] the size of the connection pool. Default is 2.
+    attr_accessor :connection_pool_size
+
+    # @return [Float] the timeout in seconds for connection pool operations. Default is 5.0.
+    attr_accessor :connection_pool_timeout
+
     # @return [Boolean] if the recover_from_connection_close value is set for the RabbitMQ connection.
     attr_accessor :recover_from_connection_close
 
@@ -42,6 +48,8 @@ module Lepus
 
     def initialize
       @connection_name = "Lepus (#{Lepus::VERSION})"
+      @connection_pool_size = Lepus::ConnectionPool::DEFAULT_SIZE
+      @connection_pool_timeout = Lepus::ConnectionPool::DEFAULT_TIMEOUT
       @rabbitmq_url = ENV.fetch("RABBITMQ_URL", DEFAULT_RABBITMQ_URL) || DEFAULT_RABBITMQ_URL
       @recovery_attempts = DEFAULT_RECOVERY_ATTEMPTS
       @recovery_interval = DEFAULT_RECOVERY_INTERVAL

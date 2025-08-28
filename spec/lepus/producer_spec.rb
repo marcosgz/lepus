@@ -62,8 +62,10 @@ RSpec.describe Lepus::Producer do
         producer.publish(message, **options)
 
         expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
-        expect(exchange).to have_received(:publish).with(MultiJson.dump(message),
-          described_class::DEFAULT_PUBLISH_OPTIONS.merge(options).merge(content_type: "application/json"))
+        expect(exchange).to have_received(:publish).with(
+          MultiJson.dump(message),
+          content_type: "application/json", expiration: 60,
+        )
       end
     end
 
@@ -83,8 +85,10 @@ RSpec.describe Lepus::Producer do
         producer.publish(message, **options)
 
         expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
-        expect(exchange).to have_received(:publish).with(message,
-          described_class::DEFAULT_PUBLISH_OPTIONS.merge(options).merge(content_type: "text/plain"))
+        expect(exchange).to have_received(:publish).with(
+          message,
+          content_type: "text/plain", expiration: 60
+        )
       end
     end
   end

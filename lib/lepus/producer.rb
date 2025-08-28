@@ -10,7 +10,7 @@ module Lepus
 
     def initialize(exchange_name, **options)
       @exchange_name = exchange_name
-      @exchange_options = options
+      @exchange_options = DEFAULT_EXCHANGE_OPTIONS.merge(options)
     end
 
     def publish(message, **options)
@@ -26,7 +26,7 @@ module Lepus
         exchange = channel.exchange(@exchange_name, @exchange_options)
         exchange.publish(
           payload,
-          DEFAULT_PUBLISH_OPTIONS.merge(options)
+          options
         )
       end
     end

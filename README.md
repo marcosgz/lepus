@@ -32,6 +32,8 @@ You can configure the Lepus using the `Lepus.configure` method. The configuratio
 
 - `rabbitmq_url`: The RabbitMQ host. Default: to `RABBITMQ_URL` environment variable or `amqp://guest:guest@localhost:5672`.
 - `connection_name`: The connection name. Default: `Lepus`.
+- `connection_pool_size`: The size of the connection pool. Default: `2`.
+- `connection_pool_timeout`: The timeout in seconds for connection pool operations. Default: `5.0`.
 - `recovery_attempts`: The number of attempts to recover the connection. Nil means infinite. Default: `10`.
 - `recover_from_connection_close`: If the connection should be recovered when it's closed. Default: `true`.
 - `app_executor`: The [Rails executor](https://guides.rubyonrails.org/threading_and_code_execution.html#executor) used to wrap asynchronous operations. Only available if you are using Rails. Default: `nil`.
@@ -44,6 +46,8 @@ You can configure the Lepus using the `Lepus.configure` method. The configuratio
 Lepus.configure do |config|
   config.connection_name = 'MyApp'
   config.rabbitmq_url = ENV.fetch('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672')
+  config.connection_pool_size = 5
+  config.connection_pool_timeout = 3.0
 end
 ```
 
