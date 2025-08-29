@@ -54,7 +54,6 @@ module Lepus::Processes
     def shutdown
       @subscriptions.to_a.each(&:cancel)
       @channel&.close
-      @bunny&.close
 
       super
     end
@@ -68,9 +67,8 @@ module Lepus::Processes
         raise Lepus::InvalidConsumerConfigError, "Consumer #{consumer_class.name} has no configuration"
       end
 
-      @bunny = Thread.current[:lepus_bunny] || Lepus.config.create_connection
-      @channel = Thread.current[:lepus_channel] || begin
-        @bunny.create_channel(nil, 1, true).tap do |channel|
+      @channel = Lepus.with_connection do |bunny|
+        bunny.create_channel(nil, 1, true).tap do |channel|
           channel.prefetch(1) # @TODO make this configurable
           channel.on_uncaught_exception { |error|
             handle_thread_error(error)

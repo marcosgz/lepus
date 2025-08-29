@@ -35,7 +35,9 @@ module Lepus
 
     def stop
       super
+
       run_stop_hooks
+      Lepus.config.connection_pool.shutdown
     end
 
     private
