@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Lepus::Processes
-  class Consumer < Base
+  class ChildrenProcess < Base
     include Runnable
 
     attr_reader :consumer_class
@@ -80,6 +80,7 @@ module Lepus::Processes
       if (args = consumer_class.config.retry_queue_args)
         @retry_queue = @channel.queue(*args)
       end
+
       if (args = consumer_class.config.error_queue_args)
         @error_queue = @channel.queue(*args)
       end
