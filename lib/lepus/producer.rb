@@ -26,7 +26,7 @@ module Lepus
         MultiJson.dump(message)
       end
 
-      connection.with_channel do |channel|
+      @connection.with_channel do |channel|
         exchange = channel.exchange(@exchange_name, @exchange_options)
         exchange.publish(
           payload,
