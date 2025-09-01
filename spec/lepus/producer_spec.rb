@@ -45,10 +45,10 @@ RSpec.describe Lepus::Producer do
   end
 
   describe "#publish" do
-    let(:options) { { expiration: 60 } }
+    let(:options) { {expiration: 60} }
 
     context "when the message is different than String" do
-      let(:message) { { key: "value" } }
+      let(:message) { {key: "value"} }
 
       it "publishes the message to the exchange as JSON" do
         channel = instance_double(Bunny::Channel)
@@ -63,7 +63,7 @@ RSpec.describe Lepus::Producer do
         expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
         expect(exchange).to have_received(:publish).with(
           MultiJson.dump(message),
-          content_type: "application/json", expiration: 60,
+          content_type: "application/json", expiration: 60
         )
       end
     end

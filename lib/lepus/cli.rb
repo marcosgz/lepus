@@ -12,7 +12,7 @@ module Lepus
 
     def start(*consumers)
       opts = (@options || {}).transform_keys(&:to_sym)
-      consumers = consumers.flat_map { |c| c.split(",") }.map(&:strip).uniq.sort
+      consumers.flat_map { |c| c.split(",") }.map(&:strip).uniq.sort
       if (logfile = opts.delete(:logfile))
         Lepus.logger = Logger.new(logfile)
       end

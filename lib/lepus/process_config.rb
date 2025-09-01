@@ -26,7 +26,7 @@ module Lepus
 
     def assign(options = {})
       options.each do |key, value|
-        public_send("#{key}=", value) if respond_to?("#{key}=")
+        public_send(:"#{key}=", value) if respond_to?(:"#{key}=")
       end
     end
 
@@ -36,7 +36,7 @@ module Lepus
       @connection_pool = Lepus::ConnectionPool.new(
         size: pool_size,
         timeout: pool_timeout,
-        suffix: id.to_s,
+        suffix: id.to_s
       )
     end
   end

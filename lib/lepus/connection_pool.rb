@@ -55,7 +55,7 @@ module Lepus
       @mutex.with_read_lock do
         # Try to reuse an existing connection
         connection = @available.shift
-        if connection && connection.connected?
+        if connection&.connected?
           @in_use << connection
           return connection
         end
@@ -80,7 +80,11 @@ module Lepus
         if connection.connected? && !@shutdown.value
           @available << connection
         else
-          connection.close rescue nil
+          begin
+            connection.close
+          rescue
+            nil
+          end
         end
       end
       @semaphore.release
@@ -91,7 +95,9 @@ module Lepus
 
       @mutex.with_write_lock do
         (@available + @in_use).each do |connection|
-          connection.close rescue nil
+          connection.close
+        rescue
+          nil
         end
         @available.clear
         @in_use.clear

@@ -51,12 +51,10 @@ module Lepus
   end
 
   class << self
+    attr_writer :logger
+
     def logger
       @logger ||= DEFAULT_LOGGER
-    end
-
-    def logger=(logger)
-      @logger = logger
     end
 
     def instrument(channel, **options, &block)
