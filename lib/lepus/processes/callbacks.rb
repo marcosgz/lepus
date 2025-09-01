@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Lepus::Processes
+# @TODO: Move after/before fork hooks to this module
   module Callbacks
     def self.included(base)
       base.extend(ClassMethods)
