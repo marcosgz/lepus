@@ -32,26 +32,44 @@ You can configure the Lepus using the `Lepus.configure` method. The configuratio
 
 - `rabbitmq_url`: The RabbitMQ host. Default: to `RABBITMQ_URL` environment variable or `amqp://guest:guest@localhost:5672`.
 - `connection_name`: The connection name. Default: `Lepus`.
-- `connection_pool_size`: The size of the connection pool. Default: `2`.
-- `connection_pool_timeout`: The timeout in seconds for connection pool operations. Default: `5.0`.
 - `recovery_attempts`: The number of attempts to recover the connection. Nil means infinite. Default: `10`.
 - `recover_from_connection_close`: If the connection should be recovered when it's closed. Default: `true`.
 - `app_executor`: The [Rails executor](https://guides.rubyonrails.org/threading_and_code_execution.html#executor) used to wrap asynchronous operations. Only available if you are using Rails. Default: `nil`.
 - `on_thread_error`: The block to be executed when an error occurs on the thread. Default: `nil`.
 - `process_heartbeat_interval`: The interval in seconds between heartbeats. Default is `60 seconds`.
-- `process_alive_threshold`: the threshold in seconds to consider a process alive. Default is `5 minutes`.
+- `consumer_process`: A block to configure the consumer process. You can set the `pool_size`, `pool_timeout`, and `alive_threshold` options inline or using a block. Main process is `:default`, but you can define more processes with different names for different consumers.
 
 
 ```ruby
 Lepus.configure do |config|
   config.connection_name = 'MyApp'
   config.rabbitmq_url = ENV.fetch('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672')
-  config.connection_pool_size = 5
-  config.connection_pool_timeout = 3.0
 end
 ```
 
-## Defining a Consumer
+### Configuration > Consumer Process
+
+You can configure the consumer process using the `consumer_process` method. The options are:
+- `pool_size`: The number of threads in the pool. Default: `1`.
+- `pool_timeout`: The timeout in seconds to wait for a thread to be available. Default: `5.0`.
+- `alive_threshold`: The threshold in seconds to consider a process alive. Default: `60 * 5` (5 minutes).
+
+The default process is named `:default`, but you can define more processes with different names for different consumers.
+
+Configuration can be done inline or using a block:
+
+```ruby
+Lepus.configure do |config|
+  # Block
+  config.consumer_process(:default) do |c|
+    c.pool_size = 2
+    c.pool_timeout = 10.0
+    c.alive_threshold = 60 * 5 # 5 minutes
+  end
+  # Inline
+  config.consumer_process(:datasync, pool_size: 1, pool_timeout: 5.0, alive_threshold: 60 * 5)
+end
+```
 
 To define a consumer, you need to create a class inheriting from `Lepus::Consumer` and implement the `perform` method. The `perform` method will be called when a message is received. Use the `configure` method to set the queue name, exchange name, and other options.
 

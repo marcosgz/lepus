@@ -71,55 +71,66 @@ RSpec.describe Lepus::Configuration do
     end
   end
 
-  describe "connection pool configuration" do
-    it "has a default connection_pool_size" do
-      expect(configuration.connection_pool_size).to eq(Lepus::ConnectionPool::DEFAULT_SIZE)
+  describe "#consumer_process" do
+    it "initializes a new ConsumerProcessConfig a new process config with default values" do
+      expect {
+        configuration.consumer_process
+      }.to change { configuration.instance_variable_get(:@consumer_process_configs).size }.by(1)
+
+      expect(configuration.send(:consumer_process_configs)).to a_hash_including(
+        Lepus::ProcessConfig::DEFAULT => an_instance_of(Lepus::ProcessConfig)
+      )
     end
 
-    it "allows setting the connection_pool_size" do
-      configuration.connection_pool_size = 10
+    it "allows setting options on the process config" do
+      configuration.consumer_process(pool_size: 5, pool_timeout: 10)
 
-      expect(configuration.connection_pool_size).to eq(10)
+      expect(configs = configuration.send(:consumer_process_configs)).to a_hash_including(
+        Lepus::ProcessConfig::DEFAULT => an_instance_of(Lepus::ProcessConfig)
+      )
+      conf = configs[Lepus::ProcessConfig::DEFAULT]
+      expect(conf.pool_size).to eq(5)
+      expect(conf.pool_timeout).to eq(10)
+      expect(conf).to be_frozen
     end
 
-    it "has a default connection_pool_timeout" do
-      expect(configuration.connection_pool_timeout).to eq(Lepus::ConnectionPool::DEFAULT_TIMEOUT)
+    it "allows setting multiple process configs" do
+      configuration.consumer_process(:high_priority, pool_size: 10)
+      configuration.consumer_process(:low_priority, pool_size: 2)
+
+      expect(configs = configuration.send(:consumer_process_configs)).to a_hash_including(
+        high_priority: an_instance_of(Lepus::ProcessConfig),
+        low_priority: an_instance_of(Lepus::ProcessConfig)
+      )
+      expect(configs.size).to eq(2)
+      expect(configs[:high_priority].pool_size).to eq(10)
+      expect(configs[:low_priority].pool_size).to eq(2)
+      expect(configs.values).to all(be_frozen)
     end
 
-    it "allows setting the connection_pool_timeout" do
-      configuration.connection_pool_timeout = 10.0
-
-      expect(configuration.connection_pool_timeout).to eq(10.0)
+    it "allows setting to multiple process ids at once" do
+      configuration.consumer_process(:high, :low, pool_size: 3)
+      expect(configs = configuration.send(:consumer_process_configs)).to a_hash_including(
+        high: an_instance_of(Lepus::ProcessConfig),
+        low: an_instance_of(Lepus::ProcessConfig)
+      )
+      expect(configs.size).to eq(2)
+      expect(configs[:high].pool_size).to eq(3)
+      expect(configs[:low].pool_size).to eq(3)
     end
 
-    it "accepts integer values for connection_pool_size" do
-      configuration.connection_pool_size = 5
+    it "yields the process config to a block" do
+      yielded = nil
+      configuration.consumer_process(:custom) do |config|
+        yielded = config
+        config.pool_size = 7
+      end
 
-      expect(configuration.connection_pool_size).to be_a(Integer)
-      expect(configuration.connection_pool_size).to eq(5)
-    end
-
-    it "accepts float values for connection_pool_timeout" do
-      configuration.connection_pool_timeout = 3.5
-
-      expect(configuration.connection_pool_timeout).to be_a(Float)
-      expect(configuration.connection_pool_timeout).to eq(3.5)
-    end
-  end
-
-  describe "#connection_pool" do
-    it "builds a ConnectionPool using the default pool config" do
-      configuration.connection_pool_size = 10
-      configuration.connection_pool_timeout = 10.0
-
-      expect(conn_pool = configuration.connection_pool).to be_an_instance_of(Lepus::ConnectionPool)
-      expect(conn_pool.pool_size).to eq(10)
-      expect(conn_pool.timeout).to eq(10.0)
-    end
-
-    it "memoizes connection_pool" do
-      conn_pool = configuration.connection_pool
-      expect(configuration.connection_pool).to be(conn_pool)
+      expect(yielded).to be_an_instance_of(Lepus::ProcessConfig)
+      expect(yielded.pool_size).to eq(7)
+      expect(configuration.send(:consumer_process_configs)).to a_hash_including(
+        custom: yielded
+      )
     end
   end
 end

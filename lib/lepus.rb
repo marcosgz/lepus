@@ -78,12 +78,6 @@ module Lepus
       true
     end
 
-    def with_connection
-      config.connection_pool.with_connection do |bunny|
-        yield bunny
-      end
-    end
-
     def config
       @config ||= Configuration.new
     end

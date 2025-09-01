@@ -173,5 +173,11 @@ module Lepus
 
       raise InvalidConsumerReturnError, result
     end
+
+    def with_connection
+      config.connection_pool.with_connection do |bunny|
+        yield bunny
+      end
+    end
   end
 end

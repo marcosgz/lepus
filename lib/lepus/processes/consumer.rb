@@ -67,7 +67,7 @@ module Lepus::Processes
         raise Lepus::InvalidConsumerConfigError, "Consumer #{consumer_class.name} has no configuration"
       end
 
-      @channel = Lepus.with_connection do |bunny|
+      @channel = consumer_class.with_connection do |bunny|
         bunny.create_channel(nil, 1, true).tap do |channel|
           channel.prefetch(1) # @TODO make this configurable
           channel.on_uncaught_exception { |error|

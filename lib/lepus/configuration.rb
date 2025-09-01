@@ -15,12 +15,6 @@ module Lepus
     # @return [String] the name for the RabbitMQ connection.
     attr_accessor :connection_name
 
-    # @return [Integer] the size of the connection pool. Default is 2.
-    attr_accessor :connection_pool_size
-
-    # @return [Float] the timeout in seconds for connection pool operations. Default is 5.0.
-    attr_accessor :connection_pool_timeout
-
     # @return [Boolean] if the recover_from_connection_close value is set for the RabbitMQ connection.
     attr_accessor :recover_from_connection_close
 
@@ -43,20 +37,16 @@ module Lepus
     # @return [Integer] the interval in seconds between heartbeats. Default is 60 seconds.
     attr_accessor :process_heartbeat_interval
 
-    # @return [Integer] the threshold in seconds to consider a process alive. Default is 5 minutes.
-    attr_accessor :process_alive_threshold
-
     def initialize
       @connection_name = "Lepus (#{Lepus::VERSION})"
-      @connection_pool_size = Lepus::ConnectionPool::DEFAULT_SIZE
-      @connection_pool_timeout = Lepus::ConnectionPool::DEFAULT_TIMEOUT
       @rabbitmq_url = ENV.fetch("RABBITMQ_URL", DEFAULT_RABBITMQ_URL) || DEFAULT_RABBITMQ_URL
       @recovery_attempts = DEFAULT_RECOVERY_ATTEMPTS
       @recovery_interval = DEFAULT_RECOVERY_INTERVAL
       @recover_from_connection_close = DEFAULT_RECOVER_FROM_CONNECTION_CLOSE
       @consumers_directory = DEFAULT_CONSUMERS_DIRECTORY
+
       @process_heartbeat_interval = 60
-      @process_alive_threshold = 5 * 60
+      @consumer_process_configs = {}
     end
 
     def create_connection(suffix: nil)
@@ -73,16 +63,28 @@ module Lepus
       @consumers_directory = value.is_a?(Pathname) ? value : Pathname.new(value)
     end
 
-    def connection_pool
-      return @connection_pool if defined?(@connection_pool)
+    def consumer_process(*pids, **options)
+      pids << Lepus::ProcessConfig::DEFAULT if pids.empty?
 
-      @connection_pool = Lepus::ConnectionPool.new(
-        size: connection_pool_size,
-        timeout: connection_pool_timeout,
-      )
+      pids.map(&:to_sym).uniq.each do |pid|
+        cnf = @consumer_process_configs[pid] || Lepus::ProcessConfig.new(pid)
+        cnf.assign(options) if options.any?
+        yield(cnf) if block_given?
+        @consumer_process_configs = @consumer_process_configs.merge(pid => cnf.tap(&:freeze))
+      end
+      @consumer_process_configs.freeze
+    end
+
+    def process_alive_threshold
+      consumer_process_configs.values.map(&:alive_threshold).max
     end
 
     protected
+
+    def consumer_process_configs
+      consumer_process if @consumer_process_configs.empty?
+      @consumer_process_configs
+    end
 
     def connection_config
       {
