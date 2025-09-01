@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Lepus::Processes
-  class ChildrenProcess < Base
+  class ChildProcess < Base
     include Runnable
 
     attr_reader :consumer_class
