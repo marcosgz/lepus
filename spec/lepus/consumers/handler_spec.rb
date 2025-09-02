@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe Lepus::ConsumerWrapper do
+RSpec.describe Lepus::Consumers::Handler do
   let(:channel) { instance_double(Bunny::Channel) }
   let(:queue) { instance_double(Bunny::Queue) }
   let(:consumer_class) { Class.new(Lepus::Consumer) }

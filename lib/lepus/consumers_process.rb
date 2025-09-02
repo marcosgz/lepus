@@ -96,17 +96,17 @@ module Lepus
               main_queue.bind(exchange, **opts)
             end
 
-            # consumer_instance = consumer_class.new
-            consumer_wrapper = Lepus::ConsumerWrapper.new(
+            consumer_handler = Lepus::Consumers::Handler.new(
               consumer_class,
               channel,
               main_queue,
               "#{consumer_class.name}-#{n + 1}"
             )
-            consumer_wrapper.on_delivery do |delivery_info, metadata, payload|
-              consumer_wrapper.process_delivery(delivery_info, metadata, payload)
+
+            consumer_handler.on_delivery do |delivery_info, metadata, payload|
+              consumer_handler.process_delivery(delivery_info, metadata, payload)
             end
-            main_queue.subscribe_with(consumer_wrapper)
+            main_queue.subscribe_with(consumer_handler)
           end
         end
       end

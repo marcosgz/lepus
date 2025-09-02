@@ -74,7 +74,7 @@ RSpec.describe Lepus::Configuration do
   describe "#consumer_process" do
     before { Lepus::Consumers::ProcessFactory.send(:clear_all) }
 
-    it "initializes a new ConsumerProcessConfig a new process config with default values" do
+    it "initializes a new ProcessFactory a new process config with default values" do
       expect {
         configuration.consumer_process
       }.to change { Lepus::Consumers::ProcessFactory.exists?("default") }.from(false).to(true)
