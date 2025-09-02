@@ -114,13 +114,13 @@ RSpec.describe Lepus::Consumers::ProcessFactory do
 
   describe "#freeze_with" do
     let(:name) { "freeze_process" }
-    let(:consumer_class1) { Class.new(Lepus::Consumer) }
-    let(:consumer_class2) { Class.new(Lepus::Consumer) }
-    let(:consumers) { [consumer_class1, consumer_class2, consumer_class1] }
+    let(:consumer_class_one) { Class.new(Lepus::Consumer) }
+    let(:consumer_class_two) { Class.new(Lepus::Consumer) }
+    let(:consumers) { [consumer_class_one, consumer_class_two, consumer_class_one] }
 
     it "sets the consumers and freezes the instance" do
       instance.freeze_with(consumers)
-      expect(instance.consumers).to eq([consumer_class1, consumer_class2])
+      expect(instance.consumers).to eq([consumer_class_one, consumer_class_two])
       expect(instance).to be_frozen
     end
 

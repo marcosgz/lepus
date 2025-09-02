@@ -223,11 +223,11 @@ module Lepus
 
     def reap_terminated_forks
       loop do
-        pid, _status = ::Process.waitpid2(-1, ::Process::WNOHANG)
+        pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
 
         if (terminated_fork = forks.delete(pid))
-          puts "Process #{pid} (#{terminated_fork.name}) terminated with status #{_status.exitstatus}"
+          puts "Process #{pid} (#{terminated_fork.name}) terminated with status #{status.exitstatus}"
         end
 
         configured_processes.delete(pid)

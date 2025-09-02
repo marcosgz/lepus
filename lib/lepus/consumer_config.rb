@@ -24,7 +24,7 @@ module Lepus
 
     DEFAULT_PROCESS_OPTIONS = {
       name: "default",
-      threads: 1,
+      threads: 1
     }
 
     DEFAULT_RETRY_QUEUE_OPTIONS = {

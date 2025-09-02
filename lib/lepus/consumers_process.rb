@@ -125,6 +125,5 @@ module Lepus
         suffix: definer.name
       )
     end
-
   end
 end

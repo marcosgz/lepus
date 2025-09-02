@@ -82,7 +82,7 @@ RSpec.describe Lepus::Configuration do
 
     it "allows setting options on the process config" do
       expect {
-        configuration.consumer_process( pool_size: 5, pool_timeout: 10 )
+        configuration.consumer_process(pool_size: 5, pool_timeout: 10)
       }.to change { Lepus::Consumers::ProcessFactory.exists?("default") }.from(false).to(true)
 
       conf = Lepus::Consumers::ProcessFactory.default
@@ -110,7 +110,7 @@ RSpec.describe Lepus::Configuration do
       expect {
         configuration.consumer_process(:high, :low, pool_size: 3)
       }.to change { Lepus::Consumers::ProcessFactory.exists?("high") }.from(false).to(true)
-          .and change { Lepus::Consumers::ProcessFactory.exists?("low") }.from(false).to(true)
+        .and change { Lepus::Consumers::ProcessFactory.exists?("low") }.from(false).to(true)
 
       expect(Lepus::Consumers::ProcessFactory["high"].pool_size).to eq(3)
       expect(Lepus::Consumers::ProcessFactory["low"].pool_size).to eq(3)

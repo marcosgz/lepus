@@ -2,7 +2,6 @@
 
 module Lepus
   class Supervisor < Processes::Base
-
     module LifecycleHooks
       def self.included(base)
         base.extend ClassMethods
