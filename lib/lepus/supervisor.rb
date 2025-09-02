@@ -161,11 +161,11 @@ module Lepus
       process_instance.mode = :fork
 
       reader, writer = IO.pipe
-      # process_instance.before_fork
+      process_instance.before_fork
       pid = fork do
         reader.close
         begin
-          # process_instance.after_fork
+          process_instance.after_fork
           process_instance.start
         rescue Lepus::ShutdownError
           writer.puts(SHUTDOWN_MSG)

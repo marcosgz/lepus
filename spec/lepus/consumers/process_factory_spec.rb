@@ -68,6 +68,8 @@ RSpec.describe Lepus::Consumers::ProcessFactory do
 
       expect { frozen_instance.pool_size = 20 }.to raise_error(FrozenError)
       expect { frozen_instance.consumers << Class.new }.to raise_error(FrozenError)
+      expect { frozen_instance.before_fork {} }.to raise_error(FrozenError)
+      expect { frozen_instance.after_fork {} }.to raise_error(FrozenError)
 
       src = described_class["custom_process"]
       expect(src).to be(original)
@@ -137,6 +139,33 @@ RSpec.describe Lepus::Consumers::ProcessFactory do
       process = definer.instantiate_process
       expect(process).to be_a(Lepus::ConsumersProcess)
       expect(definer.instantiate_process).not_to be(process)
+    end
+  end
+
+  describe "#before_fork and #after_fork" do
+    let(:name) { "callback_process" }
+
+    it "registers and runs before_fork and after_fork callbacks" do
+      before_called = false
+      after_called = false
+
+      instance.before_fork { before_called = true }
+      instance.after_fork { after_called = true }
+
+      expect(before_called).to be(false)
+      expect(after_called).to be(false)
+
+      instance.run_process_callbacks(:before_fork)
+      expect(before_called).to be(true)
+      expect(after_called).to be(false)
+
+      instance.run_process_callbacks(:after_fork)
+      expect(after_called).to be(true)
+    end
+
+    it "does nothing if no callbacks are registered" do
+      expect { instance.run_process_callbacks(:before_fork) }.not_to raise_error
+      expect { instance.run_process_callbacks(:after_fork) }.not_to raise_error
     end
   end
 end

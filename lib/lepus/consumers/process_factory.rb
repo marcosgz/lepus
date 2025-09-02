@@ -68,6 +68,7 @@ module Lepus
         @pool_timeout = 5
         @alive_threshold = 5 * 60
         @consumers = []
+        @callbacks = { before_fork: [], after_fork: [] }
       end
 
       # Assign multiple attributes at once from a hash of options.
@@ -92,6 +93,7 @@ module Lepus
 
           consumer
         end.uniq.freeze
+        @callbacks = @callbacks.transform_values(&:freeze)
 
         freeze
       end
@@ -101,6 +103,24 @@ module Lepus
       def instantiate_process
         Lepus::ConsumersProcess.new(self)
       end
+
+      def before_fork(&block)
+        callbacks[:before_fork] << block if block_given?
+      end
+
+      def after_fork(&block)
+        callbacks[:after_fork] << block if block_given?
+      end
+
+      def run_process_callbacks(type)
+        return unless callbacks[type]
+
+        callbacks[type].each { |callback| callback.call }
+      end
+
+      private
+
+      attr_reader :callbacks
     end
   end
 end

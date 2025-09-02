@@ -26,7 +26,6 @@ module Lepus::Processes
 
     def stop
       super
-      puts "Stopping #{name} process..."
 
       interrupt
       @thread&.join
@@ -73,7 +72,6 @@ module Lepus::Processes
     # end
 
     def shutdown
-      puts "#{name} process shutting down..."
     end
 
     def set_procline

@@ -25,17 +25,29 @@ module Lepus
       "consumer-#{name}"
     end
 
-    # def before_fork
-    #   return unless @consumer_class.respond_to?(:before_fork, true)
+    def before_fork
+      consumers.each do |consumer_class|
+        next unless consumer_class.respond_to?(:before_fork, true)
 
-    #   @consumer_class.send(:before_fork)
-    # end
+        warn "[DEPRECATION] #{consumer_class}.before_fork is deprecated and will be removed in Lepus 0.0.1. Use the process-level before_fork hook instead."
 
-    # def after_fork
-    #   return unless @consumer_class.respond_to?(:after_fork, true)
+        consumer_class.send(:before_fork)
+      end
 
-    #   @consumer_class.send(:after_fork)
-    # end
+      definer.run_process_callbacks(:before_fork)
+    end
+
+    def after_fork
+      consumers.each do |consumer_class|
+        next unless consumer_class.respond_to?(:after_fork, true)
+
+        warn "[DEPRECATION] #{consumer_class}.after_fork is deprecated and will be removed in Lepus 0.0.1. Use the process-level after_fork hook instead."
+
+        consumer_class.send(:after_fork)
+      end
+
+      definer.run_process_callbacks(:after_fork)
+    end
 
     private
 
