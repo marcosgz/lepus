@@ -7,7 +7,7 @@ module Lepus
     include Singleton
 
     def initialize
-      @processes = ::Concurrent::Hash.new
+      @processes = ::Concurrent::Map.new
     end
 
     def add(process)

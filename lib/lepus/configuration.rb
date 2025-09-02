@@ -46,7 +46,6 @@ module Lepus
       @consumers_directory = DEFAULT_CONSUMERS_DIRECTORY
 
       @process_heartbeat_interval = 60
-      @consumer_process_configs = {}
     end
 
     def create_connection(suffix: nil)
@@ -63,33 +62,21 @@ module Lepus
       @consumers_directory = value.is_a?(Pathname) ? value : Pathname.new(value)
     end
 
-    def consumer_process(*pids, **options)
-      pids << Lepus::ProcessConfig::DEFAULT if pids.empty?
+    def consumer_process(*names, **options)
+      names << Lepus::Consumers::ProcessFactory::DEFAULT_NAME if names.empty?
 
-      pids.map(&:to_sym).uniq.each do |pid|
-        cnf = @consumer_process_configs[pid] || Lepus::ProcessConfig.new(pid)
-        cnf.assign(options) if options.any?
-        yield(cnf) if block_given?
-        @consumer_process_configs = @consumer_process_configs.merge(pid => cnf.tap(&:freeze))
+      names.map(&:to_s).uniq.each do |pid|
+        inst = Lepus::Consumers::ProcessFactory[pid]
+        inst.assign(options) if options.any?
+        yield(inst) if block_given?
       end
-      @consumer_process_configs.freeze
     end
 
     def process_alive_threshold
-      consumer_process_configs.values.map(&:alive_threshold).max
-    end
-
-    def process_config_for(pid = Lepus::ProcessConfig::DEFAULT)
-      consumer_process(pid) unless @consumer_process_configs.key?(pid.to_sym)
-      @consumer_process_configs.fetch(pid.to_sym)
+      5 * 60
     end
 
     protected
-
-    def consumer_process_configs
-      consumer_process if @consumer_process_configs.empty?
-      @consumer_process_configs
-    end
 
     def connection_config
       {

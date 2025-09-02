@@ -14,7 +14,8 @@ RSpec.describe Lepus::ProcessRegistry do
     it "adds a process to the registry" do
       described_class.instance.add(supervisor)
 
-      expect(described_class.instance.instance_variable_get(:@processes)).to eq("p1" => supervisor)
+      processlist = described_class.instance.instance_variable_get(:@processes)
+      expect(processlist["p1"]).to eq(supervisor)
     end
   end
 

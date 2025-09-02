@@ -26,13 +26,13 @@ RSpec.describe Lepus::Supervisor do
       expect(supervisor.send(:require_file)).to eq("config/environment")
     end
 
-    it "sets the consumer_class_names" do
+    it "sets the @consumer_class_names" do
       supervisor = described_class.new(consumers: ["MyConsumer"])
-      expect(supervisor.send(:consumer_class_names)).to eq(["MyConsumer"])
+      expect(supervisor.instance_variable_get(:@consumer_class_names)).to eq(["MyConsumer"])
     end
   end
 
-  describe "#consumer_class_names" do
+  describe "#consumer_classes" do
     after { reset_config! }
 
     it "returns all consumer classes that inherit from Lepus::Consumer" do
@@ -41,8 +41,8 @@ RSpec.describe Lepus::Supervisor do
       stub_const("MyConsumer", my_consumer)
       stub_const("AbstractConsumer", abstract_consumer)
 
-      expect(supervisor.send(:consumer_class_names)).to include("MyConsumer")
-      expect(supervisor.send(:consumer_class_names)).not_to include("AbstractConsumer")
+      expect(supervisor.send(:consumer_classes)).to include(MyConsumer)
+      expect(supervisor.send(:consumer_classes)).not_to include(AbstractConsumer)
     end
   end
 

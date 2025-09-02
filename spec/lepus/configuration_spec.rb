@@ -72,51 +72,48 @@ RSpec.describe Lepus::Configuration do
   end
 
   describe "#consumer_process" do
+    before { Lepus::Consumers::ProcessFactory.send(:clear_all) }
+
     it "initializes a new ConsumerProcessConfig a new process config with default values" do
       expect {
         configuration.consumer_process
-      }.to change { configuration.instance_variable_get(:@consumer_process_configs).size }.by(1)
-
-      expect(configuration.send(:consumer_process_configs)).to a_hash_including(
-        Lepus::ProcessConfig::DEFAULT => an_instance_of(Lepus::ProcessConfig)
-      )
+      }.to change { Lepus::Consumers::ProcessFactory.exists?("default") }.from(false).to(true)
     end
 
     it "allows setting options on the process config" do
-      configuration.consumer_process(pool_size: 5, pool_timeout: 10)
+      expect {
+        configuration.consumer_process( pool_size: 5, pool_timeout: 10 )
+      }.to change { Lepus::Consumers::ProcessFactory.exists?("default") }.from(false).to(true)
 
-      expect(configs = configuration.send(:consumer_process_configs)).to a_hash_including(
-        Lepus::ProcessConfig::DEFAULT => an_instance_of(Lepus::ProcessConfig)
-      )
-      conf = configs[Lepus::ProcessConfig::DEFAULT]
+      conf = Lepus::Consumers::ProcessFactory.default
       expect(conf.pool_size).to eq(5)
       expect(conf.pool_timeout).to eq(10)
-      expect(conf).to be_frozen
     end
 
-    it "allows setting multiple process configs" do
-      configuration.consumer_process(:high_priority, pool_size: 10)
-      configuration.consumer_process(:low_priority, pool_size: 2)
+    it "allows setting process by given name" do
+      expect {
+        configuration.consumer_process(:custom, pool_size: 4)
+      }.to change { Lepus::Consumers::ProcessFactory.exists?("custom") }.from(false).to(true)
+      conf = Lepus::Consumers::ProcessFactory["custom"]
+      expect(conf.pool_size).to eq(4)
+      expect(conf.name).to eq("custom")
+    end
 
-      expect(configs = configuration.send(:consumer_process_configs)).to a_hash_including(
-        high_priority: an_instance_of(Lepus::ProcessConfig),
-        low_priority: an_instance_of(Lepus::ProcessConfig)
-      )
-      expect(configs.size).to eq(2)
-      expect(configs[:high_priority].pool_size).to eq(10)
-      expect(configs[:low_priority].pool_size).to eq(2)
-      expect(configs.values).to all(be_frozen)
+    it "ignores when process with given name already exists" do
+      configuration.consumer_process(:custom, pool_size: 4)
+      expect {
+        configuration.consumer_process(:custom, pool_size: 10)
+      }.to change { Lepus::Consumers::ProcessFactory["custom"].pool_size }.from(4).to(10)
     end
 
     it "allows setting to multiple process ids at once" do
-      configuration.consumer_process(:high, :low, pool_size: 3)
-      expect(configs = configuration.send(:consumer_process_configs)).to a_hash_including(
-        high: an_instance_of(Lepus::ProcessConfig),
-        low: an_instance_of(Lepus::ProcessConfig)
-      )
-      expect(configs.size).to eq(2)
-      expect(configs[:high].pool_size).to eq(3)
-      expect(configs[:low].pool_size).to eq(3)
+      expect {
+        configuration.consumer_process(:high, :low, pool_size: 3)
+      }.to change { Lepus::Consumers::ProcessFactory.exists?("high") }.from(false).to(true)
+          .and change { Lepus::Consumers::ProcessFactory.exists?("low") }.from(false).to(true)
+
+      expect(Lepus::Consumers::ProcessFactory["high"].pool_size).to eq(3)
+      expect(Lepus::Consumers::ProcessFactory["low"].pool_size).to eq(3)
     end
 
     it "yields the process config to a block" do
@@ -125,12 +122,9 @@ RSpec.describe Lepus::Configuration do
         yielded = config
         config.pool_size = 7
       end
-
-      expect(yielded).to be_an_instance_of(Lepus::ProcessConfig)
+      conf = Lepus::Consumers::ProcessFactory["custom"]
+      expect(yielded).to be(conf)
       expect(yielded.pool_size).to eq(7)
-      expect(configuration.send(:consumer_process_configs)).to a_hash_including(
-        custom: yielded
-      )
     end
   end
 end

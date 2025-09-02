@@ -1,14 +1,18 @@
 # frozen_string_literal: true
 
+require "forwardable"
+
 module Lepus
   class ConsumersProcess < Processes::Base
     include Processes::Runnable
 
-    attr_reader :name, :consumers
+    extend Forwardable
+    def_delegators :definer, :name, :consumers
 
-    def initialize(name:, consumers:, **options)
-      @name = name
-      @consumers = consumers
+    attr_reader :definer
+
+    def initialize(definer, **options)
+      @definer = definer
 
       super(**options)
     end
@@ -18,7 +22,7 @@ module Lepus
     end
 
     def kind
-      "consumer:#{name}"
+      "consumer-#{name}"
     end
 
     # def before_fork
@@ -36,10 +40,6 @@ module Lepus
     private
 
     SLEEP_INTERVAL = 5
-
-    def config
-      @config ||= Lepus.config.process_config_for(name.to_sym)
-    end
 
     def run
       wrap_in_app_executor do
@@ -67,7 +67,7 @@ module Lepus
     end
 
     def set_procline
-      procline "(#{consumers.size} consumers)"
+      procline "#{consumers.size} consumers"
     end
 
     def setup_consumers!
@@ -120,9 +120,9 @@ module Lepus
       return @connection_pool if defined?(@connection_pool)
 
       @connection_pool = Lepus::ConnectionPool.new(
-        size: config.pool_size,
-        timeout: config.pool_timeout,
-        suffix: config.id.to_s
+        size: definer.pool_size,
+        timeout: definer.pool_timeout,
+        suffix: definer.name
       )
     end
 

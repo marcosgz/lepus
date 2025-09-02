@@ -5,9 +5,10 @@ require "spec_helper"
 RSpec.describe Lepus::ConsumerWrapper do
   let(:channel) { instance_double(Bunny::Channel) }
   let(:queue) { instance_double(Bunny::Queue) }
-  let(:consumer) { instance_double(Lepus::Consumer) }
+  let(:consumer_class) { Class.new(Lepus::Consumer) }
+  let(:consumer) { instance_double(consumer_class) }
   let(:wrapper) do
-    described_class.new(consumer, channel, queue, "tag", {test: 1})
+    described_class.new(consumer_class, channel, queue, "tag", {test: 1})
   end
   let(:delivery_info) do
     instance_double(Bunny::DeliveryInfo, delivery_tag: delivery_tag)
@@ -19,6 +20,7 @@ RSpec.describe Lepus::ConsumerWrapper do
   before do
     allow(channel).to receive(:generate_consumer_tag)
     allow(channel).to receive(:ack)
+    wrapper.instance_variable_set(:@consumer, consumer)
   end
 
   it "sets the channel" do

@@ -2,15 +2,6 @@
 
 module Lepus
   class Supervisor < Processes::Base
-    class ChildProcessFactory < Struct.new(:name, :consumers)
-      def instantiate(supervisor)
-        instance = Lepus::ConsumersProcess.new(name: name, consumers: consumers)
-        instance.supervised_by supervisor
-        instance.mode = :fork
-        instance
-      end
-    end
-
     include LifecycleHooks
     include Maintenance
     include Signals
@@ -22,6 +13,10 @@ module Lepus
       end
     end
 
+    # @param require_file [String, nil] The file to require before loading consumers, typically the Rails environment file or similar.
+    # @param pidfile [String] The path to the pidfile where the supervisor's PID will be stored. Default is "tmp/pids/lepus.pid".
+    # @param shutdown_timeout [Integer] The timeout in seconds to wait for child processes to terminate gracefully before forcing termination. Default is 5 seconds.
+    # @param consumers [Array<String, Class>] An optional list of consumer class names (as strings or constants) to be run by this supervisor. If not provided, all discovered consumer classes will be used.
     def initialize(require_file: nil, pidfile: "tmp/pids/lepus.pid", shutdown_timeout: 5, **kwargs)
       @pidfile_path = pidfile
       @require_file = require_file
@@ -54,13 +49,22 @@ module Lepus
 
     private
 
-    attr_reader :pidfile_path, :require_file, :shutdown_timeout
-    attr_reader :forks, :configured_processes
+    # @return [String] The raw location of the pidfile used to store the supervisor's `#pidfile`.
+    attr_reader :pidfile_path
 
-    # def consumer_class_names
-    #   @consumer_class_names ||= Lepus::Consumer.descendants.reject(&:abstract_class?).map(&:name).compact
-    # end
+    # @return [String] The file to require before loading consumers, typically the Rails environment file or similar.
+    attr_reader :require_file
 
+    # @return [Integer] The timeout in seconds to wait for child processes to terminate gracefully before forcing termination.
+    attr_reader :shutdown_timeout
+
+    # @return [Hash{Integer[pid] => Lepus::ConsumersProcess}] map of forked process IDs to their instances
+    attr_reader :forks
+
+    # @return [Hash{Integer[pid] => Lepus::Consumers::ProcessFactory}] map of forked process IDs to their immutable factory configurations
+    attr_reader :configured_processes
+
+    # @return [Array<Lepus::Consumer>] the full list of consumer classes to be run by this supervisor and its child processes.
     def consumer_classes
       @consumer_classes ||= if @consumer_class_names
         @consumer_class_names.map { |name| Lepus::Primitive::String.new(name).constantize }
@@ -122,7 +126,8 @@ module Lepus
 
     def build_and_start_processes
       consumer_classes.group_by { |klass| klass.config.process_name }.map do |process_name, classes|
-        start_process(ChildProcessFactory.new(process_name, classes))
+        frozen_factory = Lepus::Consumers::ProcessFactory.immutate_with(process_name, consumers: classes)
+        start_process(frozen_factory)
       end
     end
 
@@ -143,7 +148,9 @@ module Lepus
     end
 
     def start_process(factory)
-      process_instance = factory.instantiate(process)
+      process_instance = factory.instantiate_process
+      process_instance.supervised_by(process)
+      process_instance.mode = :fork
 
       # process_instance.before_fork
       pid = fork do
