@@ -60,7 +60,7 @@ RSpec.describe Lepus::Consumer do
     it "sets the config" do
       custom_consumer_class.configure(mandatory_options)
 
-      expect(custom_consumer_class.config).to be_a(Lepus::ConsumerConfig)
+      expect(custom_consumer_class.config).to be_a(Lepus::Consumers::Config)
       expect(custom_consumer_class.config.consumer_queue_args).to eq(["test", {durable: true}])
       expect(custom_consumer_class.config.exchange_args).to eq(["exchange", {durable: true, type: :topic}])
       expect(custom_consumer_class.config.binds_args).to eq([{routing_key: "test.new"}])

@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe Lepus::ConsumerConfig do
+RSpec.describe Lepus::Consumers::Config do
   let(:config) { described_class.new(options) }
   let(:options) { {} }
 
