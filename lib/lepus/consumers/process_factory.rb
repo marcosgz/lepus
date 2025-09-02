@@ -58,15 +58,11 @@ module Lepus
       # @return [Integer] the timeout in seconds to wait for a connection from the pool. Default is 5 seconds.
       attr_accessor :pool_timeout
 
-      # @return [Integer] the threshold in seconds to consider a process alive. Default is 5 minutes.
-      attr_accessor :alive_threshold
-
       # You probably want to use .[] or .default to get an instance instead of calling new directly.
       def initialize(name)
         @name = name.to_s
         @pool_size = 1
         @pool_timeout = 5
-        @alive_threshold = 5 * 60
         @consumers = []
         @callbacks = { before_fork: [], after_fork: [] }
       end

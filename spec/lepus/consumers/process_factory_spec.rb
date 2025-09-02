@@ -92,7 +92,6 @@ RSpec.describe Lepus::Consumers::ProcessFactory do
       expect(instance.name).to eq("my_process")
       expect(instance.pool_size).to eq(1)
       expect(instance.pool_timeout).to eq(5)
-      expect(instance.alive_threshold).to eq(300)
       expect(instance.consumers).to eq([])
     end
   end
@@ -101,10 +100,9 @@ RSpec.describe Lepus::Consumers::ProcessFactory do
     let(:name) { "assign_process" }
 
     it "assigns valid attributes from the options hash" do
-      instance.assign(pool_size: 3, pool_timeout: 15, alive_threshold: 600)
+      instance.assign(pool_size: 3, pool_timeout: 15)
       expect(instance.pool_size).to eq(3)
       expect(instance.pool_timeout).to eq(15)
-      expect(instance.alive_threshold).to eq(600)
     end
 
     it "raises ArgumentError for unknown attributes" do
