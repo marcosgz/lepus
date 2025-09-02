@@ -62,7 +62,7 @@ module Lepus
     # @return [Integer] The timeout in seconds to wait for child processes to terminate gracefully before forcing termination.
     attr_reader :shutdown_timeout
 
-    # @return [Hash{Integer[pid] => Lepus::ConsumersProcess}] map of forked process IDs to their instances
+    # @return [Hash{Integer[pid] => Lepus::Consumers::Process}] map of forked process IDs to their instances
     attr_reader :forks
 
     # @return [Hash{Integer[pid] => Lepus::Consumers::ProcessFactory}] map of forked process IDs to their immutable factory configurations

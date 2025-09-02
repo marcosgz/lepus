@@ -98,10 +98,10 @@ module Lepus
         freeze
       end
 
-      # Instantiate a new Lepus::ConsumersProcess based on this configuration.
-      # @return [Lepus::ConsumersProcess] a new instance of Lepus::ConsumersProcess configured with this definition.
+      # Instantiate a new Lepus::Consumers::Process based on this configuration.
+      # @return [Lepus::Consumers::Process] a new instance of Lepus::Consumers::Process configured with this definition.
       def instantiate_process
-        Lepus::ConsumersProcess.new(self)
+        Lepus::Consumers::Process.new(self)
       end
 
       def before_fork(&block)

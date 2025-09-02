@@ -134,10 +134,10 @@ RSpec.describe Lepus::Consumers::ProcessFactory do
   end
 
   describe "#instantiate_process" do
-    it "returns a new Lepus::ConsumersProcess instance configured with this definition" do
+    it "returns a new Lepus::Consumers::Process instance configured with this definition" do
       definer = described_class["instantiate_process"]
       process = definer.instantiate_process
-      expect(process).to be_a(Lepus::ConsumersProcess)
+      expect(process).to be_a(Lepus::Consumers::Process)
       expect(definer.instantiate_process).not_to be(process)
     end
   end
