@@ -3,7 +3,6 @@
 module Lepus
   module Processes
     class Base
-      # extend Callbacks[:boot, :shutdown]
       include Callbacks
       include AppExecutor
       include Registrable
