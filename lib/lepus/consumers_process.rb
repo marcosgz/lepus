@@ -110,7 +110,7 @@ module Lepus
           end
         end
       end
-    rescue Bunny::TCPConnectionFailed, Bunny::PossibleAuthenticationFailureError
+    rescue Bunny::TCPConnectionFailed, Bunny::PossibleAuthenticationFailureError, Bunny::PreconditionFailed
       raise Lepus::ShutdownError
     rescue Lepus::InvalidConsumerConfigError
       raise Lepus::ShutdownError

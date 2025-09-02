@@ -2,7 +2,10 @@
 
 module Lepus
   class Supervisor < Processes::Base
+    SHUTDOWN_MSG = "☠️".freeze
+
     include LifecycleHooks
+    include ChildrenPipes
     include Maintenance
     include Signals
     include Pidfiled
@@ -24,6 +27,7 @@ module Lepus
       @consumer_class_names = Array(kwargs[:consumers]).map(&:to_s) if kwargs.key?(:consumers)
 
       @forks = {}
+      @pipes = {}
       @configured_processes = {}
       ProcessRegistry.instance # Ensure the registry is initialized
 
@@ -63,6 +67,9 @@ module Lepus
 
     # @return [Hash{Integer[pid] => Lepus::Consumers::ProcessFactory}] map of forked process IDs to their immutable factory configurations
     attr_reader :configured_processes
+
+    # @return [Hash{Integer[pid] => IO}] map of forked process IDs to their communication pipes
+    attr_reader :pipes
 
     # @return [Array<Lepus::Consumer>] the full list of consumer classes to be run by this supervisor and its child processes.
     def consumer_classes
@@ -139,6 +146,7 @@ module Lepus
         process_signal_queue
 
         unless stopped?
+          check_for_shutdown_messages
           reap_and_replace_terminated_forks
           interruptible_sleep(1)
         end
@@ -152,14 +160,24 @@ module Lepus
       process_instance.supervised_by(process)
       process_instance.mode = :fork
 
+      reader, writer = IO.pipe
       # process_instance.before_fork
       pid = fork do
-        # process_instance.after_fork
-        process_instance.start
+        reader.close
+        begin
+          # process_instance.after_fork
+          process_instance.start
+        rescue Lepus::ShutdownError
+          writer.puts(SHUTDOWN_MSG)
+          raise
+        ensure
+          writer.close
+        end
       end
 
       configured_processes[pid] = factory
       forks[pid] = process_instance
+      pipes[pid] = reader
     end
 
     def set_procline
@@ -212,6 +230,26 @@ module Lepus
       signal_processes(forks.keys, :QUIT)
     end
 
+    def check_for_shutdown_messages
+      open_pipes = pipes.values.reject(&:closed?)
+      return if open_pipes.empty?
+
+      # Check if any pipe has data available to read without blocking
+      ready_pipes, = IO.select(open_pipes, nil, nil, 0)
+      return unless ready_pipes
+
+      ready_pipes.each do |pipe|
+        begin
+          message = pipe.gets&.chomp
+          initiate_shutdown_sequence_from_child(pipe) if message == SHUTDOWN_MSG
+        rescue IOError, Errno::EPIPE
+          # Pipe was closed or broken, clean it up
+        end
+      end
+    rescue IOError
+      # Handle any IO errors during select
+    end
+
     def reap_and_replace_terminated_forks
       loop do
         pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
@@ -226,10 +264,8 @@ module Lepus
         pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
 
-        if (terminated_fork = forks.delete(pid))
-          puts "Process #{pid} (#{terminated_fork.name}) terminated with status #{status.exitstatus}"
-        end
-
+        pipes.delete(pid)&.close
+        forks.delete(pid)
         configured_processes.delete(pid)
       end
     rescue SystemCallError
@@ -238,6 +274,8 @@ module Lepus
 
     def replace_fork(pid, status)
       Lepus.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
+
+        pipes.delete(pid)&.close
         if (terminated_fork = forks.delete(pid))
           payload[:fork] = terminated_fork
 
@@ -249,5 +287,17 @@ module Lepus
     def all_forks_terminated?
       forks.empty?
     end
+
+    def initiate_shutdown_sequence_from_child(pipe)
+      if (pid = pipes.key(pipe))
+        pipes.delete(pid)
+        forks.delete(pid)
+        configured_processes.delete(pid)
+      end
+      pipe.close
+      quit_forks
+      stop
+    end
+
   end
 end

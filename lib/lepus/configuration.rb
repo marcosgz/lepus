@@ -37,6 +37,9 @@ module Lepus
     # @return [Integer] the interval in seconds between heartbeats. Default is 60 seconds.
     attr_accessor :process_heartbeat_interval
 
+    # @return [Integer] the threshold in seconds to consider a process alive. Default is 5 minutes.
+    attr_accessor :process_alive_threshold
+
     def initialize
       @connection_name = "Lepus (#{Lepus::VERSION})"
       @rabbitmq_url = ENV.fetch("RABBITMQ_URL", DEFAULT_RABBITMQ_URL) || DEFAULT_RABBITMQ_URL
@@ -44,8 +47,8 @@ module Lepus
       @recovery_interval = DEFAULT_RECOVERY_INTERVAL
       @recover_from_connection_close = DEFAULT_RECOVER_FROM_CONNECTION_CLOSE
       @consumers_directory = DEFAULT_CONSUMERS_DIRECTORY
-
       @process_heartbeat_interval = 60
+      @process_alive_threshold = 5 * 60
     end
 
     def create_connection(suffix: nil)
@@ -70,10 +73,6 @@ module Lepus
         inst.assign(options) if options.any?
         yield(inst) if block_given?
       end
-    end
-
-    def process_alive_threshold
-      5 * 60
     end
 
     protected
