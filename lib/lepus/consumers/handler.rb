@@ -11,7 +11,7 @@ module Lepus
       # @param [Hash] arguments Arguments that are passed on to +Bunny::Consumer.new+.
       def initialize(consumer_class, channel, queue, consumer_tag, arguments = {})
         @consumer_class = consumer_class
-        super(channel, queue, consumer_tag, false, false, arguments)
+        super(channel, queue, consumer_tag, _no_ack = false, _exclusive = false, arguments)
       end
 
       # Called when a message is received from the subscribed queue.

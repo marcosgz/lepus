@@ -2,6 +2,10 @@ require "thor"
 
 module Lepus
   class CLI < Thor
+    def self.exit_on_failure?
+      true
+    end
+
     method_option :debug, type: :boolean, default: false
     method_option :logfile, type: :string, default: nil
     method_option :pidfile, type: :string, default: nil

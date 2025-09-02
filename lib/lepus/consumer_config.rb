@@ -25,7 +25,7 @@ module Lepus
     DEFAULT_PROCESS_OPTIONS = {
       name: "default",
       threads: 1
-    }
+    }.freeze
 
     DEFAULT_RETRY_QUEUE_OPTIONS = {
       name: nil,
