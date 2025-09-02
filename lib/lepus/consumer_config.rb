@@ -9,10 +9,23 @@ module Lepus
       durable: true
     }.freeze
 
+    DEFAULT_CHANNEL_OPTIONS = {
+      consumer_pool_size: 1,
+      consumer_pool_abort_on_exception: false,
+      consumer_pool_shutdown_timeout: 60
+    }.freeze
+
     DEFAULT_QUEUE_OPTIONS = {
       name: nil,
       durable: true
     }.freeze
+
+    DEFAULT_PREFETCH_COUNT = 1
+
+    DEFAULT_PROCESS_OPTIONS = {
+      name: "default",
+      threads: 1,
+    }
 
     DEFAULT_RETRY_QUEUE_OPTIONS = {
       name: nil,
@@ -23,11 +36,14 @@ module Lepus
 
     DEFAULT_ERROR_QUEUE_OPTIONS = DEFAULT_QUEUE_OPTIONS
 
-    attr_reader :options
+    attr_reader :options, :prefetch_count
 
     def initialize(options = {})
       opts = HashUtil.deep_symbolize_keys(options)
 
+      @process_opts = DEFAULT_PROCESS_OPTIONS.merge(
+        declaration_config(opts.delete(:process))
+      )
       @exchange_opts = DEFAULT_EXCHANGE_OPTIONS.merge(
         declaration_config(opts.delete(:exchange))
       )
@@ -44,19 +60,24 @@ module Lepus
           declaration_config(value)
         )
       end
+      @channel_opts = DEFAULT_RETRY_QUEUE_OPTIONS.merge(opts.delete(:channel) || {})
       @bind_opts = opts.delete(:bind) || {}
       if (routing_key = opts.delete(:routing_key))
         @bind_opts[:routing_key] ||= routing_key
       end
+      @prefetch_count = opts.key?(:prefetch) ? opts.delete(:prefetch) : DEFAULT_PREFETCH_COUNT
       @options = opts
     end
 
     def channel_args
-      @channel_opts.values_at(
-        :consumer_pool_size,
-        :consumer_pool_abort_on_exception,
-        :consumer_pool_shutdown_timeout
-      )
+      [
+        nil,
+        *@channel_opts.values_at(
+          :consumer_pool_size,
+          :consumer_pool_abort_on_exception,
+          :consumer_pool_shutdown_timeout
+        )
+      ]
     end
 
     def exchange_args
@@ -107,6 +128,16 @@ module Lepus
       else
         [opts]
       end
+    end
+
+    def process_name
+      @process_opts.fetch(:name, DEFAULT_PROCESS_OPTIONS[:name])
+    end
+
+    def process_threads
+      threads = @process_opts.fetch(:threads, DEFAULT_PROCESS_OPTIONS[:threads])
+      threads = 1 if threads.to_i < 1
+      threads
     end
 
     protected

@@ -3,13 +3,13 @@ require "bunny"
 module Lepus
   # Wraps the user-defined consumer to provide the expected interface to Bunny.
   class ConsumerWrapper < Bunny::Consumer
-    # @param [Lepus::Consumer] consumer The user-defined consumer implementation derived from {Lepus::Consumer}.
+    # @param [Lepus::Consumer] consumer_class The user-defined consumer implementation derived from {Lepus::Consumer}.
     # @param [Bunny::Channel] channel The channel used for the consumer.
     # @param [Bunny::Queue] queue The queue the consumer is subscribed to.
     # @param [String] consumer_tag A string identifying the consumer instance.
     # @param [Hash] arguments Arguments that are passed on to +Bunny::Consumer.new+.
-    def initialize(consumer, channel, queue, consumer_tag, arguments = {})
-      @consumer = consumer
+    def initialize(consumer_class, channel, queue, consumer_tag, arguments = {})
+      @consumer_class = consumer_class
       super(channel, queue, consumer_tag, false, false, arguments)
     end
 
@@ -26,7 +26,9 @@ module Lepus
 
     private
 
-    attr_reader :consumer
+    def consumer
+      @consumer ||= @consumer_class.new
+    end
 
     def process_result(result, delivery_tag)
       case result

@@ -15,7 +15,7 @@ module Lepus
         private
 
         def setup_pidfile
-          if (path = configuration.pidfile)
+          if (path = pidfile_path)
             @pidfile = Pidfile.new(path).tap(&:setup)
           end
         end

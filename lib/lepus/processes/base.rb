@@ -3,6 +3,7 @@
 module Lepus
   module Processes
     class Base
+      # extend Callbacks[:boot, :shutdown]
       include Callbacks
       include AppExecutor
       include Registrable
@@ -12,7 +13,6 @@ module Lepus
       attr_reader :name
 
       def initialize(*)
-        @name = generate_name
         @stopped = false
       end
 
@@ -37,10 +37,6 @@ module Lepus
       end
 
       private
-
-      def generate_name
-        [kind.downcase, SecureRandom.hex(10)].join("-")
-      end
 
       def stopped?
         @stopped

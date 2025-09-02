@@ -2,6 +2,15 @@
 
 module Lepus
   class Supervisor < Processes::Base
+    class ChildProcessFactory < Struct.new(:name, :consumers)
+      def instantiate(supervisor)
+        instance = Lepus::ConsumersProcess.new(name: name, consumers: consumers)
+        instance.supervised_by supervisor
+        instance.mode = :fork
+        instance
+      end
+    end
+
     include LifecycleHooks
     include Maintenance
     include Signals
@@ -9,17 +18,21 @@ module Lepus
 
     class << self
       def start(**options)
-        # Lepus.config.supervisor = true
-        config = Config.new(**options)
-        new(config).tap(&:start)
+        new(**options).tap(&:start)
       end
     end
 
-    def initialize(configuration)
-      @configuration = configuration
+    def initialize(require_file: nil, pidfile: "tmp/pids/lepus.pid", shutdown_timeout: 5, **kwargs)
+      @pidfile_path = pidfile
+      @require_file = require_file
+      @shutdown_timeout = shutdown_timeout.to_i
+      @consumer_class_names = Array(kwargs[:consumers]).map(&:to_s) if kwargs.key?(:consumers)
+
       @forks = {}
       @configured_processes = {}
       ProcessRegistry.instance # Ensure the registry is initialized
+
+      super
     end
 
     def start
@@ -27,7 +40,7 @@ module Lepus
 
       run_start_hooks
 
-      start_processes
+      build_and_start_processes
       launch_maintenance_task
 
       supervise
@@ -37,17 +50,29 @@ module Lepus
       super
 
       run_stop_hooks
-      Lepus.config.connection_pool.shutdown
     end
 
     private
 
-    attr_reader :configuration, :forks, :configured_processes
+    attr_reader :pidfile_path, :require_file, :shutdown_timeout
+    attr_reader :forks, :configured_processes
+
+    # def consumer_class_names
+    #   @consumer_class_names ||= Lepus::Consumer.descendants.reject(&:abstract_class?).map(&:name).compact
+    # end
+
+    def consumer_classes
+      @consumer_classes ||= if @consumer_class_names
+        @consumer_class_names.map { |name| Lepus::Primitive::String.new(name).constantize }
+      else
+        Lepus::Consumer.descendants
+      end.reject(&:abstract_class?)
+    end
 
     def boot
       Lepus.instrument(:start_process, process: self) do
-        if configuration.require_file
-          Kernel.require configuration.require_file
+        if require_file
+          Kernel.require(require_file)
         else
           begin
             require "rails"
@@ -70,8 +95,23 @@ module Lepus
     def setup_consumers
       Lepus.eager_load_consumers!
 
-      if configuration.consumers.empty?
+      if consumer_classes.empty?
         abort "No consumers found. Exiting..."
+      end
+
+      consumer_classes.each do |consumer_class|
+        if consumer_class.config.nil?
+          abort <<~MSG
+            Consumer class #{klass} is not configured. Please use the `configure' class method
+            to set at least the queue name.
+
+            Example:
+
+              class MyConsumer < Lepus::Consumer
+                configure queue: "my_queue"
+              end
+          MSG
+        end
       end
     end
 
@@ -80,9 +120,9 @@ module Lepus
       temp_bunny.close
     end
 
-    def start_processes
-      configuration.configured_processes.each do |configured_process|
-        start_process(configured_process)
+    def build_and_start_processes
+      consumer_classes.group_by { |klass| klass.config.process_name }.map do |process_name, classes|
+        start_process(ChildProcessFactory.new(process_name, classes))
       end
     end
 
@@ -102,19 +142,16 @@ module Lepus
       shutdown
     end
 
-    def start_process(configured_process)
-      process_instance = configured_process.instantiate.tap do |instance|
-        instance.supervised_by process
-        instance.mode = :fork
-      end
+    def start_process(factory)
+      process_instance = factory.instantiate(process)
 
-      process_instance.before_fork
+      # process_instance.before_fork
       pid = fork do
-        process_instance.after_fork
+        # process_instance.after_fork
         process_instance.start
       end
 
-      configured_processes[pid] = configured_process
+      configured_processes[pid] = factory
       forks[pid] = process_instance
     end
 
@@ -126,7 +163,6 @@ module Lepus
       Lepus.instrument(:graceful_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: supervised_processes) do |payload|
         term_forks
 
-        shutdown_timeout = 5
         puts "\nWaiting up to #{shutdown_timeout} seconds for processes to terminate gracefully..."
         Timer.wait_until(shutdown_timeout, -> { all_forks_terminated? }) do
           reap_terminated_forks
@@ -180,8 +216,12 @@ module Lepus
 
     def reap_terminated_forks
       loop do
-        pid, _ = ::Process.waitpid2(-1, ::Process::WNOHANG)
+        pid, _status = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
+
+        if (terminated_fork = forks.delete(pid))
+          puts "Process #{pid} (#{terminated_fork.name}) terminated with status #{_status.exitstatus}"
+        end
 
         configured_processes.delete(pid)
       end

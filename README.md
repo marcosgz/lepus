@@ -53,6 +53,8 @@ You can configure the consumer process using the `consumer_process` method. The 
 - `pool_size`: The number of threads in the pool. Default: `1`.
 - `pool_timeout`: The timeout in seconds to wait for a thread to be available. Default: `5.0`.
 - `alive_threshold`: The threshold in seconds to consider a process alive. Default: `60 * 5` (5 minutes).
+- `before_fork`: A block to be executed before forking the process. Default: `nil`.
+- `after_fork`: A block to be executed after forking the process. Default: `nil`.
 
 The default process is named `:default`, but you can define more processes with different names for different consumers.
 
@@ -65,6 +67,12 @@ Lepus.configure do |config|
     c.pool_size = 2
     c.pool_timeout = 10.0
     c.alive_threshold = 60 * 5 # 5 minutes
+    c.before_fork do
+      ActiveRecord::Base.clear_all_connections!
+    end
+    c.after_fork do
+      ActiveRecord::Base.establish_connection
+    end
   end
   # Inline
   config.consumer_process(:datasync, pool_size: 1, pool_timeout: 5.0, alive_threshold: 60 * 5)

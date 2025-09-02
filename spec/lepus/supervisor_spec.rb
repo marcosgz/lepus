@@ -3,16 +3,54 @@
 require "spec_helper"
 
 RSpec.describe Lepus::Supervisor do
+  subject(:supervisor) { described_class.new }
+
   after do
     Lepus::ProcessRegistry.instance.clear
+  end
+
+  describe "#initialize" do
+    it "returns the default pidfile" do
+      expect(supervisor.send(:pidfile_path)).to eq("tmp/pids/lepus.pid")
+    end
+
+    it "sets a custom pidfile" do
+      supervisor = described_class.new(pidfile: "custom/pidfile.pid")
+      expect(supervisor.send(:pidfile_path)).to eq("custom/pidfile.pid")
+    end
+
+    it "sets the require_file" do
+      expect(supervisor.send(:require_file)).to be_nil
+
+      supervisor = described_class.new(require_file: "config/environment")
+      expect(supervisor.send(:require_file)).to eq("config/environment")
+    end
+
+    it "sets the consumer_class_names" do
+      supervisor = described_class.new(consumers: ["MyConsumer"])
+      expect(supervisor.send(:consumer_class_names)).to eq(["MyConsumer"])
+    end
+  end
+
+  describe "#consumer_class_names" do
+    after { reset_config! }
+
+    it "returns all consumer classes that inherit from Lepus::Consumer" do
+      my_consumer = Class.new(Lepus::Consumer)
+      abstract_consumer = Class.new(Lepus::Consumer) { self.abstract_class = true }
+      stub_const("MyConsumer", my_consumer)
+      stub_const("AbstractConsumer", abstract_consumer)
+
+      expect(supervisor.send(:consumer_class_names)).to include("MyConsumer")
+      expect(supervisor.send(:consumer_class_names)).not_to include("AbstractConsumer")
+    end
   end
 
   # rubocop:disable RSpec/AnyInstance
   describe "#check_bunny_connection" do
     subject(:conn_test) { supervisor.send(:check_bunny_connection) }
 
-    let(:config) { Lepus::Supervisor::Config.new(consumers: %w[TestConsumer]) }
-    let(:supervisor) { described_class.new(config) }
+    let(:supervisor) { described_class.new(consumers: %w[TestConsumer]) }
 
     context "when the connection is successful" do
       before do

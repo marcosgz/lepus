@@ -7,8 +7,112 @@ RSpec.describe Lepus::ConsumerConfig do
   let(:options) { {} }
 
   describe "#initialize" do
+    let(:options) { {} }
+
     it "sets the options" do
-      expect(config.options).to eq(options)
+      expect(config.options).to eq({})
+    end
+
+    it "sets the default process options" do
+      expect(config.instance_variable_get(:@process_opts)).to eq({
+        name: "default",
+        threads: 1
+      })
+    end
+
+    it "sets the default exchange options" do
+      expect(config.instance_variable_get(:@exchange_opts)).to eq({
+        name: nil,
+        type: :topic,
+        durable: true
+      })
+    end
+
+    it "sets the default queue options" do
+      expect(config.instance_variable_get(:@queue_opts)).to eq({
+        name: nil,
+        durable: true
+      })
+    end
+
+    it "sets the default bind options" do
+      expect(config.instance_variable_get(:@bind_opts)).to eq({})
+    end
+
+    context "when options are provided" do
+      let(:options) do
+        {
+          process: {name: "custom", threads: 5},
+          exchange: {name: "exchange-name", type: :direct, auto_delete: true},
+          queue: {name: "queue-name", auto_delete: true},
+          retry_queue: {delay: 10000},
+          error_queue: true,
+          bind: {routing_key: "routing-key"},
+          custom_option: "value"
+        }
+      end
+
+      it "sets the custom options" do
+        expect(config.options).to eq({custom_option: "value"})
+      end
+
+      it "sets the custom process options" do
+        expect(config.instance_variable_get(:@process_opts)).to eq({
+          name: "custom",
+          threads: 5
+        })
+      end
+
+      it "sets the custom exchange options" do
+        expect(config.instance_variable_get(:@exchange_opts)).to eq({
+          name: "exchange-name",
+          type: :direct,
+          durable: true,
+          auto_delete: true
+        })
+      end
+
+      it "sets the custom queue options" do
+        expect(config.instance_variable_get(:@queue_opts)).to eq({
+          name: "queue-name",
+          durable: true,
+          auto_delete: true
+        })
+      end
+
+      it "sets the custom retry queue options" do
+        expect(config.instance_variable_get(:@retry_queue_opts)).to eq({
+          name: nil,
+          durable: true,
+          delay: 10000,
+          arguments: {}
+        })
+      end
+
+      it "sets the custom error queue options" do
+        expect(config.instance_variable_get(:@error_queue_opts)).to eq({
+          name: nil,
+          durable: true
+        })
+      end
+
+      it "sets the custom bind options" do
+        expect(config.instance_variable_get(:@bind_opts)).to eq({routing_key: "routing-key"})
+      end
+    end
+  end
+
+  describe "#process_name" do
+    it "returns the default process name" do
+      expect(config.process_name).to eq("default")
+    end
+
+    context "when process name is provided" do
+      let(:options) { {process: {name: "custom"}} }
+
+      it "returns the custom process name" do
+        expect(config.process_name).to eq("custom")
+      end
     end
   end
 

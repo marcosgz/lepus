@@ -79,6 +79,11 @@ module Lepus
       consumer_process_configs.values.map(&:alive_threshold).max
     end
 
+    def process_config_for(pid = Lepus::ProcessConfig::DEFAULT)
+      consumer_process(pid) unless @consumer_process_configs.key?(pid.to_sym)
+      @consumer_process_configs.fetch(pid.to_sym)
+    end
+
     protected
 
     def consumer_process_configs

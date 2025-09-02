@@ -29,15 +29,5 @@ module Lepus
         public_send(:"#{key}=", value) if respond_to?(:"#{key}=")
       end
     end
-
-    def connection_pool
-      return @connection_pool if defined?(@connection_pool)
-
-      @connection_pool = Lepus::ConnectionPool.new(
-        size: pool_size,
-        timeout: pool_timeout,
-        suffix: id.to_s
-      )
-    end
   end
 end
