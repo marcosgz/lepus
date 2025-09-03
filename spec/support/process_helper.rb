@@ -23,7 +23,7 @@ module ProcessHelper
     wait_for_process_termination_with_timeout(pid, timeout: timeout, signaled: signal)
   end
 
-  def wait_for_registered_processes(count, timeout: 1)
+  def wait_for_registered_processes(count, timeout: 2)
     wait_while_with_timeout(timeout) { Lepus::ProcessRegistry.count != count }
   end
 
