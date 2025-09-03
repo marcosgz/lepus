@@ -137,6 +137,20 @@ RSpec.describe Lepus::Consumers::Config do
     end
   end
 
+  describe "#channel_args" do
+    it "returns the default channel args" do
+      expect(config.channel_args).to eq([nil, 1, false, 60])
+    end
+
+    context "when channel options are provided" do
+      let(:options) { {channel: {pool_size: 5, abort_on_exception: true, shutdown_timeout: 120}} }
+
+      it "returns the custom channel args" do
+        expect(config.channel_args).to eq([nil, 5, true, 120])
+      end
+    end
+  end
+
   describe "#exchange_args" do
     it "raises InvalidConsumerConfigError when exchange name is not given" do
       expect { config.exchange_args }.to raise_error(Lepus::InvalidConsumerConfigError)
@@ -177,6 +191,17 @@ RSpec.describe Lepus::Consumers::Config do
 
       it "returns the queue args" do
         expect(config.consumer_queue_args).to eq(["queue-name", {durable: true, auto_delete: false}])
+      end
+    end
+
+    context "when the retry_queue is also set" do
+      let(:options) { {queue: "queue-name", retry_queue: true} }
+
+      it "returns the queue args" do
+        expect(config.consumer_queue_args).to eq(["queue-name", {durable: true, arguments: {
+          "x-dead-letter-exchange" => "",
+          "x-dead-letter-routing-key" => "queue-name.retry"
+        }}])
       end
     end
   end

@@ -11,9 +11,9 @@ module Lepus
       }.freeze
 
       DEFAULT_CHANNEL_OPTIONS = {
-        consumer_pool_size: 1,
-        consumer_pool_abort_on_exception: false,
-        consumer_pool_shutdown_timeout: 60
+        pool_size: 1,
+        abort_on_exception: false,
+        shutdown_timeout: 60
       }.freeze
 
       DEFAULT_QUEUE_OPTIONS = {
@@ -61,7 +61,7 @@ module Lepus
             declaration_config(value)
           )
         end
-        @channel_opts = DEFAULT_RETRY_QUEUE_OPTIONS.merge(opts.delete(:channel) || {})
+        @channel_opts = DEFAULT_CHANNEL_OPTIONS.merge(opts.delete(:channel) || {})
         @bind_opts = opts.delete(:bind) || {}
         if (routing_key = opts.delete(:routing_key))
           @bind_opts[:routing_key] ||= routing_key
@@ -74,9 +74,9 @@ module Lepus
         [
           nil,
           *@channel_opts.values_at(
-            :consumer_pool_size,
-            :consumer_pool_abort_on_exception,
-            :consumer_pool_shutdown_timeout
+            :pool_size,
+            :abort_on_exception,
+            :shutdown_timeout
           )
         ]
       end
