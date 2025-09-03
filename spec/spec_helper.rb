@@ -25,5 +25,7 @@ RSpec.configure do |config|
 
   def reset_config!
     Lepus.instance_variable_set(:@config, nil)
+    Lepus::ProcessRegistry.instance.clear
+    Lepus::Consumers::WorkerFactory.send(:clear_all)
   end
 end

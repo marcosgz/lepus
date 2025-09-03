@@ -32,6 +32,181 @@ RSpec.describe Lepus::Supervisor do
     end
   end
 
+  describe "#set_procline" do
+    it "sets $0 with supervisor kind and message" do
+      supervisor.send(:set_procline)
+      expect($0).to include("[lepus-supervisor: supervising ")
+    end
+  end
+
+  describe "#supervised_processes" do
+    it "returns the list of supervised pids" do
+      supervisor.send(:forks)[111] = :dummy
+      supervisor.send(:forks)[222] = :dummy
+
+      expect(supervisor.send(:supervised_processes)).to match_array([111, 222])
+    end
+  end
+
+  describe "signal handling" do
+    it "queues and processes TERM to terminate gracefully" do
+      allow(supervisor).to receive(:stop).and_call_original
+      allow(supervisor).to receive(:terminate_gracefully)
+
+      supervisor.send(:handle_signal, :TERM)
+
+      expect(supervisor).to have_received(:stop)
+      expect(supervisor).to have_received(:terminate_gracefully)
+    end
+
+    it "queues and processes QUIT to terminate immediately" do
+      allow(supervisor).to receive(:stop).and_call_original
+      allow(supervisor).to receive(:terminate_immediately)
+
+      supervisor.send(:handle_signal, :QUIT)
+
+      expect(supervisor).to have_received(:stop)
+      expect(supervisor).to have_received(:terminate_immediately)
+    end
+  end
+
+  describe "#term_forks/#quit_forks" do
+    it "signals all forks with correct signals" do
+      supervisor.send(:forks)[333] = :dummy
+      supervisor.send(:forks)[444] = :dummy
+
+      expect(supervisor).to receive(:signal_processes).with([333, 444], :TERM)
+      supervisor.send(:term_forks)
+
+      expect(supervisor).to receive(:signal_processes).with([333, 444], :QUIT)
+      supervisor.send(:quit_forks)
+    end
+  end
+
+  describe "#check_for_shutdown_messages/#initiate_shutdown_sequence_from_child" do
+    it "removes child and initiates shutdown when receiving shutdown message" do
+      reader, writer = IO.pipe
+      begin
+        supervisor.send(:forks)[555] = :dummy
+        supervisor.send(:pipes)[555] = reader
+        supervisor.send(:configured_processes)[555] = :factory
+
+        allow(supervisor).to receive(:quit_forks)
+        allow(supervisor).to receive(:stop).and_call_original
+
+        writer.puts(described_class::SHUTDOWN_MSG)
+        writer.flush
+        writer.close
+
+        supervisor.send(:check_for_shutdown_messages)
+
+        expect(supervisor.send(:forks)).not_to have_key(555)
+        expect(supervisor.send(:pipes)).not_to have_key(555)
+        expect(supervisor.send(:configured_processes)).not_to have_key(555)
+        expect(supervisor).to have_received(:quit_forks)
+        expect(supervisor.send(:send, :stopped?)).to be(true)
+      ensure
+        reader.close unless reader.closed?
+        writer.close unless writer.closed?
+      end
+    end
+  end
+
+  describe "reaping and replacing forks" do
+    it "reaps terminated forks without replacement" do
+      supervisor.send(:forks)[666] = :dummy
+      supervisor.send(:pipes)[666] = IO.pipe.first
+      supervisor.send(:configured_processes)[666] = :factory
+
+      allow(::Process).to receive(:waitpid2).and_return([666, double], nil)
+
+      expect { supervisor.send(:reap_terminated_forks) }.not_to raise_error
+
+      expect(supervisor.send(:forks)).to be_empty
+      expect(supervisor.send(:pipes)).to be_empty
+      expect(supervisor.send(:configured_processes)).to be_empty
+    end
+
+    it "replaces a terminated fork when it existed" do
+      supervisor.send(:forks)[777] = :dummy
+      supervisor.send(:pipes)[777] = IO.pipe.first
+      supervisor.send(:configured_processes)[777] = :factory
+
+      allow(supervisor).to receive(:start_process)
+
+      status = double
+      supervisor.send(:replace_fork, 777, status)
+
+      expect(supervisor).to have_received(:start_process).with(:factory)
+      expect(supervisor.send(:forks)).not_to have_key(777)
+      expect(supervisor.send(:pipes)).not_to have_key(777)
+      expect(supervisor.send(:configured_processes)).not_to have_key(777)
+    end
+  end
+
+  describe "termination flows" do
+    it "immediate termination signals QUIT" do
+      expect(supervisor).to receive(:quit_forks)
+      supervisor.send(:terminate_immediately)
+    end
+
+    it "graceful termination waits and escalates on timeout" do
+      supervisor.send(:forks)[888] = :dummy
+
+      allow(supervisor).to receive(:term_forks)
+      allow(supervisor).to receive(:reap_terminated_forks)
+      allow(supervisor).to receive(:all_forks_terminated?).and_return(false, false)
+      allow(supervisor).to receive(:terminate_immediately)
+
+      allow(Lepus::Timer).to receive(:wait_until).and_wrap_original do |m, *_args, &blk|
+        # Call the block a couple of times to simulate waiting
+        2.times { blk.call }
+      end
+
+      supervisor.send(:terminate_gracefully)
+
+      expect(supervisor).to have_received(:term_forks)
+      expect(supervisor).to have_received(:reap_terminated_forks).at_least(:once)
+      expect(supervisor).to have_received(:terminate_immediately)
+    end
+  end
+
+  describe "#build_and_start_workers" do
+    after { reset_config! }
+
+    it "groups consumers by worker name and starts processes" do
+      class TestConsumerA < Lepus::Consumer; end
+      class TestConsumerB < Lepus::Consumer; end
+
+      TestConsumerA.configure(queue: "qa", exchange: "xa") { |c| c.instance_variable_set(:@worker_opts, { name: "wa" }) }
+      TestConsumerB.configure(queue: "qb", exchange: "xb") { |c| c.instance_variable_set(:@worker_opts, { name: "wa" }) }
+
+      allow(supervisor).to receive(:consumer_classes).and_return([TestConsumerA, TestConsumerB])
+
+      factory = instance_double(Lepus::Consumers::WorkerFactory)
+      allow(Lepus::Consumers::WorkerFactory).to receive(:immutate_with).and_return(factory)
+      allow(supervisor).to receive(:start_process)
+
+      supervisor.send(:build_and_start_workers)
+
+      expect(Lepus::Consumers::WorkerFactory).to have_received(:immutate_with).with("wa", consumers: [TestConsumerA, TestConsumerB])
+      expect(supervisor).to have_received(:start_process).with(factory)
+    ensure
+      Object.send(:remove_const, :TestConsumerA) if defined?(TestConsumerA)
+      Object.send(:remove_const, :TestConsumerB) if defined?(TestConsumerB)
+    end
+  end
+
+  describe "#sync_std_streams" do
+    it "sets stdout and stderr to sync mode" do
+      $stdout.sync = false
+      $stderr.sync = false
+      supervisor.send(:sync_std_streams)
+      expect($stdout.sync).to be(true)
+      expect($stderr.sync).to be(true)
+    end
+  end
+
   describe "#consumer_classes" do
     after { reset_config! }
 
