@@ -2,6 +2,7 @@
 
 require "pathname"
 require "tmpdir"
+require "base64"
 
 module Lepus
   # we are storing the process registry in a file using Marshal serialization
@@ -73,7 +74,12 @@ module Lepus
 
       def read
         with_lock(File::LOCK_SH) do |f|
-          f.size.zero? ? {} : Marshal.load(f)
+          if f.size.zero?
+            {}
+          else
+            encoded = f.read
+            Marshal.load(Base64.strict_decode64(encoded))
+          end
         end
       end
 
@@ -81,7 +87,8 @@ module Lepus
         with_lock(File::LOCK_EX) do |f|
           f.rewind
           f.truncate(0)
-          f.write(Marshal.dump(data))
+          encoded = Base64.strict_encode64(Marshal.dump(data))
+          f.write(encoded)
           f.flush
         end
       end
@@ -90,7 +97,7 @@ module Lepus
         unless path
           raise "ProcessRegistry not started. Call Lepus::ProcessRegistry.start first."
         end
-        File.open(path, File::RDWR | File::CREAT, 0o644) do |f|
+        File.open(path, File::RDWR | File::CREAT | File::BINARY, 0o644) do |f|
           f.flock(lock_type)
           result = yield f
           f.flock(File::LOCK_UN)

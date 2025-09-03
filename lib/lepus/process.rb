@@ -41,7 +41,9 @@ module Lepus
       end
 
       def coerce(raw)
-        new(**raw.transform_keys(&:to_sym))
+        attrs = raw.transform_keys(&:to_sym)
+        attrs[:last_heartbeat_at] = Time.iso8601(attrs[:last_heartbeat_at]) if attrs[:last_heartbeat_at]
+        new(**attrs)
       end
     end
 
@@ -53,7 +55,11 @@ module Lepus
     end
 
     def to_h
-      attributes
+      attributes.dup.tap do |hash|
+        if hash[:last_heartbeat_at]
+          hash[:last_heartbeat_at] = hash[:last_heartbeat_at].iso8601(6)
+        end
+      end
     end
 
     ATTRIBUTES.each do |attribute|
