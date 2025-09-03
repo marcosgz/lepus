@@ -3,5 +3,5 @@ set -euo pipefail
 IFS=$'\n\t'
 set -vx
 
-bundle install
-find gemfiles -type f \( -iname "*.gemfile" ! -iname "*.lock" \) -exec bundle install --gemfile {} \;
+mise exec ruby@2.7.8 -- bundle install
+mise exec ruby@2.7.8 -- bundle install --gemfile gemfiles/rails61.gemfile
