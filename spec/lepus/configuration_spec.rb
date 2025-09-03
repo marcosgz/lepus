@@ -127,4 +127,13 @@ RSpec.describe Lepus::Configuration do
       expect(yielded.pool_size).to eq(7)
     end
   end
+
+  describe "#logger=" do
+    it "sets the Lepus.logger" do
+      logger = Logger.new($stdout)
+      configuration.logger = logger
+
+      expect(Lepus.logger).to be(logger)
+    end
+  end
 end

@@ -75,6 +75,10 @@ module Lepus
       end
     end
 
+    def logger=(value)
+      Lepus.logger = value
+    end
+
     protected
 
     def connection_config
