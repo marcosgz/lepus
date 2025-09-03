@@ -11,7 +11,7 @@ RSpec.describe Lepus::AppExecutor do
     let(:block) { proc { "executed" } }
 
     context "when app_executor is configured" do
-      let(:app_executor) { double("AppExecutor") }
+      let(:app_executor) { double }
 
       before do
         allow(Lepus).to receive_message_chain(:config, :app_executor).and_return(app_executor)

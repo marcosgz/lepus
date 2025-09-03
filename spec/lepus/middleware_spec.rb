@@ -16,8 +16,8 @@ RSpec.describe Lepus::Middleware do
   end
 
   describe "#call" do
-    let(:message) { double("Lepus::Message") }
-    let(:app) { double("NextMiddlewareOrConsumer") }
+    let(:message) { instance_double(Lepus::Message) }
+    let(:app) { Object.new }
 
     it "raises NotImplementedError when called directly" do
       expect { middleware.call(message, app) }.to raise_error(NotImplementedError)
