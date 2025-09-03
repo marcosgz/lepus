@@ -2,7 +2,7 @@
 
 module Lepus
   class Supervisor < Processes::Base
-    SHUTDOWN_MSG = "☠️"
+    SHUTDOWN_MSG = "shutdown".freeze
 
     include LifecycleHooks
     include ChildrenPipes
