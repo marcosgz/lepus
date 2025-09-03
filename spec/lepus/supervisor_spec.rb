@@ -3,13 +3,23 @@
 require "spec_helper"
 
 RSpec.describe Lepus::Supervisor do
-  subject(:supervisor) { described_class.new }
+  subject(:supervisor) { described_class.new(**options) }
+
+  let(:pidfile) { app_root.join("tmp/pids/lepus_#{SecureRandom.hex}.pid") }
+  let(:options) do
+    {
+      pidfile: pidfile,
+    }
+  end
 
   after do
-    Lepus::ProcessRegistry.instance.clear
+    reset_config!
+    File.delete(pidfile) if File.exist?(pidfile)
   end
 
   describe "#initialize" do
+    let(:options) { {} }
+
     it "returns the default pidfile" do
       expect(supervisor.send(:pidfile_path)).to eq("tmp/pids/lepus.pid")
     end
@@ -29,6 +39,82 @@ RSpec.describe Lepus::Supervisor do
     it "sets the @consumer_class_names" do
       supervisor = described_class.new(consumers: ["MyConsumer"])
       expect(supervisor.instance_variable_get(:@consumer_class_names)).to eq(["MyConsumer"])
+    end
+  end
+
+  describe "#start" do
+    let(:consumer) do
+      Class.new(Lepus::Consumer) do
+        configure(queue: "test_queue", exchange: "test_exchange")
+      end
+    end
+    let(:options) do
+      {
+        pidfile: pidfile,
+        consumers: ["TestConsumer"],
+      }
+    end
+
+    before do
+      stub_const("TestConsumer", consumer)
+    end
+
+    it "start and stop supervisor process" do
+      allow_any_instance_of(Lepus::Consumers::Worker).to receive(:setup_consumers!).and_return(true)
+      pid = run_as_fork(supervisor)
+      wait_for_registered_processes(1)
+
+      workers = Lepus::ProcessRegistry.all.select { |p| p.kind == "Worker" }
+      expect(workers.size).to eq(1)
+
+      terminate_process(pid)
+      expect(process_exists?(pid)).to be(false)
+    end
+
+    it "creates and removes the pidfile" do
+      allow_any_instance_of(Lepus::Consumers::Worker).to receive(:setup_consumers!).and_return(true)
+
+      pid = run_as_fork(supervisor)
+      wait_for_registered_processes(1)
+      expect(File.exist?(pidfile)).to be(true)
+      terminate_process(pid)
+      expect(File.exist?(pidfile)).to be(false)
+    end
+
+    it "aborts if pidfile exists" do
+      allow_any_instance_of(Lepus::Consumers::Worker).to receive(:setup_consumers!).and_return(true)
+
+      FileUtils.mkdir_p(pidfile.dirname)
+      File.write(pidfile, ::Process.pid.to_s)
+      expect(File.exist?(pidfile)).to be(true)
+
+      pid, _out, err = run_supervisor_as_fork_with_captured_io(supervisor)
+      expect(err).to include("A supervisor is already running")
+
+      wait_for_process_termination_with_timeout(pid, exitstatus: 1)
+    end
+
+    it "aborts if require_file does not exist" do
+      supervisor = described_class.new(require_file: "nonexistent_file.rb", pidfile: pidfile)
+      pid, _out, err = run_supervisor_as_fork_with_captured_io(supervisor)
+      expect(err).to include("cannot load such file")
+      wait_for_process_termination_with_timeout(pid, exitstatus: 1)
+    end
+
+    it "terminate supervisor if Bunny connection fails" do
+      allow_any_instance_of(Lepus::Consumers::Worker).to receive(:setup_consumers!).and_raise(Bunny::PreconditionFailed.new("Connection failed", double, double))
+
+      pid, out, err = run_supervisor_as_fork_with_captured_io(supervisor)
+      expect(err).to include("Connection failed")
+      wait_for_process_termination_with_timeout(pid, exitstatus: 1)
+    end
+
+    it "terminate supervisor if some consumer is misconfigured" do
+      allow_any_instance_of(Lepus::Consumers::Worker).to receive(:setup_consumers!).and_raise(Lepus::InvalidConsumerConfigError.new("misconfigured"))
+
+      pid, out, err = run_supervisor_as_fork_with_captured_io(supervisor)
+      expect(err).to include("misconfigured")
+      wait_for_process_termination_with_timeout(pid, exitstatus: 1)
     end
   end
 

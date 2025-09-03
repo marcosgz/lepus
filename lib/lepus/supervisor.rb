@@ -9,6 +9,7 @@ module Lepus
     include Maintenance
     include Signals
     include Pidfiled
+    include RegistryCleaner
 
     class << self
       def start(**options)
@@ -29,7 +30,6 @@ module Lepus
       @forks = {}
       @pipes = {}
       @configured_processes = {}
-      ProcessRegistry.instance # Ensure the registry is initialized
 
       super
     end
@@ -81,6 +81,8 @@ module Lepus
     end
 
     def boot
+      ProcessRegistry.start
+
       Lepus.instrument(:start_process, process: self) do
         if require_file
           Kernel.require(require_file)
@@ -181,14 +183,14 @@ module Lepus
     end
 
     def set_procline
-      procline "supervising #{supervised_processes.join(", ")}"
+      procline "#{kind.downcase}: supervising #{supervised_processes.join(", ")}"
     end
 
     def terminate_gracefully
       Lepus.instrument(:graceful_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: supervised_processes) do |payload|
         term_forks
 
-        puts "\nWaiting up to #{shutdown_timeout} seconds for processes to terminate gracefully..."
+        # puts "\nWaiting up to #{shutdown_timeout} seconds for processes to terminate gracefully..."
         Timer.wait_until(shutdown_timeout, -> { all_forks_terminated? }) do
           reap_terminated_forks
         end

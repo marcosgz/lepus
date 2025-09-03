@@ -4,7 +4,7 @@ require "spec_helper"
 
 RSpec.describe Lepus::Process do
   after do
-    Lepus::ProcessRegistry.instance.clear
+    Lepus::ProcessRegistry.reset!
   end
 
   describe ".register" do
@@ -12,7 +12,7 @@ RSpec.describe Lepus::Process do
       process = described_class.register(name: "my-process")
 
       expect(process.id).to be_a(String)
-      expect(Lepus::ProcessRegistry.instance.all).to eq([process])
+      expect(Lepus::ProcessRegistry.all).to eq([process])
     end
   end
 
@@ -23,7 +23,7 @@ RSpec.describe Lepus::Process do
 
       described_class.prune
 
-      expect(Lepus::ProcessRegistry.instance.all).to eq([keep])
+      expect(Lepus::ProcessRegistry.all).to eq([keep])
     end
 
     it "does not prune the excluded process" do
@@ -32,7 +32,7 @@ RSpec.describe Lepus::Process do
 
       described_class.prune(excluding: old)
 
-      expect(Lepus::ProcessRegistry.instance.all).to contain_exactly(old, keep)
+      expect(Lepus::ProcessRegistry.all).to contain_exactly(old, keep)
     end
   end
 
@@ -40,7 +40,7 @@ RSpec.describe Lepus::Process do
     it "updates the last_heartbeat_at" do
       process = described_class.register(name: "my-process")
 
-      expect { process.heartbeat }.to change { Lepus::ProcessRegistry.instance.find(process.id).last_heartbeat_at }
+      expect { process.heartbeat }.to change { Lepus::ProcessRegistry.find(process.id).last_heartbeat_at }
     end
 
     it "raises when the process is not registered anymore" do
@@ -66,7 +66,7 @@ RSpec.describe Lepus::Process do
 
       process.destroy!
 
-      expect(Lepus::ProcessRegistry.instance.all).to eq([])
+      expect(Lepus::ProcessRegistry.all).to eq([])
     end
   end
 
@@ -80,7 +80,7 @@ RSpec.describe Lepus::Process do
 
       supervisor1.deregister
 
-      expect(Lepus::ProcessRegistry.instance.all).to eq([supervisor2, supervisee2])
+      expect(Lepus::ProcessRegistry.all).to eq([supervisor2, supervisee2])
     end
 
     it "does not deregister supervisor" do
@@ -89,7 +89,7 @@ RSpec.describe Lepus::Process do
 
       supervisee.deregister
 
-      expect(Lepus::ProcessRegistry.instance.all).to eq([supervisor])
+      expect(Lepus::ProcessRegistry.all).to eq([supervisor])
     end
 
     it "does not deregister supervisees when pruned" do
@@ -98,7 +98,7 @@ RSpec.describe Lepus::Process do
 
       supervisor.prune
 
-      expect(Lepus::ProcessRegistry.instance.all).to eq([supervisee])
+      expect(Lepus::ProcessRegistry.all).to eq([supervisee])
     end
   end
 
@@ -129,7 +129,7 @@ RSpec.describe Lepus::Process do
 
   describe "#rss_memory" do
     it "returns the value from the memory grabber" do
-      stub_const("#{described_class}::MEMORY_GRABBER", ->(_pid) { 1234 })
+      stub_const("Lepus::Processes::MEMORY_GRABBER", ->(_pid) { 1234 })
       process = described_class.register(pid: 42, name: "proc")
 
       expect(process.rss_memory).to eq(1234)

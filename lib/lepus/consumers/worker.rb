@@ -22,10 +22,6 @@ module Lepus
         super.merge(name: name, consumers: consumers.map(&:to_s))
       end
 
-      def kind
-        "worker-#{name}"
-      end
-
       def before_fork
         consumers.each do |consumer_class|
           next unless consumer_class.respond_to?(:before_fork, true)
@@ -56,7 +52,13 @@ module Lepus
 
       def run
         wrap_in_app_executor do
-          setup_consumers!
+          begin
+            setup_consumers!
+          rescue Bunny::TCPConnectionFailed, Bunny::PossibleAuthenticationFailureError, Bunny::PreconditionFailed => e
+            raise Lepus::ShutdownError.new(e.message)
+          rescue Lepus::InvalidConsumerConfigError => e
+            raise Lepus::ShutdownError.new(e.message)
+          end
         end
 
         loop do
@@ -80,7 +82,7 @@ module Lepus
       end
 
       def set_procline
-        procline "#{consumers.size} consumers"
+        procline "#{kind.downcase}-#{name}: #{consumers.size} consumers"
       end
 
       def setup_consumers!
@@ -123,10 +125,6 @@ module Lepus
             end
           end
         end
-      rescue Bunny::TCPConnectionFailed, Bunny::PossibleAuthenticationFailureError, Bunny::PreconditionFailed
-        raise Lepus::ShutdownError
-      rescue Lepus::InvalidConsumerConfigError
-        raise Lepus::ShutdownError
       end
 
       def connection_pool
