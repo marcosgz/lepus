@@ -5,7 +5,7 @@ require "lepus/middlewares/json"
 
 RSpec.describe Lepus::Middlewares::JSON do
   describe "#call" do
-    let(:middleware) { described_class.new(options) }
+    let(:middleware) { described_class.new(**options) }
     let(:delivery_info) { instance_double(Bunny::DeliveryInfo) }
     let(:metadata) { instance_double(Bunny::MessageProperties) }
     let(:payload) { MultiJson.dump({my: "payload"}) }
