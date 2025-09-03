@@ -29,7 +29,7 @@ jobs:
           - "2.7"
         gemfile:
           - Gemfile
-          - gemfiles/rails61.gemfile
+          - gemfiles/Gemfile.rails-5.2
     name: ${{ matrix.ruby-version }}-${{ matrix.gemfile }}
     env:
       BUNDLE_GEMFILE: ${{ matrix.gemfile }}
@@ -67,7 +67,7 @@ jobs:
           - "3.1"
         gemfile:
           - Gemfile
-          - gemfiles/rails61.gemfile
+          - gemfiles/Gemfile.rails-6.1
 
     name: ${{ matrix.ruby-version }}-${{ matrix.gemfile }}
     env:

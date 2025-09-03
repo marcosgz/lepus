@@ -4,4 +4,5 @@ IFS=$'\n\t'
 set -vx
 
 mise exec ruby@2.7.8 -- bundle install
-mise exec ruby@2.7.8 -- bundle install --gemfile gemfiles/rails61.gemfile
+mise exec ruby@2.7.8 -- bundle install --gemfile gemfiles/Gemfile.rails-5.2
+mise exec ruby@2.7.8 -- bundle install --gemfile gemfiles/Gemfile.rails-6.1
