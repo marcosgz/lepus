@@ -48,6 +48,7 @@ The configuration options are:
 - `process_heartbeat_interval`: The interval in seconds between heartbeats. Default is `60 seconds`.
 - `process_heartbeat_timeout`: The timeout in seconds to wait for a heartbeat. Default is `10 seconds`.
 - `worker`: A block to configure the worker process that will run the consumers. You can set the `pool_size`, `pool_timeout`, and before/after fork callbacks inline options or using a block. Main worker is `:default`, but you can define more workers with different names for different consumers.
+- `logger`: The logger instance. Default: `Logger.new($stdout)`.
 
 ### Configuration > Consumer Worker
 
