@@ -214,9 +214,16 @@ RSpec.describe Lepus::Consumer do
       end.new
     end
 
-    let(:middleware) { stub_const("Middleware", Class.new) }
+    let(:middleware_class) do
+      Class.new(Lepus::Middleware) do
+        def call(message, app)
+          app.call(message)
+        end
+      end
+    end
+    let(:middleware) { stub_const("Middleware", middleware_class) }
     let(:middleware_instance) { instance_double(Middleware) }
-    let(:second_middleware) { stub_const("SecondMiddleware", Class.new) }
+    let(:second_middleware) { stub_const("SecondMiddleware", middleware_class) }
     let(:second_middleware_instance) { instance_double(SecondMiddleware) }
 
     it "wraps the given middleware around the call to perform" do
