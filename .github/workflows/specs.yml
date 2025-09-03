@@ -34,7 +34,7 @@ jobs:
           - Gemfile
           - gemfiles/rails61.gemfile
 
-    name: ${{ matrix.ruby }}-${{ matrix.gemfile }}
+    name: ${{ matrix.ruby-version }}-${{ matrix.gemfile }}
     env:
       BUNDLE_GEMFILE: ${{ matrix.gemfile }}
     services:
