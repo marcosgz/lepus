@@ -90,7 +90,7 @@ module Lepus
         unless path
           raise "ProcessRegistry not started. Call Lepus::ProcessRegistry.start first."
         end
-        File.open(path, File::RDWR|File::CREAT, 0644) do |f|
+        File.open(path, File::RDWR | File::CREAT, 0o644) do |f|
           f.flock(lock_type)
           result = yield f
           f.flock(File::LOCK_UN)

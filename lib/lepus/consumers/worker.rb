@@ -52,13 +52,11 @@ module Lepus
 
       def run
         wrap_in_app_executor do
-          begin
-            setup_consumers!
-          rescue Bunny::TCPConnectionFailed, Bunny::PossibleAuthenticationFailureError, Bunny::PreconditionFailed => e
-            raise Lepus::ShutdownError.new(e.message)
-          rescue Lepus::InvalidConsumerConfigError => e
-            raise Lepus::ShutdownError.new(e.message)
-          end
+          setup_consumers!
+        rescue Bunny::TCPConnectionFailed, Bunny::PossibleAuthenticationFailureError, Bunny::PreconditionFailed => e
+          raise Lepus::ShutdownError.new(e.message)
+        rescue Lepus::InvalidConsumerConfigError => e
+          raise Lepus::ShutdownError.new(e.message)
         end
 
         loop do

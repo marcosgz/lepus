@@ -8,7 +8,7 @@ RSpec.describe Lepus::Supervisor do
   let(:pidfile) { app_root.join("tmp/pids/lepus_#{SecureRandom.hex}.pid") }
   let(:options) do
     {
-      pidfile: pidfile,
+      pidfile: pidfile
     }
   end
 
@@ -51,7 +51,7 @@ RSpec.describe Lepus::Supervisor do
     let(:options) do
       {
         pidfile: pidfile,
-        consumers: ["TestConsumer"],
+        consumers: ["TestConsumer"]
       }
     end
 
@@ -104,7 +104,7 @@ RSpec.describe Lepus::Supervisor do
     it "terminate supervisor if Bunny connection fails" do
       allow_any_instance_of(Lepus::Consumers::Worker).to receive(:setup_consumers!).and_raise(Bunny::PreconditionFailed.new("Connection failed", double, double))
 
-      pid, out, err = run_supervisor_as_fork_with_captured_io(supervisor)
+      pid, _, err = run_supervisor_as_fork_with_captured_io(supervisor)
       expect(err).to include("Connection failed")
       wait_for_process_termination_with_timeout(pid, exitstatus: 1)
     end
@@ -112,7 +112,7 @@ RSpec.describe Lepus::Supervisor do
     it "terminate supervisor if some consumer is misconfigured" do
       allow_any_instance_of(Lepus::Consumers::Worker).to receive(:setup_consumers!).and_raise(Lepus::InvalidConsumerConfigError.new("misconfigured"))
 
-      pid, out, err = run_supervisor_as_fork_with_captured_io(supervisor)
+      pid, _, err = run_supervisor_as_fork_with_captured_io(supervisor)
       expect(err).to include("misconfigured")
       wait_for_process_termination_with_timeout(pid, exitstatus: 1)
     end
@@ -135,7 +135,6 @@ RSpec.describe Lepus::Supervisor do
   end
 
   describe "signal handling" do
-    # rubocop:disable RSpec/SubjectStub
     it "queues and processes TERM to terminate gracefully" do
       allow(supervisor).to receive(:stop).and_call_original
       allow(supervisor).to receive(:terminate_gracefully)
@@ -155,11 +154,9 @@ RSpec.describe Lepus::Supervisor do
       expect(supervisor).to have_received(:stop)
       expect(supervisor).to have_received(:terminate_immediately)
     end
-    # rubocop:enable RSpec/SubjectStub
   end
 
   describe "#term_forks/#quit_forks" do
-    # rubocop:disable RSpec/SubjectStub
     it "signals all forks with correct signals" do
       supervisor.send(:forks)[333] = :dummy
       supervisor.send(:forks)[444] = :dummy
@@ -170,7 +167,6 @@ RSpec.describe Lepus::Supervisor do
       expect(supervisor).to receive(:signal_processes).with([333, 444], :QUIT)
       supervisor.send(:quit_forks)
     end
-    # rubocop:enable RSpec/SubjectStub
   end
 
   describe "#check_for_shutdown_messages/#initiate_shutdown_sequence_from_child" do
@@ -217,7 +213,6 @@ RSpec.describe Lepus::Supervisor do
       expect(supervisor.send(:configured_processes)).to be_empty
     end
 
-    # rubocop:disable RSpec/SubjectStub
     it "replaces a terminated fork when it existed" do
       supervisor.send(:forks)[777] = :dummy
       supervisor.send(:pipes)[777] = IO.pipe.first
@@ -233,11 +228,9 @@ RSpec.describe Lepus::Supervisor do
       expect(supervisor.send(:pipes)).not_to have_key(777)
       expect(supervisor.send(:configured_processes)).not_to have_key(777)
     end
-    # rubocop:enable RSpec/SubjectStub
   end
 
   describe "termination flows" do
-    # rubocop:disable RSpec/SubjectStub
     it "immediate termination signals QUIT" do
       expect(supervisor).to receive(:quit_forks)
       supervisor.send(:terminate_immediately)
@@ -262,13 +255,11 @@ RSpec.describe Lepus::Supervisor do
       expect(supervisor).to have_received(:reap_terminated_forks).at_least(:once)
       expect(supervisor).to have_received(:terminate_immediately)
     end
-    # rubocop:disable RSpec/SubjectStub
   end
 
   describe "#build_and_start_workers" do
     after { reset_config! }
 
-    # rubocop:disable RSpec/SubjectStub
     it "groups consumers by worker name and starts processes" do
       stub_const("TestConsumerA", Class.new(Lepus::Consumer))
       stub_const("TestConsumerB", Class.new(Lepus::Consumer))
@@ -287,7 +278,6 @@ RSpec.describe Lepus::Supervisor do
       expect(Lepus::Consumers::WorkerFactory).to have_received(:immutate_with).with("wa", consumers: [TestConsumerA, TestConsumerB])
       expect(supervisor).to have_received(:start_process).with(factory)
     end
-    # rubocop:enable RSpec/SubjectStub
   end
 
   describe "#sync_std_streams" do
@@ -314,7 +304,6 @@ RSpec.describe Lepus::Supervisor do
     end
   end
 
-  # rubocop:disable RSpec/AnyInstance
   describe "#check_bunny_connection" do
     subject(:conn_test) { supervisor.send(:check_bunny_connection) }
 
@@ -340,5 +329,4 @@ RSpec.describe Lepus::Supervisor do
       end
     end
   end
-  # rubocop:enable RSpec/AnyInstance
 end

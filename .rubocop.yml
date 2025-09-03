@@ -33,3 +33,9 @@ RSpec/MessageSpies:
 
 RSpec/StubbedMock:
   Enabled: false
+
+RSpec/AnyInstance:
+  Enabled: false
+
+RSpec/SubjectStub:
+  Enabled: false

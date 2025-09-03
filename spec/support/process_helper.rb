@@ -1,6 +1,6 @@
 module ProcessHelper
   def app_root
-    Pathname.new(File.expand_path('../../', __dir__))
+    Pathname.new(File.expand_path("../../", __dir__))
   end
 
   def run_as_fork(process)
@@ -15,7 +15,7 @@ module ProcessHelper
       wait_for_registered_processes(1)
     end
 
-    [ pid, out, err ]
+    [pid, out, err]
   end
 
   def terminate_process(pid, timeout: 10, signal: :TERM)
@@ -68,7 +68,7 @@ module ProcessHelper
 
   def wait_while_with_timeout(timeout, &block)
     Timeout.timeout(timeout) do
-      while block.call
+      while yield
         sleep 0.05
       end
     end

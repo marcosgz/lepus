@@ -18,7 +18,7 @@ RSpec.describe Lepus::ProcessRegistry do
     it "adds a process to the registry" do
       expect {
         described_class.add(supervisor)
-      }.to change { described_class.count }.by(1)
+      }.to change(described_class, :count).by(1)
     end
   end
 
