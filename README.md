@@ -38,7 +38,7 @@ You can configure the Lepus using the `Lepus.configure` method. The configuratio
 - `on_thread_error`: The block to be executed when an error occurs on the thread. Default: `nil`.
 - `process_heartbeat_interval`: The interval in seconds between heartbeats. Default is `60 seconds`.
 - `process_heartbeat_timeout`: The timeout in seconds to wait for a heartbeat. Default is `10 seconds`.
-- `consumer_process`: A block to configure the consumer process. You can set the `pool_size`, `pool_timeout`, and before/after fork callbacks inline options or using a block. Main process is `:default`, but you can define more processes with different names for different consumers.
+- `worker`: A block to configure the worker process that will run the consumers. You can set the `pool_size`, `pool_timeout`, and before/after fork callbacks inline options or using a block. Main worker is `:default`, but you can define more workers with different names for different consumers.
 
 
 ```ruby
@@ -48,22 +48,22 @@ Lepus.configure do |config|
 end
 ```
 
-### Configuration > Consumer Process
+### Configuration > Consumer Worker
 
-You can configure the consumer process using the `consumer_process` method. The options are:
+You can configure the consumer process using the `worker` method. The options are:
 - `pool_size`: The number of threads in the pool. Default: `1`.
 - `pool_timeout`: The timeout in seconds to wait for a thread to be available. Default: `5.0`.
 - `before_fork`: A block to be executed before forking the process. Default: `nil`.
 - `after_fork`: A block to be executed after forking the process. Default: `nil`.
 
-The default process is named `:default`, but you can define more processes with different names for different consumers.
+The default worker is named `:default`, but you can define more workers with different names for different consumers.
 
 Configuration can be done inline or using a block:
 
 ```ruby
 Lepus.configure do |config|
   # Block
-  config.consumer_process(:default) do |c|
+  config.worker(:default) do |c|
     c.pool_size = 2
     c.pool_timeout = 10.0
     c.before_fork do
@@ -74,7 +74,7 @@ Lepus.configure do |config|
     end
   end
   # Inline
-  config.consumer_process(:datasync, pool_size: 1, pool_timeout: 5.0)
+  config.worker(:datasync, pool_size: 1, pool_timeout: 5.0)
 end
 ```
 

@@ -71,18 +71,18 @@ RSpec.describe Lepus::Configuration do
     end
   end
 
-  describe "#consumer_process" do
+  describe "#worker" do
     before { Lepus::Consumers::WorkerFactory.send(:clear_all) }
 
     it "initializes a new WorkerFactory a new process config with default values" do
       expect {
-        configuration.consumer_process
+        configuration.worker
       }.to change { Lepus::Consumers::WorkerFactory.exists?("default") }.from(false).to(true)
     end
 
     it "allows setting options on the process config" do
       expect {
-        configuration.consumer_process(pool_size: 5, pool_timeout: 10)
+        configuration.worker(pool_size: 5, pool_timeout: 10)
       }.to change { Lepus::Consumers::WorkerFactory.exists?("default") }.from(false).to(true)
 
       conf = Lepus::Consumers::WorkerFactory.default
@@ -92,7 +92,7 @@ RSpec.describe Lepus::Configuration do
 
     it "allows setting process by given name" do
       expect {
-        configuration.consumer_process(:custom, pool_size: 4)
+        configuration.worker(:custom, pool_size: 4)
       }.to change { Lepus::Consumers::WorkerFactory.exists?("custom") }.from(false).to(true)
       conf = Lepus::Consumers::WorkerFactory["custom"]
       expect(conf.pool_size).to eq(4)
@@ -100,15 +100,15 @@ RSpec.describe Lepus::Configuration do
     end
 
     it "ignores when process with given name already exists" do
-      configuration.consumer_process(:custom, pool_size: 4)
+      configuration.worker(:custom, pool_size: 4)
       expect {
-        configuration.consumer_process(:custom, pool_size: 10)
+        configuration.worker(:custom, pool_size: 10)
       }.to change { Lepus::Consumers::WorkerFactory["custom"].pool_size }.from(4).to(10)
     end
 
     it "allows setting to multiple process ids at once" do
       expect {
-        configuration.consumer_process(:high, :low, pool_size: 3)
+        configuration.worker(:high, :low, pool_size: 3)
       }.to change { Lepus::Consumers::WorkerFactory.exists?("high") }.from(false).to(true)
         .and change { Lepus::Consumers::WorkerFactory.exists?("low") }.from(false).to(true)
 
@@ -118,7 +118,7 @@ RSpec.describe Lepus::Configuration do
 
     it "yields the process config to a block" do
       yielded = nil
-      configuration.consumer_process(:custom) do |config|
+      configuration.worker(:custom) do |config|
         yielded = config
         config.pool_size = 7
       end

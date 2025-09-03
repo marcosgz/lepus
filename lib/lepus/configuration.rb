@@ -65,7 +65,7 @@ module Lepus
       @consumers_directory = value.is_a?(Pathname) ? value : Pathname.new(value)
     end
 
-    def consumer_process(*names, **options)
+    def worker(*names, **options)
       names << Lepus::Consumers::WorkerFactory::DEFAULT_NAME if names.empty?
 
       names.map(&:to_s).uniq.each do |pid|
