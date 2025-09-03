@@ -62,7 +62,7 @@ RSpec.describe Lepus::Supervisor do
     it "start and stop supervisor process" do
       allow_any_instance_of(Lepus::Consumers::Worker).to receive(:setup_consumers!).and_return(true)
       pid = run_as_fork(supervisor)
-      wait_for_registered_processes(1)
+      wait_for_registered_processes(2)
 
       workers = Lepus::ProcessRegistry.all.select { |p| p.kind == "Worker" }
       expect(workers.size).to eq(1)
