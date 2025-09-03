@@ -5,6 +5,11 @@ require "bundler/setup"
 require "dotenv/load"
 require "pry"
 require "lepus"
+require "simplecov"
+
+SimpleCov.start
+
+Dir[File.expand_path("support/**/*.rb", __dir__)].sort.each { |f| require f }
 
 RSpec.configure do |config|
   config.example_status_persistence_file_path = ".rspec_status"
@@ -22,5 +27,7 @@ RSpec.configure do |config|
 
   def reset_config!
     Lepus.instance_variable_set(:@config, nil)
+    Lepus::ProcessRegistry.reset!
+    Lepus::Consumers::WorkerFactory.send(:clear_all)
   end
 end

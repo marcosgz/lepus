@@ -2,14 +2,6 @@
 
 module Lepus::Processes
   module Interruptible
-    def wake_up
-      interrupt
-    end
-
-    private
-
-    SELF_PIPE_BLOCK_SIZE = 11
-
     def interrupt
       self_pipe[:writer].write_nonblock(".")
     rescue Errno::EAGAIN, Errno::EINTR
@@ -17,6 +9,10 @@ module Lepus::Processes
       # if another signal arrived while writing
       retry
     end
+
+    private
+
+    SELF_PIPE_BLOCK_SIZE = 11
 
     def interruptible_sleep(time)
       if time > 0 && self_pipe[:reader].wait_readable(time)

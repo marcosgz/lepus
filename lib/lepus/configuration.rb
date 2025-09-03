@@ -65,6 +65,16 @@ module Lepus
       @consumers_directory = value.is_a?(Pathname) ? value : Pathname.new(value)
     end
 
+    def worker(*names, **options)
+      names << Lepus::Consumers::WorkerFactory::DEFAULT_NAME if names.empty?
+
+      names.map(&:to_s).uniq.each do |pid|
+        inst = Lepus::Consumers::WorkerFactory[pid]
+        inst.assign(options) if options.any?
+        yield(inst) if block_given?
+      end
+    end
+
     protected
 
     def connection_config

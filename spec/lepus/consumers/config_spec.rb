@@ -2,13 +2,153 @@
 
 require "spec_helper"
 
-RSpec.describe Lepus::ConsumerConfig do
+RSpec.describe Lepus::Consumers::Config do
   let(:config) { described_class.new(options) }
   let(:options) { {} }
 
   describe "#initialize" do
+    let(:options) { {} }
+
     it "sets the options" do
-      expect(config.options).to eq(options)
+      expect(config.options).to eq({})
+    end
+
+    it "sets the default process options" do
+      expect(config.instance_variable_get(:@worker_opts)).to eq({
+        name: "default",
+        threads: 1
+      })
+    end
+
+    it "sets the default exchange options" do
+      expect(config.instance_variable_get(:@exchange_opts)).to eq({
+        name: nil,
+        type: :topic,
+        durable: true
+      })
+    end
+
+    it "sets the default queue options" do
+      expect(config.instance_variable_get(:@queue_opts)).to eq({
+        name: nil,
+        durable: true
+      })
+    end
+
+    it "sets the default bind options" do
+      expect(config.instance_variable_get(:@bind_opts)).to eq({})
+    end
+
+    context "when options are provided" do
+      let(:options) do
+        {
+          worker: {name: "custom", threads: 5},
+          exchange: {name: "exchange-name", type: :direct, auto_delete: true},
+          queue: {name: "queue-name", auto_delete: true},
+          retry_queue: {delay: 10000},
+          error_queue: true,
+          bind: {routing_key: "routing-key"},
+          custom_option: "value"
+        }
+      end
+
+      it "sets the custom options" do
+        expect(config.options).to eq({custom_option: "value"})
+      end
+
+      it "sets the custom process options" do
+        expect(config.instance_variable_get(:@worker_opts)).to eq({
+          name: "custom",
+          threads: 5
+        })
+      end
+
+      it "sets the custom exchange options" do
+        expect(config.instance_variable_get(:@exchange_opts)).to eq({
+          name: "exchange-name",
+          type: :direct,
+          durable: true,
+          auto_delete: true
+        })
+      end
+
+      it "sets the custom queue options" do
+        expect(config.instance_variable_get(:@queue_opts)).to eq({
+          name: "queue-name",
+          durable: true,
+          auto_delete: true
+        })
+      end
+
+      it "sets the custom retry queue options" do
+        expect(config.instance_variable_get(:@retry_queue_opts)).to eq({
+          name: nil,
+          durable: true,
+          delay: 10000,
+          arguments: {}
+        })
+      end
+
+      it "sets the custom error queue options" do
+        expect(config.instance_variable_get(:@error_queue_opts)).to eq({
+          name: nil,
+          durable: true
+        })
+      end
+
+      it "sets the custom bind options" do
+        expect(config.instance_variable_get(:@bind_opts)).to eq({routing_key: "routing-key"})
+      end
+    end
+  end
+
+  describe "#worker_name" do
+    it "returns the default process name" do
+      expect(config.worker_name).to eq("default")
+    end
+
+    context "when process name is provided" do
+      let(:options) { {worker: {name: "custom"}} }
+
+      it "returns the custom process name" do
+        expect(config.worker_name).to eq("custom")
+      end
+    end
+  end
+
+  describe "#worker_threads" do
+    it "returns the default process threads" do
+      expect(config.worker_threads).to eq(1)
+    end
+
+    context "when process threads is provided" do
+      let(:options) { {worker: {threads: 5}} }
+
+      it "returns the custom process threads" do
+        expect(config.worker_threads).to eq(5)
+      end
+    end
+
+    context "when process threads is set to 0" do
+      let(:options) { {worker: {threads: 0}} }
+
+      it "raises InvalidConsumerConfigError" do
+        expect { config.worker_threads }.to raise_error(Lepus::InvalidConsumerConfigError)
+      end
+    end
+  end
+
+  describe "#channel_args" do
+    it "returns the default channel args" do
+      expect(config.channel_args).to eq([nil, 1, false, 60])
+    end
+
+    context "when channel options are provided" do
+      let(:options) { {channel: {pool_size: 5, abort_on_exception: true, shutdown_timeout: 120}} }
+
+      it "returns the custom channel args" do
+        expect(config.channel_args).to eq([nil, 5, true, 120])
+      end
     end
   end
 
@@ -52,6 +192,17 @@ RSpec.describe Lepus::ConsumerConfig do
 
       it "returns the queue args" do
         expect(config.consumer_queue_args).to eq(["queue-name", {durable: true, auto_delete: false}])
+      end
+    end
+
+    context "when the retry_queue is also set" do
+      let(:options) { {queue: "queue-name", retry_queue: true} }
+
+      it "returns the queue args" do
+        expect(config.consumer_queue_args).to eq(["queue-name", {durable: true, arguments: {
+          "x-dead-letter-exchange" => "",
+          "x-dead-letter-routing-key" => "queue-name.retry"
+        }}])
       end
     end
   end

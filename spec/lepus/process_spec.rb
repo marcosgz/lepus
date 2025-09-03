@@ -4,7 +4,7 @@ require "spec_helper"
 
 RSpec.describe Lepus::Process do
   after do
-    Lepus::ProcessRegistry.instance.clear
+    Lepus::ProcessRegistry.reset!
   end
 
   describe ".register" do
@@ -12,7 +12,7 @@ RSpec.describe Lepus::Process do
       process = described_class.register(name: "my-process")
 
       expect(process.id).to be_a(String)
-      expect(Lepus::ProcessRegistry.instance.all).to eq([process])
+      expect(Lepus::ProcessRegistry.all).to eq([process])
     end
   end
 
@@ -23,7 +23,16 @@ RSpec.describe Lepus::Process do
 
       described_class.prune
 
-      expect(Lepus::ProcessRegistry.instance.all).to eq([keep])
+      expect(Lepus::ProcessRegistry.all).to eq([keep])
+    end
+
+    it "does not prune the excluded process" do
+      old = described_class.register(last_heartbeat_at: Time.now - 10 * 60, name: "old")
+      keep = described_class.register(last_heartbeat_at: Time.now, name: "keep")
+
+      described_class.prune(excluding: old)
+
+      expect(Lepus::ProcessRegistry.all).to contain_exactly(old, keep)
     end
   end
 
@@ -31,7 +40,13 @@ RSpec.describe Lepus::Process do
     it "updates the last_heartbeat_at" do
       process = described_class.register(name: "my-process")
 
-      expect { process.heartbeat }.to change { Lepus::ProcessRegistry.instance.find(process.id).last_heartbeat_at }
+      expect { process.heartbeat }.to change { Lepus::ProcessRegistry.find(process.id).last_heartbeat_at }
+    end
+
+    it "raises when the process is not registered anymore" do
+      process = described_class.new(id: "gone", name: "ghost")
+
+      expect { process.heartbeat }.to raise_error(Lepus::Process::NotFoundError)
     end
   end
 
@@ -51,7 +66,7 @@ RSpec.describe Lepus::Process do
 
       process.destroy!
 
-      expect(Lepus::ProcessRegistry.instance.all).to eq([])
+      expect(Lepus::ProcessRegistry.all).to eq([])
     end
   end
 
@@ -65,7 +80,7 @@ RSpec.describe Lepus::Process do
 
       supervisor1.deregister
 
-      expect(Lepus::ProcessRegistry.instance.all).to eq([supervisor2, supervisee2])
+      expect(Lepus::ProcessRegistry.all).to eq([supervisor2, supervisee2])
     end
 
     it "does not deregister supervisor" do
@@ -74,7 +89,16 @@ RSpec.describe Lepus::Process do
 
       supervisee.deregister
 
-      expect(Lepus::ProcessRegistry.instance.all).to eq([supervisor])
+      expect(Lepus::ProcessRegistry.all).to eq([supervisor])
+    end
+
+    it "does not deregister supervisees when pruned" do
+      supervisor = described_class.register(name: "supervisor")
+      supervisee = described_class.register(name: "supervisee", supervisor_id: supervisor.id)
+
+      supervisor.prune
+
+      expect(Lepus::ProcessRegistry.all).to eq([supervisee])
     end
   end
 
@@ -92,6 +116,26 @@ RSpec.describe Lepus::Process do
     end
   end
 
+  describe ".prunable" do
+    it "returns processes whose heartbeat is older than the threshold" do
+      threshold = Lepus.config.process_alive_threshold
+      old = described_class.register(last_heartbeat_at: Time.now - (threshold + 1), name: "old-one")
+      fresh = described_class.register(last_heartbeat_at: Time.now, name: "fresh-one")
+
+      expect(described_class.prunable).to eq([old])
+      expect(described_class.prunable).not_to include(fresh)
+    end
+  end
+
+  describe "#rss_memory" do
+    it "returns the value from the memory grabber" do
+      stub_const("Lepus::Processes::MEMORY_GRABBER", ->(_pid) { 1234 })
+      process = described_class.register(pid: 42, name: "proc")
+
+      expect(process.rss_memory).to eq(1234)
+    end
+  end
+
   describe "#eql?" do
     it "returns true if the processes are equal" do
       process1 = described_class.register(id: "id", pid: "pid")
@@ -105,6 +149,15 @@ RSpec.describe Lepus::Process do
       process2 = described_class.register(id: "id", pid: "other-pid")
 
       expect(process1).not_to eq(process2)
+    end
+
+    it "aliases == to eql?" do
+      a = described_class.register(id: "same", pid: "p")
+      b = described_class.register(id: "same", pid: "p")
+      c = described_class.register(id: "same", pid: "q")
+
+      expect(a == b).to be(true)
+      expect(a == c).to be(false)
     end
   end
 end

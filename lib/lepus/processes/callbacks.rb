@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Lepus::Processes
+  # Provides callback functionality for process lifecycle events.
   module Callbacks
     def self.included(base)
       base.extend(ClassMethods)
@@ -51,6 +52,8 @@ module Lepus::Processes
         @after_shutdown_callbacks ||= []
         @after_shutdown_callbacks.concat methods
       end
+
+      private
 
       def before_boot_callbacks
         @before_boot_callbacks || []

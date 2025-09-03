@@ -60,7 +60,7 @@ module Lepus::Processes
         process.heartbeat
       rescue Process::NotFoundError
         self.process = nil
-        wake_up
+        interrupt
       end
     end
   end

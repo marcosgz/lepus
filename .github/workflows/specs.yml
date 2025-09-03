@@ -2,21 +2,22 @@ name: Specs
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
-  test:
+  ruby-2-7:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        ruby: ['2.7', '3.0']
+        ruby-version:
+          - "2.7"
         gemfile:
           - Gemfile
-          - gemfiles/rails61.gemfile
-    name: ${{ matrix.ruby }}-${{ matrix.gemfile }}
+          - gemfiles/Gemfile.rails-5.2
+    name: ${{ matrix.ruby-version }}-${{ matrix.gemfile }}
     env:
       BUNDLE_GEMFILE: ${{ matrix.gemfile }}
     services:
@@ -34,11 +35,90 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: ${{ matrix.ruby }}
+          ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
-    - name: Install dependencies
-      run: bundle install
-    - name: Run tests
-      run: bundle exec rspec
-      env:
-        RABBITMQ_URL: amqp://localhost:5672
+      - name: Install dependencies
+        run: bundle install --jobs 4 --retry 3
+      - name: Run tests
+        run: bundle exec rspec
+        env:
+          RABBITMQ_URL: amqp://localhost:5672
+
+  ruby-3-0:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby-version:
+          - "3.0"
+          - "3.1"
+        gemfile:
+          - Gemfile
+          - gemfiles/Gemfile.rails-6.1
+
+    name: ${{ matrix.ruby-version }}-${{ matrix.gemfile }}
+    env:
+      BUNDLE_GEMFILE: ${{ matrix.gemfile }}
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        options: >-
+          --health-cmd "rabbitmq-diagnostics ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5672:5672
+          - 15672:15672
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          bundler-cache: true
+      - name: Install dependencies
+        run: bundle install --jobs 4 --retry 3
+      - name: Run tests
+        run: bundle exec rspec
+        env:
+          RABBITMQ_URL: amqp://localhost:5672
+
+  ruby-3-2:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby-version:
+          - "3.2"
+          - "3.3"
+          - "3.4"
+        gemfile:
+          - gemfiles/Gemfile.rails-7.2
+          - gemfiles/Gemfile.rails-8.0
+
+    name: ${{ matrix.ruby-version }}-${{ matrix.gemfile }}
+    env:
+      BUNDLE_GEMFILE: ${{ matrix.gemfile }}
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        options: >-
+          --health-cmd "rabbitmq-diagnostics ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5672:5672
+          - 15672:15672
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          bundler-cache: true
+      - name: Install dependencies
+        run: bundle install --jobs 4 --retry 3
+      - name: Run tests
+        run: bundle exec rspec
+        env:
+          RABBITMQ_URL: amqp://localhost:5672

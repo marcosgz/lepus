@@ -2,12 +2,13 @@
 
 require "spec_helper"
 
-RSpec.describe Lepus::ConsumerWrapper do
+RSpec.describe Lepus::Consumers::Handler do
   let(:channel) { instance_double(Bunny::Channel) }
   let(:queue) { instance_double(Bunny::Queue) }
-  let(:consumer) { instance_double(Lepus::Consumer) }
-  let(:wrapper) do
-    described_class.new(consumer, channel, queue, "tag", {test: 1})
+  let(:consumer_class) { Class.new(Lepus::Consumer) }
+  let(:consumer) { instance_double(consumer_class) }
+  let(:handler) do
+    described_class.new(consumer_class, channel, queue, "tag", {test: 1})
   end
   let(:delivery_info) do
     instance_double(Bunny::DeliveryInfo, delivery_tag: delivery_tag)
@@ -19,22 +20,23 @@ RSpec.describe Lepus::ConsumerWrapper do
   before do
     allow(channel).to receive(:generate_consumer_tag)
     allow(channel).to receive(:ack)
+    handler.instance_variable_set(:@consumer, consumer)
   end
 
   it "sets the channel" do
-    expect(wrapper.channel).to eq(channel)
+    expect(handler.channel).to eq(channel)
   end
 
   it "sets the queue" do
-    expect(wrapper.queue).to eq(queue)
+    expect(handler.queue).to eq(queue)
   end
 
   it "sets the consumer_tag" do
-    expect(wrapper.consumer_tag).to eq("tag")
+    expect(handler.consumer_tag).to eq("tag")
   end
 
   it "sets the arguments" do
-    expect(wrapper.arguments).to eq({test: 1})
+    expect(handler.arguments).to eq({test: 1})
   end
 
   describe "#process_delivery" do
@@ -45,13 +47,13 @@ RSpec.describe Lepus::ConsumerWrapper do
         payload
       ).and_return(:ack)
 
-      wrapper.process_delivery(delivery_info, metadata, payload)
+      handler.process_delivery(delivery_info, metadata, payload)
     end
 
     it "returns the result of the consumer" do
       allow(consumer).to receive(:process_delivery).and_return(:ack)
 
-      expect(wrapper.process_delivery(delivery_info, metadata, payload)).to eq(
+      expect(handler.process_delivery(delivery_info, metadata, payload)).to eq(
         :ack
       )
     end
@@ -61,7 +63,7 @@ RSpec.describe Lepus::ConsumerWrapper do
 
       expect(channel).to receive(:ack).with(delivery_tag, false)
 
-      wrapper.process_delivery(delivery_info, metadata, payload)
+      handler.process_delivery(delivery_info, metadata, payload)
     end
 
     it "rejects the message if #work returns :reject" do
@@ -69,7 +71,7 @@ RSpec.describe Lepus::ConsumerWrapper do
 
       expect(channel).to receive(:reject).with(delivery_tag)
 
-      wrapper.process_delivery(delivery_info, metadata, payload)
+      handler.process_delivery(delivery_info, metadata, payload)
     end
 
     it "requeues the message if #work returns :requeue" do
@@ -77,7 +79,7 @@ RSpec.describe Lepus::ConsumerWrapper do
 
       expect(channel).to receive(:reject).with(delivery_tag, true)
 
-      wrapper.process_delivery(delivery_info, metadata, payload)
+      handler.process_delivery(delivery_info, metadata, payload)
     end
   end
 end

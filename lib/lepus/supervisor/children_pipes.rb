@@ -2,26 +2,22 @@
 
 module Lepus
   class Supervisor < Processes::Base
-    module Pidfiled
+    module ChildrenPipes
       def self.included(base)
         base.send :include, InstanceMethods
         base.class_eval do
-          before_boot :setup_pidfile
-          after_shutdown :delete_pidfile
+          after_shutdown :close_pipes
         end
       end
 
       module InstanceMethods
         private
 
-        def setup_pidfile
-          if (path = pidfile_path)
-            @pidfile = Pidfile.new(path).tap(&:setup)
+        def close_pipes
+          pipes.each_value do |pipe|
+            pipe.close if pipe && !pipe.closed?
           end
-        end
-
-        def delete_pidfile
-          @pidfile&.delete
+          @pipes = {}
         end
       end
     end

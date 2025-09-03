@@ -1,37 +1,109 @@
 # frozen_string_literal: true
 
-require "singleton"
+require "pathname"
+require "tmpdir"
+require "base64"
 
 module Lepus
+  # we are storing the process registry in a file using Marshal serialization
+  # but the plan is to move to a Rabbitmq or Redis based implementation in the future
+  # to let it available to outside services like the web dashboard.
+  # I'll refactor this class later when we have a better idea of the requirements.
   class ProcessRegistry
-    include Singleton
+    class << self
+      attr_reader :path
 
-    def initialize
-      @processes = ::Concurrent::Hash.new
-    end
+      def start
+        @path ||= Pathname.new(Dir.tmpdir).join("lepus_process_registry.store")
+      end
 
-    def add(process)
-      @processes[process.id] = process
-    end
+      def stop
+        path.delete if path&.exist?
+      end
 
-    def delete(process)
-      @processes.delete(process.id)
-    end
+      def reset!
+        stop
+        start
+      end
 
-    def find(id)
-      @processes[id] || raise(Lepus::Process::NotFoundError.new(id))
-    end
+      def add(process)
+        transaction do |data|
+          data[process.id] = process.to_h
+        end
+      end
+      alias_method :update, :add
 
-    def exists?(id)
-      @processes.key?(id)
-    end
+      def delete(process)
+        transaction do |data|
+          data.delete(process.id)
+        end
+      end
 
-    def all
-      @processes.values
-    end
+      def find(id)
+        raw = read.fetch(id) { raise(Lepus::Process::NotFoundError.new(id)) }
+        Lepus::Process.coerce(raw)
+      end
 
-    def clear
-      @processes.clear
+      def exists?(id)
+        read.key?(id)
+      end
+
+      def all
+        read.keys.map { |id| find(id) }
+      end
+
+      def count
+        return 0 unless path
+
+        read.size
+      end
+
+      def clear
+        return unless path
+
+        write({})
+      end
+
+      private
+
+      def transaction
+        data = read
+        yield data
+        write(data)
+      end
+
+      def read
+        with_lock(File::LOCK_SH) do |f|
+          if f.size.zero?
+            {}
+          else
+            encoded = f.read
+            Marshal.load(Base64.strict_decode64(encoded))
+          end
+        end
+      end
+
+      def write(data)
+        with_lock(File::LOCK_EX) do |f|
+          f.rewind
+          f.truncate(0)
+          encoded = Base64.strict_encode64(Marshal.dump(data))
+          f.write(encoded)
+          f.flush
+        end
+      end
+
+      def with_lock(lock_type)
+        unless path
+          raise "ProcessRegistry not started. Call Lepus::ProcessRegistry.start first."
+        end
+        File.open(path, File::RDWR | File::CREAT | File::BINARY, 0o644) do |f|
+          f.flock(lock_type)
+          result = yield f
+          f.flock(File::LOCK_UN)
+          result
+        end
+      end
     end
   end
 end

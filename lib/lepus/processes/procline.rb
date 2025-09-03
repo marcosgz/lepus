@@ -5,7 +5,7 @@ module Lepus::Processes
     # Sets the procline ($0)
     # [lepus-supervisor: <string>]
     def procline(string)
-      $0 = "[lepus-#{kind.downcase}: #{string}]"
+      $0 = "[lepus-#{string}]"
     end
   end
 end

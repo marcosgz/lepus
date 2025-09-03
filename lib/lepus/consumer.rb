@@ -26,7 +26,7 @@ module Lepus
         return @config if defined?(@config)
 
         name = Primitive::String.new(to_s).underscore.split("/").last
-        @config = ConsumerConfig.new(queue: name, exchange: name)
+        @config = Consumers::Config.new(queue: name, exchange: name)
       end
 
       # List of registered middlewares. Register new middlewares with {.use}.
@@ -64,7 +64,9 @@ module Lepus
       # @option opts [Boolean, Hash] :retry_queue (false) Whether a retry queue should be provided.
       # @option opts [Boolean, Hash] :error_queue (false) Whether an error queue should be provided.
       def configure(opts = {})
-        @config = ConsumerConfig.new(opts)
+        raise ArgumentError, "Cannot configure an abstract class" if abstract_class?
+
+        @config = Consumers::Config.new(opts)
         yield(@config) if block_given?
         @config
       end

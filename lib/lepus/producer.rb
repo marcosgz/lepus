@@ -8,9 +8,13 @@ module Lepus
       auto_delete: false
     }.freeze
 
-    def initialize(exchange_name, **options)
+    # @param exchange_name [String] The name of the exchange to publish messages to.
+    # @param connection [Bunny::Session] The Bunny connection to use.
+    # @param options [Hash] Additional options for the exchange (type, durable, auto_delete).
+    def initialize(exchange_name, connection:, **options)
+      @connection = connection
       @exchange_name = exchange_name
-      @exchange_options = options
+      @exchange_options = DEFAULT_EXCHANGE_OPTIONS.merge(options)
     end
 
     def publish(message, **options)
@@ -22,17 +26,13 @@ module Lepus
         MultiJson.dump(message)
       end
 
-      bunny.with_channel do |channel|
+      @connection.with_channel do |channel|
         exchange = channel.exchange(@exchange_name, @exchange_options)
         exchange.publish(
           payload,
-          DEFAULT_PUBLISH_OPTIONS.merge(options)
+          options
         )
       end
-    end
-
-    def bunny
-      Thread.current[:lepus_bunny] ||= Lepus.config.create_connection(suffix: "producer")
     end
   end
 end

@@ -50,41 +50,39 @@ module Lepus
   class MaxRecoveryAttemptsExhaustedError < ShutdownError
   end
 
-  extend self
+  class << self
+    attr_writer :logger
 
-  def logger
-    @logger ||= DEFAULT_LOGGER
-  end
-
-  def logger=(logger)
-    @logger = logger
-  end
-
-  def instrument(channel, **options, &block)
-    if defined?(ActiveSupport::Notifications)
-      ActiveSupport::Notifications.instrument("#{channel}.lepus", **options, &block)
-    else
-      yield(options.dup)
+    def logger
+      @logger ||= DEFAULT_LOGGER
     end
-  end
 
-  def eager_load_consumers!
-    return false unless Lepus.config.consumers_directory.exist?
-
-    Dir[config.consumers_directory.join("**/*.rb")].map { |path| Pathname.new(path) }.each do |path|
-      next unless path.extname == ".rb"
-
-      require(path.expand_path.to_s)
+    def instrument(channel, **options, &block)
+      if defined?(ActiveSupport::Notifications)
+        ActiveSupport::Notifications.instrument("#{channel}.lepus", **options, &block)
+      else
+        yield(options.dup)
+      end
     end
-    true
-  end
 
-  def self.config
-    @config ||= Configuration.new
-  end
+    def eager_load_consumers!
+      return false unless Lepus.config.consumers_directory.exist?
 
-  def self.configure
-    yield config
+      Dir[config.consumers_directory.join("**/*.rb")].map { |path| Pathname.new(path) }.each do |path|
+        next unless path.extname == ".rb"
+
+        require(path.expand_path.to_s)
+      end
+      true
+    end
+
+    def config
+      @config ||= Configuration.new
+    end
+
+    def configure
+      yield config
+    end
   end
 end
 

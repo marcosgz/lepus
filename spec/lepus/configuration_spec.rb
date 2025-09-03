@@ -70,4 +70,61 @@ RSpec.describe Lepus::Configuration do
       expect(configuration.consumers_directory).to eq(Pathname.new("lib/consumers"))
     end
   end
+
+  describe "#worker" do
+    before { Lepus::Consumers::WorkerFactory.send(:clear_all) }
+
+    it "initializes a new WorkerFactory a new process config with default values" do
+      expect {
+        configuration.worker
+      }.to change { Lepus::Consumers::WorkerFactory.exists?("default") }.from(false).to(true)
+    end
+
+    it "allows setting options on the process config" do
+      expect {
+        configuration.worker(pool_size: 5, pool_timeout: 10)
+      }.to change { Lepus::Consumers::WorkerFactory.exists?("default") }.from(false).to(true)
+
+      conf = Lepus::Consumers::WorkerFactory.default
+      expect(conf.pool_size).to eq(5)
+      expect(conf.pool_timeout).to eq(10)
+    end
+
+    it "allows setting process by given name" do
+      expect {
+        configuration.worker(:custom, pool_size: 4)
+      }.to change { Lepus::Consumers::WorkerFactory.exists?("custom") }.from(false).to(true)
+      conf = Lepus::Consumers::WorkerFactory["custom"]
+      expect(conf.pool_size).to eq(4)
+      expect(conf.name).to eq("custom")
+    end
+
+    it "ignores when process with given name already exists" do
+      configuration.worker(:custom, pool_size: 4)
+      expect {
+        configuration.worker(:custom, pool_size: 10)
+      }.to change { Lepus::Consumers::WorkerFactory["custom"].pool_size }.from(4).to(10)
+    end
+
+    it "allows setting to multiple process ids at once" do
+      expect {
+        configuration.worker(:high, :low, pool_size: 3)
+      }.to change { Lepus::Consumers::WorkerFactory.exists?("high") }.from(false).to(true)
+        .and change { Lepus::Consumers::WorkerFactory.exists?("low") }.from(false).to(true)
+
+      expect(Lepus::Consumers::WorkerFactory["high"].pool_size).to eq(3)
+      expect(Lepus::Consumers::WorkerFactory["low"].pool_size).to eq(3)
+    end
+
+    it "yields the process config to a block" do
+      yielded = nil
+      configuration.worker(:custom) do |config|
+        yielded = config
+        config.pool_size = 7
+      end
+      conf = Lepus::Consumers::WorkerFactory["custom"]
+      expect(yielded).to be(conf)
+      expect(yielded.pool_size).to eq(7)
+    end
+  end
 end

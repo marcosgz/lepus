@@ -27,7 +27,7 @@ module Lepus::Processes
     def stop
       super
 
-      wake_up
+      interrupt
       @thread&.join
     end
 
