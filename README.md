@@ -28,7 +28,16 @@ gem install lepus
 
 ## Configuration
 
-You can configure the Lepus using the `Lepus.configure` method. The configuration options are:
+You can configure the Lepus using the `Lepus.configure` method.
+
+```ruby
+Lepus.configure do |config|
+  config.connection_name = 'MyApp'
+  config.rabbitmq_url = ENV.fetch('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672')
+end
+```
+
+The configuration options are:
 
 - `rabbitmq_url`: The RabbitMQ host. Default: to `RABBITMQ_URL` environment variable or `amqp://guest:guest@localhost:5672`.
 - `connection_name`: The connection name. Default: `Lepus`.
@@ -40,23 +49,9 @@ You can configure the Lepus using the `Lepus.configure` method. The configuratio
 - `process_heartbeat_timeout`: The timeout in seconds to wait for a heartbeat. Default is `10 seconds`.
 - `worker`: A block to configure the worker process that will run the consumers. You can set the `pool_size`, `pool_timeout`, and before/after fork callbacks inline options or using a block. Main worker is `:default`, but you can define more workers with different names for different consumers.
 
-
-```ruby
-Lepus.configure do |config|
-  config.connection_name = 'MyApp'
-  config.rabbitmq_url = ENV.fetch('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672')
-end
-```
-
 ### Configuration > Consumer Worker
 
-You can configure the consumer process using the `worker` method. The options are:
-- `pool_size`: The number of threads in the pool. Default: `1`.
-- `pool_timeout`: The timeout in seconds to wait for a thread to be available. Default: `5.0`.
-- `before_fork`: A block to be executed before forking the process. Default: `nil`.
-- `after_fork`: A block to be executed after forking the process. Default: `nil`.
-
-The default worker is named `:default`, but you can define more workers with different names for different consumers.
+You can configure the consumer process using the `worker` method. The default worker is named `:default`, but you can define more workers with different names for different consumers.
 
 Configuration can be done inline or using a block:
 
@@ -77,6 +72,12 @@ Lepus.configure do |config|
   config.worker(:datasync, pool_size: 1, pool_timeout: 5.0)
 end
 ```
+
+The options are:
+- `pool_size`: The number of threads in the pool. Default: `1`.
+- `pool_timeout`: The timeout in seconds to wait for a thread to be available. Default: `5.0`.
+- `before_fork`: A block to be executed before forking the process. Default: `nil`.
+- `after_fork`: A block to be executed after forking the process. Default: `nil`.
 
 To define a consumer, you need to create a class inheriting from `Lepus::Consumer` and implement the `perform` method. The `perform` method will be called when a message is received. Use the `configure` method to set the queue name, exchange name, and other options.
 
