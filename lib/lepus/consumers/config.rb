@@ -23,7 +23,7 @@ module Lepus
 
       DEFAULT_PREFETCH_COUNT = 1
 
-      DEFAULT_PROCESS_OPTIONS = {
+      DEFAULT_WORKER_OPTIONS = {
         name: "default",
         threads: 1
       }.freeze
@@ -42,8 +42,8 @@ module Lepus
       def initialize(options = {})
         opts = Lepus::Primitive::Hash.new(options).deep_symbolize_keys
 
-        @process_opts = DEFAULT_PROCESS_OPTIONS.merge(
-          declaration_config(opts.delete(:process))
+        @worker_opts = DEFAULT_WORKER_OPTIONS.merge(
+          declaration_config(opts.delete(:worker))
         )
         @exchange_opts = DEFAULT_EXCHANGE_OPTIONS.merge(
           declaration_config(opts.delete(:exchange))
@@ -131,12 +131,12 @@ module Lepus
         end
       end
 
-      def process_name
-        @process_opts.fetch(:name, DEFAULT_PROCESS_OPTIONS[:name])
+      def worker_name
+        @worker_opts.fetch(:name, DEFAULT_WORKER_OPTIONS[:name])
       end
 
-      def process_threads
-        threads = @process_opts.fetch(:threads, DEFAULT_PROCESS_OPTIONS[:threads])
+      def worker_threads
+        threads = @worker_opts.fetch(:threads, DEFAULT_WORKER_OPTIONS[:threads])
         threads = 1 if threads.to_i < 1
         threads
       end

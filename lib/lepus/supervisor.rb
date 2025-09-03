@@ -39,7 +39,7 @@ module Lepus
 
       run_start_hooks
 
-      build_and_start_processes
+      build_and_start_workers
       launch_maintenance_task
 
       supervise
@@ -62,10 +62,10 @@ module Lepus
     # @return [Integer] The timeout in seconds to wait for child processes to terminate gracefully before forcing termination.
     attr_reader :shutdown_timeout
 
-    # @return [Hash{Integer[pid] => Lepus::Consumers::Process}] map of forked process IDs to their instances
+    # @return [Hash{Integer[pid] => Lepus::Consumers::Worker}] map of forked process IDs to their instances
     attr_reader :forks
 
-    # @return [Hash{Integer[pid] => Lepus::Consumers::ProcessFactory}] map of forked process IDs to their immutable factory configurations
+    # @return [Hash{Integer[pid] => Lepus::Consumers::WorkerFactory}] map of forked process IDs to their immutable factory configurations
     attr_reader :configured_processes
 
     # @return [Hash{Integer[pid] => IO}] map of forked process IDs to their communication pipes
@@ -131,9 +131,9 @@ module Lepus
       temp_bunny.close
     end
 
-    def build_and_start_processes
-      consumer_classes.group_by { |klass| klass.config.process_name }.map do |process_name, classes|
-        frozen_factory = Lepus::Consumers::ProcessFactory.immutate_with(process_name, consumers: classes)
+    def build_and_start_workers
+      consumer_classes.group_by { |klass| klass.config.worker_name }.map do |worker_name, classes|
+        frozen_factory = Lepus::Consumers::WorkerFactory.immutate_with(worker_name, consumers: classes)
         start_process(frozen_factory)
       end
     end

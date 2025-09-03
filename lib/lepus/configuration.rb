@@ -66,10 +66,10 @@ module Lepus
     end
 
     def consumer_process(*names, **options)
-      names << Lepus::Consumers::ProcessFactory::DEFAULT_NAME if names.empty?
+      names << Lepus::Consumers::WorkerFactory::DEFAULT_NAME if names.empty?
 
       names.map(&:to_s).uniq.each do |pid|
-        inst = Lepus::Consumers::ProcessFactory[pid]
+        inst = Lepus::Consumers::WorkerFactory[pid]
         inst.assign(options) if options.any?
         yield(inst) if block_given?
       end

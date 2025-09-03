@@ -4,7 +4,7 @@ require "forwardable"
 
 module Lepus
   module Consumers
-    class Process < Processes::Base
+    class Worker < Processes::Base
       include Processes::Runnable
 
       extend Forwardable
@@ -23,7 +23,7 @@ module Lepus
       end
 
       def kind
-        "consumer-#{name}"
+        "worker-#{name}"
       end
 
       def before_fork
@@ -87,7 +87,7 @@ module Lepus
         @subscriptions = consumers.flat_map do |consumer_class|
           consumer_config = consumer_class.config
 
-          Array.new(consumer_config.process_threads) do |n|
+          Array.new(consumer_config.worker_threads) do |n|
             connection_pool.with_connection do |bunny|
               channel = bunny.create_channel(*consumer_config.channel_args)
               channel.basic_qos(consumer_config.prefetch_count) if consumer_config.prefetch_count

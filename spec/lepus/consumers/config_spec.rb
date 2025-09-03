@@ -14,7 +14,7 @@ RSpec.describe Lepus::Consumers::Config do
     end
 
     it "sets the default process options" do
-      expect(config.instance_variable_get(:@process_opts)).to eq({
+      expect(config.instance_variable_get(:@worker_opts)).to eq({
         name: "default",
         threads: 1
       })
@@ -42,7 +42,7 @@ RSpec.describe Lepus::Consumers::Config do
     context "when options are provided" do
       let(:options) do
         {
-          process: {name: "custom", threads: 5},
+          worker: {name: "custom", threads: 5},
           exchange: {name: "exchange-name", type: :direct, auto_delete: true},
           queue: {name: "queue-name", auto_delete: true},
           retry_queue: {delay: 10000},
@@ -57,7 +57,7 @@ RSpec.describe Lepus::Consumers::Config do
       end
 
       it "sets the custom process options" do
-        expect(config.instance_variable_get(:@process_opts)).to eq({
+        expect(config.instance_variable_get(:@worker_opts)).to eq({
           name: "custom",
           threads: 5
         })
@@ -102,16 +102,16 @@ RSpec.describe Lepus::Consumers::Config do
     end
   end
 
-  describe "#process_name" do
+  describe "#worker_name" do
     it "returns the default process name" do
-      expect(config.process_name).to eq("default")
+      expect(config.worker_name).to eq("default")
     end
 
     context "when process name is provided" do
-      let(:options) { {process: {name: "custom"}} }
+      let(:options) { {worker: {name: "custom"}} }
 
       it "returns the custom process name" do
-        expect(config.process_name).to eq("custom")
+        expect(config.worker_name).to eq("custom")
       end
     end
   end

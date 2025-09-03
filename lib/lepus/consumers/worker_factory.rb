@@ -9,7 +9,7 @@ module Lepus
     # Note that this class only holds configuration data related the process and does not handle
     # the actual process management or consumer execution. Consumer has its own configuration for
     # AMPQ settings, queue names, etc.
-    class ProcessFactory
+    class WorkerFactory
       DEFAULT_NAME = "default"
 
       class << self
@@ -31,7 +31,7 @@ module Lepus
         # Create an immutable copy of the process configuration with the specified consumers.
         # @param name [String, Symbol] the name of the process configuration to use.
         # @param consumers [Array<Lepus::Consumer>] the list of consumer classes to be run in this process.
-        # @return [Lepus::Consumers::ProcessFactory] the immutable process configuration.
+        # @return [Lepus::Consumers::WorkerFactory] the immutable process configuration.
         def immutate_with(name, consumers: [])
           definer = self[name].dup
           definer.freeze_with(consumers)
@@ -94,10 +94,10 @@ module Lepus
         freeze
       end
 
-      # Instantiate a new Lepus::Consumers::Process based on this configuration.
-      # @return [Lepus::Consumers::Process] a new instance of Lepus::Consumers::Process configured with this definition.
+      # Instantiate a new Lepus::Consumers::Worker based on this configuration.
+      # @return [Lepus::Consumers::Worker] a new instance of Lepus::Consumers::Worker configured with this definition.
       def instantiate_process
-        Lepus::Consumers::Process.new(self)
+        Lepus::Consumers::Worker.new(self)
       end
 
       def before_fork(&block)
