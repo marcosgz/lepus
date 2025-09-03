@@ -116,6 +116,27 @@ RSpec.describe Lepus::Consumers::Config do
     end
   end
 
+  describe "#worker_threads" do
+    it "returns the default process threads" do
+      expect(config.worker_threads).to eq(1)
+    end
+
+    context "when process threads is provided" do
+      let(:options) { {worker: {threads: 5}} }
+      it "returns the custom process threads" do
+        expect(config.worker_threads).to eq(5)
+      end
+    end
+
+    context "when process threads is set to 0" do
+      let(:options) { {worker: {threads: 0}} }
+
+      it "raises InvalidConsumerConfigError" do
+        expect { config.worker_threads }.to raise_error(Lepus::InvalidConsumerConfigError)
+      end
+    end
+  end
+
   describe "#exchange_args" do
     it "raises InvalidConsumerConfigError when exchange name is not given" do
       expect { config.exchange_args }.to raise_error(Lepus::InvalidConsumerConfigError)

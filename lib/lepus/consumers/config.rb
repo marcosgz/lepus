@@ -137,7 +137,9 @@ module Lepus
 
       def worker_threads
         threads = @worker_opts.fetch(:threads, DEFAULT_WORKER_OPTIONS[:threads])
-        threads = 1 if threads.to_i < 1
+        if threads.to_i < 1
+          raise InvalidConsumerConfigError, "Worker threads must be at least 1"
+        end
         threads
       end
 
