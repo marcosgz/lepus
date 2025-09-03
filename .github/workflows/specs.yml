@@ -93,7 +93,6 @@ jobs:
           - "3.3"
           - "3.4"
         gemfile:
-          - gemfiles/Gemfile
           - gemfiles/Gemfile.rails-7.2
           - gemfiles/Gemfile.rails-8.0
 
