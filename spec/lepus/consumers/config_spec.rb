@@ -123,6 +123,7 @@ RSpec.describe Lepus::Consumers::Config do
 
     context "when process threads is provided" do
       let(:options) { {worker: {threads: 5}} }
+
       it "returns the custom process threads" do
         expect(config.worker_threads).to eq(5)
       end

@@ -64,7 +64,7 @@ module Lepus
         @pool_size = 1
         @pool_timeout = 5
         @consumers = []
-        @callbacks = { before_fork: [], after_fork: [] }
+        @callbacks = {before_fork: [], after_fork: []}
       end
 
       # Assign multiple attributes at once from a hash of options.
@@ -101,11 +101,11 @@ module Lepus
       end
 
       def before_fork(&block)
-        callbacks[:before_fork] << block if block_given?
+        callbacks[:before_fork] << block if block
       end
 
       def after_fork(&block)
-        callbacks[:after_fork] << block if block_given?
+        callbacks[:after_fork] << block if block
       end
 
       def run_process_callbacks(type)

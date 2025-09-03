@@ -2,7 +2,7 @@
 
 module Lepus
   class Supervisor < Processes::Base
-    SHUTDOWN_MSG = "☠️".freeze
+    SHUTDOWN_MSG = "☠️"
 
     include LifecycleHooks
     include ChildrenPipes
@@ -239,12 +239,10 @@ module Lepus
       return unless ready_pipes
 
       ready_pipes.each do |pipe|
-        begin
-          message = pipe.gets&.chomp
-          initiate_shutdown_sequence_from_child(pipe) if message == SHUTDOWN_MSG
-        rescue IOError, Errno::EPIPE
-          # Pipe was closed or broken, clean it up
-        end
+        message = pipe.gets&.chomp
+        initiate_shutdown_sequence_from_child(pipe) if message == SHUTDOWN_MSG
+      rescue IOError, Errno::EPIPE
+        # Pipe was closed or broken, clean it up
       end
     rescue IOError
       # Handle any IO errors during select
@@ -261,7 +259,7 @@ module Lepus
 
     def reap_terminated_forks
       loop do
-        pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
+        pid, _ = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
 
         pipes.delete(pid)&.close
@@ -274,7 +272,6 @@ module Lepus
 
     def replace_fork(pid, status)
       Lepus.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
-
         pipes.delete(pid)&.close
         if (terminated_fork = forks.delete(pid))
           payload[:fork] = terminated_fork
@@ -298,6 +295,5 @@ module Lepus
       quit_forks
       stop
     end
-
   end
 end

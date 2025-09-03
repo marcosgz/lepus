@@ -77,7 +77,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
     end
 
     context "when payload is a Hash" do
-      let(:payload) { { "a" => 1, b: 2 } }
+      let(:payload) { {"a" => 1, :b => 2} }
 
       it "serializes the payload to JSON before publishing" do
         expect(Bunny::Exchange).to receive(:default).with(channel).and_return(default_exchange)
@@ -135,7 +135,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
         Bunny::MessageProperties,
         headers: {
           "x-death" => [
-            { "count" => 3, "reason" => "expired" }
+            {"count" => 3, "reason" => "expired"}
           ]
         }
       )
@@ -152,7 +152,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
         Bunny::MessageProperties,
         headers: {
           "x-death" => [
-            { "reason" => "rejected" }
+            {"reason" => "rejected"}
           ]
         }
       )

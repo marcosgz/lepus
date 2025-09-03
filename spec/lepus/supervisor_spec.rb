@@ -44,7 +44,7 @@ RSpec.describe Lepus::Supervisor do
       supervisor.send(:forks)[111] = :dummy
       supervisor.send(:forks)[222] = :dummy
 
-      expect(supervisor.send(:supervised_processes)).to match_array([111, 222])
+      expect(supervisor.send(:supervised_processes)).to contain_exactly(111, 222)
     end
   end
 
@@ -176,10 +176,11 @@ RSpec.describe Lepus::Supervisor do
 
     it "groups consumers by worker name and starts processes" do
       class TestConsumerA < Lepus::Consumer; end
+
       class TestConsumerB < Lepus::Consumer; end
 
-      TestConsumerA.configure(queue: "qa", exchange: "xa") { |c| c.instance_variable_set(:@worker_opts, { name: "wa" }) }
-      TestConsumerB.configure(queue: "qb", exchange: "xb") { |c| c.instance_variable_set(:@worker_opts, { name: "wa" }) }
+      TestConsumerA.configure(queue: "qa", exchange: "xa") { |c| c.instance_variable_set(:@worker_opts, {name: "wa"}) }
+      TestConsumerB.configure(queue: "qb", exchange: "xb") { |c| c.instance_variable_set(:@worker_opts, {name: "wa"}) }
 
       allow(supervisor).to receive(:consumer_classes).and_return([TestConsumerA, TestConsumerB])
 

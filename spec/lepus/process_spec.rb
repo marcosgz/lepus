@@ -32,7 +32,7 @@ RSpec.describe Lepus::Process do
 
       described_class.prune(excluding: old)
 
-      expect(Lepus::ProcessRegistry.instance.all).to match_array([old, keep])
+      expect(Lepus::ProcessRegistry.instance.all).to contain_exactly(old, keep)
     end
   end
 

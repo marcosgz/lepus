@@ -35,7 +35,10 @@ RSpec.describe Lepus::Middlewares::JSON do
     it "does not mutate the original message and passes a new one downstream" do
       received_message = nil
 
-      result = middleware.call(message, proc { |msg, _blk| received_message = msg; :ok })
+      result = middleware.call(message, proc { |msg, _blk|
+                                          received_message = msg
+                                          :ok
+                                        })
 
       expect(result).to eq(:ok)
       expect(message.payload).to eq(payload)
@@ -45,7 +48,10 @@ RSpec.describe Lepus::Middlewares::JSON do
     it "preserves delivery_info and metadata when forwarding the message" do
       received_message = nil
 
-      middleware.call(message, proc { |msg, _blk| received_message = msg; :ok })
+      middleware.call(message, proc { |msg, _blk|
+                                 received_message = msg
+                                 :ok
+                               })
 
       expect(received_message.delivery_info).to equal(delivery_info)
       expect(received_message.metadata).to equal(metadata)
