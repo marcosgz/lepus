@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lepus Dashboard</title>
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%90%B0%3C/text%3E%3C/svg%3E" />
+  </head>
+  <body data-controller="theme connection dashboard">
+    <header class="navbar">
+      <div class="brand">
+        <span class="logo-badge">L</span>
+        <span class="title">Lepus</span>
+      </div>
+      <div class="nav-controls">
+        <div class="refresh-control">
+          <label for="refreshRange">Refresh:</label>
+          <input id="refreshRange" type="range" min="5" max="60" step="5" value="15" data-dashboard-target="refreshRange" data-action="input->dashboard#updateRefresh" />
+          <span class="refresh-value"><span data-dashboard-target="refreshLabel">15</span>s</span>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <div class="connection-status" data-connection-target="indicator" title="Connection status">
+          <span class="status-dot"></span>
+          <span class="status-text" data-connection-target="text">Connected</span>
+        </div>
+        <button class="btn" data-action="theme#toggle" aria-label="Toggle theme" title="Toggle theme">
+          <span data-theme-target="icon">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="container">
+
+      <section class="grid stats-grid">
+        <div class="card stat-card">
+          <div class="stat-label">Processes</div>
+          <div class="stat-value" data-dashboard-target="processCount">0</div>
+          <div class="stat-detail" data-dashboard-target="processDetail">Supervisors 0, Workers 0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Active queues</div>
+          <div class="stat-value" data-dashboard-target="queueCount">0</div>
+          <div class="stat-detail" data-dashboard-target="queueDetail">0 running, 0 paused</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Messages</div>
+          <div class="stat-value" data-dashboard-target="totalMessages">0</div>
+          <div class="stat-detail" data-dashboard-target="messageDetail">0 ready, 0 unacked</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Memory usage</div>
+          <div class="stat-value" data-dashboard-target="memoryUsage">0 MB</div>
+          <div class="stat-detail" data-dashboard-target="memoryDetail">RSS 0 MB, Heap 0 MB</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Connections</div>
+          <div class="stat-value" data-dashboard-target="connectionCount">0</div>
+          <div class="stat-detail" data-dashboard-target="connectionDetail">0 active, 0 idle</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Message rates</div>
+          <div class="stat-value"><span data-dashboard-target="publishRate">0</span>/<span data-dashboard-target="consumeRate">0</span> msg/s</div>
+          <div class="stat-detail" data-dashboard-target="rateDetail">Peak: 0/0 msg/s</div>
+        </div>
+      </section>
+
+      <section class="grid chart-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>Message Rates</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="rateChart" height="240"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>Queue Distribution</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="queueChart" height="240"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid processes-grid" data-dashboard-target="processesRoot">
+        <!-- Process hierarchy cards rendered here -->
+      </section>
+
+      <section class="grid queues-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>Queues</h3>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table" data-controller="queue">
+                <thead>
+                  <tr>
+                    <th>Queue</th>
+                    <th>Type</th>
+                    <th>Ready</th>
+                    <th>Unacked</th>
+                    <th>Total</th>
+                    <th>Consumers</th>
+                    <th>Memory</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody data-dashboard-target="queuesRoot">
+                  <!-- Queue rows populated here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <script src="https://unpkg.com/@hotwired/stimulus@3.2.2/dist/stimulus.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="/assets/js/app.js"></script>
+    <script src="/assets/js/controllers/theme_controller.js"></script>
+    <script src="/assets/js/controllers/connection_controller.js"></script>
+    <script src="/assets/js/controllers/dashboard_controller.js"></script>
+    <script src="/assets/js/controllers/queue_controller.js"></script>
+  </body>
+  </html>
+
+
