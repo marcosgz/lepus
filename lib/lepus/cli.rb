@@ -36,7 +36,7 @@ module Lepus
     method_option :host, type: :string, aliases: "-o", default: "0.0.0.0", desc: "Host to bind"
     def web
       port = (options[:port] || 9292).to_i
-      host = options[:host] || '0.0.0.0'
+      host = options[:host] || "0.0.0.0"
 
       puts "Starting Lepus Web dashboard on http://#{host}:#{port}"
       puts "Press Ctrl+C to stop"

@@ -9,81 +9,81 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(template: :not_found)
 
         expect(status).to eq(404)
-        expect(headers['Content-Type']).to eq('application/json')
-        expect(JSON.parse(body.first)).to eq({ 'error' => 'not_found' })
+        expect(headers["Content-Type"]).to eq("application/json")
+        expect(JSON.parse(body.first)).to eq({"error" => "not_found"})
       end
 
       it "returns health template response" do
         status, headers, body = described_class.json(template: :health)
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
-        expect(JSON.parse(body.first)).to eq({ 'status' => 'ok' })
+        expect(headers["Content-Type"]).to eq("application/json")
+        expect(JSON.parse(body.first)).to eq({"status" => "ok"})
       end
 
       it "returns ok template response with custom body" do
-        custom_body = { 'data' => 'test' }
+        custom_body = {"data" => "test"}
         status, headers, body = described_class.json(template: :ok, body: custom_body)
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
-        expect(JSON.parse(body.first)).to eq({ 'data' => 'test' })
+        expect(headers["Content-Type"]).to eq("application/json")
+        expect(JSON.parse(body.first)).to eq({"data" => "test"})
       end
     end
 
     context "when providing custom parameters" do
       it "returns custom status and body" do
-        custom_body = { 'message' => 'Custom response' }
+        custom_body = {"message" => "Custom response"}
         status, headers, body = described_class.json(body: custom_body, status: 201)
 
         expect(status).to eq(201)
-        expect(headers['Content-Type']).to eq('application/json')
-        expect(JSON.parse(body.first)).to eq({ 'message' => 'Custom response' })
+        expect(headers["Content-Type"]).to eq("application/json")
+        expect(JSON.parse(body.first)).to eq({"message" => "Custom response"})
       end
 
       it "returns custom headers" do
-        custom_headers = { 'X-Custom-Header' => 'custom-value' }
+        custom_headers = {"X-Custom-Header" => "custom-value"}
         status, headers, body = described_class.json(
           template: :health,
           headers: custom_headers
         )
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
-        expect(headers['X-Custom-Header']).to eq('custom-value')
-        expect(JSON.parse(body.first)).to eq({ 'status' => 'ok' })
+        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["X-Custom-Header"]).to eq("custom-value")
+        expect(JSON.parse(body.first)).to eq({"status" => "ok"})
       end
 
       it "merges custom headers with default Content-Type" do
-        custom_headers = { 'X-Custom-Header' => 'custom-value' }
-        status, headers, body = described_class.json(
+        custom_headers = {"X-Custom-Header" => "custom-value"}
+        _, headers, _ = described_class.json(
           template: :health,
           headers: custom_headers
         )
 
-        expect(headers['Content-Type']).to eq('application/json')
-        expect(headers['X-Custom-Header']).to eq('custom-value')
+        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["X-Custom-Header"]).to eq("custom-value")
       end
 
       it "always sets Content-Type to application/json regardless of custom headers" do
-        custom_headers = { 'Content-Type' => 'text/plain' }
-        status, headers, body = described_class.json(
+        custom_headers = {"Content-Type" => "text/plain"}
+        _, headers, _ = described_class.json(
           template: :health,
           headers: custom_headers
         )
 
-        expect(headers['Content-Type']).to eq('application/json')
+        expect(headers["Content-Type"]).to eq("application/json")
       end
     end
 
     context "when providing only body without template" do
       it "returns default status 200" do
-        custom_body = { 'data' => 'test' }
+        custom_body = {"data" => "test"}
         status, headers, body = described_class.json(body: custom_body)
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
-        expect(JSON.parse(body.first)).to eq({ 'data' => 'test' })
+        expect(headers["Content-Type"]).to eq("application/json")
+        expect(JSON.parse(body.first)).to eq({"data" => "test"})
       end
     end
 
@@ -92,7 +92,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(status: 204)
 
         expect(status).to eq(204)
-        expect(headers['Content-Type']).to eq('application/json')
+        expect(headers["Content-Type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to be_nil
       end
     end
@@ -102,7 +102,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
+        expect(headers["Content-Type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to be_nil
       end
     end
@@ -112,7 +112,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(template: :unknown)
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
+        expect(headers["Content-Type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to be_nil
       end
     end
@@ -120,55 +120,55 @@ RSpec.describe Lepus::Web::RespondWith do
     context "with complex data structures" do
       it "handles nested hashes" do
         complex_body = {
-          'user' => {
-            'id' => 1,
-            'name' => 'John Doe',
-            'preferences' => {
-              'theme' => 'dark',
-              'notifications' => true
+          "user" => {
+            "id" => 1,
+            "name" => "John Doe",
+            "preferences" => {
+              "theme" => "dark",
+              "notifications" => true
             }
           },
-          'metadata' => {
-            'created_at' => '2023-01-01T00:00:00Z',
-            'tags' => ['admin', 'user']
+          "metadata" => {
+            "created_at" => "2023-01-01T00:00:00Z",
+            "tags" => ["admin", "user"]
           }
         }
 
         status, headers, body = described_class.json(body: complex_body)
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
+        expect(headers["Content-Type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq(complex_body)
       end
 
       it "handles arrays" do
         array_body = [
-          { 'id' => 1, 'name' => 'Item 1' },
-          { 'id' => 2, 'name' => 'Item 2' },
-          { 'id' => 3, 'name' => 'Item 3' }
+          {"id" => 1, "name" => "Item 1"},
+          {"id" => 2, "name" => "Item 2"},
+          {"id" => 3, "name" => "Item 3"}
         ]
 
         status, headers, body = described_class.json(body: array_body)
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
+        expect(headers["Content-Type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq(array_body)
       end
 
       it "handles mixed data types" do
         mixed_body = {
-          'string' => 'test',
-          'number' => 42,
-          'boolean' => true,
-          'null' => nil,
-          'array' => [1, 2, 3],
-          'object' => { 'nested' => 'value' }
+          "string" => "test",
+          "number" => 42,
+          "boolean" => true,
+          "null" => nil,
+          "array" => [1, 2, 3],
+          "object" => {"nested" => "value"}
         }
 
         status, headers, body = described_class.json(body: mixed_body)
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
+        expect(headers["Content-Type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq(mixed_body)
       end
     end
@@ -176,19 +176,19 @@ RSpec.describe Lepus::Web::RespondWith do
     context "with special characters and encoding" do
       it "handles unicode characters" do
         unicode_body = {
-          'message' => 'Hello 世界! 🌍',
-          'description' => 'Special chars: àáâãäåæçèéêë'
+          "message" => "Hello 世界! 🌍",
+          "description" => "Special chars: àáâãäåæçèéêë"
         }
 
         status, headers, body = described_class.json(body: unicode_body)
 
         expect(status).to eq(200)
-        expect(headers['Content-Type']).to eq('application/json')
+        expect(headers["Content-Type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq(unicode_body)
       end
     end
 
-    context "response format" do
+    context "with response format" do
       it "returns a proper Rack response array" do
         status, headers, body = described_class.json(template: :health)
 
@@ -200,8 +200,8 @@ RSpec.describe Lepus::Web::RespondWith do
       end
 
       it "returns JSON string in body array" do
-        custom_body = { 'test' => 'value' }
-        status, headers, body = described_class.json(body: custom_body)
+        custom_body = {"test" => "value"}
+        _, _, body = described_class.json(body: custom_body)
 
         expect(body.first).to be_a(String)
         expect { JSON.parse(body.first) }.not_to raise_error
@@ -220,12 +220,12 @@ RSpec.describe Lepus::Web::RespondWith do
 
       expect(templates[:not_found]).to eq({
         status: 404,
-        body: { error: 'not_found' }
+        body: {error: "not_found"}
       })
 
       expect(templates[:health]).to eq({
         status: 200,
-        body: { status: 'ok' }
+        body: {status: "ok"}
       })
 
       expect(templates[:ok]).to eq({
