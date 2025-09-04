@@ -13,11 +13,11 @@ module Lepus
     def self.mime_for(path)
       case File.extname(path)
       when ".html" then "text/html"
-      when ".css"  then "text/css"
-      when ".js"   then "application/javascript"
-      when ".png"  then "image/png"
+      when ".css" then "text/css"
+      when ".js" then "application/javascript"
+      when ".png" then "image/png"
       when ".jpg", ".jpeg" then "image/jpeg"
-      when ".svg"  then "image/svg+xml"
+      when ".svg" then "image/svg+xml"
       else "application/octet-stream"
       end
     end
