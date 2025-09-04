@@ -1,5 +1,5 @@
 module ProcessHelper
-  def app_root
+  def lepus_root
     Pathname.new(File.expand_path("../../", __dir__))
   end
 
