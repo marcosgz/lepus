@@ -53,9 +53,11 @@ module Lepus
 
     def create_connection(suffix: nil)
       kwargs = connection_config
+
       if suffix && connection_name
         kwargs[:connection_name] = "#{connection_name} #{suffix}"
       end
+
       ::Bunny
         .new(rabbitmq_url, **kwargs)
         .tap { |conn| conn.start }
