@@ -12,6 +12,7 @@
       this.intervalSec = parseInt(this.refreshRangeTarget.value || '15', 10);
       this.refreshLabelTarget.textContent = this.intervalSec;
       this.consumerStates = {}; // Store expanded/collapsed states
+      this.queueStates = {}; // Store expanded/collapsed states for queues
       this.setupCharts();
       this.poll();
       this.startTimer();
@@ -43,6 +44,7 @@
       this.renderQueues(queues);
       this.updateCharts(queues);
       this.restoreConsumerStates();
+      this.restoreQueueStates();
     }
 
     async fetchLepusProcesses() {
@@ -311,7 +313,7 @@
         const tr = document.createElement('tr');
         tr.className = 'queue-row';
         tr.dataset.queue = base;
-        tr.setAttribute('data-action', 'click->queue#toggle');
+        tr.setAttribute('data-action', 'click->dashboard#toggleQueue');
         tr.innerHTML = this.queueCells(q, true);
         tbody.appendChild(tr);
 
@@ -445,6 +447,31 @@
             details.style.display = 'block';
             expandIcon.textContent = '▲';
             consumerCard.classList.add('expanded');
+          }
+        }
+      });
+    }
+
+    toggleQueue(event) {
+      const row = event.currentTarget.closest('tr');
+      const queueName = row && row.dataset && row.dataset.queue;
+      if (!queueName) return;
+
+      const sub = row.nextElementSibling;
+      if (sub && sub.classList.contains('sub-row')) {
+        const isHidden = sub.hidden;
+        sub.hidden = !isHidden;
+        this.queueStates[queueName] = !isHidden;
+      }
+    }
+
+    restoreQueueStates() {
+      Object.keys(this.queueStates).forEach(queueName => {
+        const queueRow = document.querySelector(`[data-queue="${queueName}"]`);
+        if (queueRow && this.queueStates[queueName]) {
+          const sub = queueRow.nextElementSibling;
+          if (sub && sub.classList.contains('sub-row')) {
+            sub.hidden = false;
           }
         }
       });
