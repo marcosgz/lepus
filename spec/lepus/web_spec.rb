@@ -9,7 +9,7 @@ RSpec.describe Lepus::Web do
     end
 
     it "returns the application root directory" do
-      expected_root = Pathname.new(File.expand_path('../../web', __dir__))
+      expected_root = Pathname.new(File.expand_path("../../web", __dir__))
       expect(described_class.assets_path).to eq(expected_root)
     end
 

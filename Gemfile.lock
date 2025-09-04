@@ -5,7 +5,6 @@ PATH
       bunny
       concurrent-ruby
       multi_json
-      rack (>= 2.2)
       thor
       zeitwerk
 
@@ -120,6 +119,7 @@ DEPENDENCIES
   dotenv
   lepus!
   pry
+  rack (>= 2.2)
   rack-test
   rspec
   rubocop
