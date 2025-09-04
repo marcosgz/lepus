@@ -15,6 +15,7 @@ require "zeitwerk"
 loader = Zeitwerk::Loader.for_gem(warn_on_extra_files: false)
 loader.inflector.inflect "json" => "JSON"
 loader.inflector.inflect "cli" => "CLI"
+loader.inflector.inflect "api" => "API"
 loader.collapse("#{__dir__}/lepus/rails.rb")
 loader.collapse("#{__dir__}/lepus/rails/*")
 loader.ignore("#{__dir__}/puma")

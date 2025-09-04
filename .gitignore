@@ -10,3 +10,4 @@
 /tmp/
 *.gem
 /app/consumers/
+/web/test/
