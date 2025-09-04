@@ -347,7 +347,25 @@
 
     queueInline(q) {
       const total = (q.messages != null) ? q.messages : (q.messages_ready || 0) + (q.messages_unacknowledged || 0);
-      return `<div>${this.escape(q.name)} • Ready ${q.messages_ready ?? 0} • Unacked ${q.messages_unacknowledged ?? 0} • Total ${total}</div>`;
+      return `
+        <div class="queue-detail-content">
+          <div class="queue-name">${this.escape(q.name)}</div>
+          <div class="queue-stats">
+            <div class="stat-item">
+              <span class="stat-label">Ready:</span>
+              <span class="stat-value">${q.messages_ready ?? 0}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Unacked:</span>
+              <span class="stat-value">${q.messages_unacknowledged ?? 0}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Total:</span>
+              <span class="stat-value">${total}</span>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
     setupCharts() {
