@@ -82,7 +82,15 @@ module Lepus
       end
 
       def exchange_args
-        [exchange_name, @exchange_opts.reject { |k, v| k == :name }]
+        [exchange_name, exchange_options]
+      end
+
+      def exchange_name
+        @exchange_opts[:name] || raise(InvalidConsumerConfigError, "Exchange name is required")
+      end
+
+      def exchange_options
+        @exchange_opts.reject { |k, v| k == :name }
       end
 
       def consumer_queue_args
@@ -144,10 +152,6 @@ module Lepus
       end
 
       protected
-
-      def exchange_name
-        @exchange_opts[:name] || raise(InvalidConsumerConfigError, "Exchange name is required")
-      end
 
       def queue_name
         @queue_opts[:name] || raise(InvalidConsumerConfigError, "Queue name is required")

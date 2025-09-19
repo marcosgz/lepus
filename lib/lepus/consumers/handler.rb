@@ -28,7 +28,11 @@ module Lepus
       private
 
       def consumer
-        @consumer ||= @consumer_class.new
+        @consumer ||= begin
+          instance = @consumer_class.new
+          instance.instance_variable_set(:@_handler_channel, channel)
+          instance
+        end
       end
 
       def process_result(result, delivery_tag)

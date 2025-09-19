@@ -44,6 +44,99 @@ RSpec.describe Lepus::Publisher do
     end
   end
 
+  describe "#channel_publish" do
+    let(:channel) { instance_double(Bunny::Channel) }
+    let(:exchange) { instance_double(Bunny::Exchange) }
+    let(:options) { {expiration: 60} }
+
+    before do
+      allow(channel).to receive(:exchange).and_return(exchange)
+      allow(exchange).to receive(:publish)
+    end
+
+    context "when channel is provided" do
+      context "when the message is different than String" do
+        let(:message) { {key: "value"} }
+
+        it "publishes the message to the exchange as JSON" do
+          publisher.channel_publish(channel, message, **options)
+
+          expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
+          expect(exchange).to have_received(:publish).with(
+            MultiJson.dump(message),
+            a_hash_including(
+              content_type: "application/json",
+              expiration: 60,
+              persistent: true
+            )
+          )
+        end
+      end
+
+      context "when the message is a String" do
+        let(:message) { "test message" }
+
+        it "publishes the message to the exchange as text" do
+          publisher.channel_publish(channel, message, **options)
+
+          expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
+          expect(exchange).to have_received(:publish).with(
+            message,
+            a_hash_including(
+              content_type: "text/plain",
+              expiration: 60,
+              persistent: true
+            )
+          )
+        end
+      end
+
+      context "when custom content type is provided" do
+        let(:message) { "test message" }
+        let(:options) { {content_type: "application/xml"} }
+
+        it "uses the provided content type" do
+          publisher.channel_publish(channel, message, **options)
+
+          expect(exchange).to have_received(:publish).with(
+            message,
+            a_hash_including(content_type: "application/xml")
+          )
+        end
+      end
+
+      context "when custom exchange options are provided" do
+        let(:publisher) { described_class.new(exchange_name, type: :direct, durable: false) }
+        let(:message) { "test message" }
+
+        it "uses the custom exchange options" do
+          publisher.channel_publish(channel, message)
+
+          expect(channel).to have_received(:exchange).with(
+            exchange_name,
+            described_class::DEFAULT_EXCHANGE_OPTIONS.merge(type: :direct, durable: false)
+          )
+        end
+      end
+    end
+
+    context "when channel is nil" do
+      it "raises ArgumentError" do
+        expect {
+          publisher.channel_publish(nil, "test message")
+        }.to raise_error(ArgumentError, "channel is required")
+      end
+    end
+
+    context "when channel is not provided" do
+      it "raises ArgumentError for wrong number of arguments" do
+        expect {
+          publisher.channel_publish("test message")
+        }.to raise_error(ArgumentError, /wrong number of arguments/)
+      end
+    end
+  end
+
   describe "#publish" do
     let(:options) { {expiration: 60} }
 
@@ -54,50 +147,36 @@ RSpec.describe Lepus::Publisher do
     context "when the message is different than String" do
       let(:message) { {key: "value"} }
 
-      it "publishes the message to the exchange as JSON" do
+      it "publishes the message to the exchange as JSON using channel_publish" do
         channel = instance_double(Bunny::Channel)
         exchange = instance_double(Bunny::Exchange)
 
         expect(bunny).to receive(:with_channel).and_yield(channel)
         allow(channel).to receive(:exchange).and_return(exchange)
         allow(exchange).to receive(:publish)
+        allow(publisher).to receive(:channel_publish).and_call_original
 
         publisher.publish(message, **options)
 
-        expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
-        expect(exchange).to have_received(:publish).with(
-          MultiJson.dump(message),
-          a_hash_including(
-            content_type: "application/json",
-            expiration: 60,
-            persistent: true
-          )
-        )
+        expect(publisher).to have_received(:channel_publish).with(channel, message, **options)
       end
     end
 
     context "when the message is a String" do
       let(:message) { "test message" }
 
-      it "publishes the message to the exchange as text" do
+      it "publishes the message to the exchange as text using channel_publish" do
         channel = instance_double(Bunny::Channel)
         exchange = instance_double(Bunny::Exchange)
 
         expect(bunny).to receive(:with_channel).and_yield(channel)
         allow(channel).to receive(:exchange).and_return(exchange)
         allow(exchange).to receive(:publish)
+        allow(publisher).to receive(:channel_publish).and_call_original
 
         publisher.publish(message, **options)
 
-        expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
-        expect(exchange).to have_received(:publish).with(
-          message,
-          a_hash_including(
-            content_type: "text/plain",
-            expiration: 60,
-            persistent: true
-          )
-        )
+        expect(publisher).to have_received(:channel_publish).with(channel, message, **options)
       end
     end
   end
@@ -126,6 +205,7 @@ RSpec.describe Lepus::Publisher do
     after do
       Lepus::Producers::Hooks.reset!
     end
+
 
     it "publishes when exchange is enabled" do
       Lepus::Producers.enable!("test_exchange")
@@ -168,6 +248,90 @@ RSpec.describe Lepus::Publisher do
       publisher.publish("test message")
 
       expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+    end
+  end
+
+  describe "channel_publish hooks integration" do
+    let(:test_producer_class) do
+      Class.new(Lepus::Producer) do
+        configure(exchange: "test_exchange")
+      end
+    end
+
+    let(:channel) { instance_double(Bunny::Channel) }
+    let(:exchange) { instance_double(Bunny::Exchange) }
+
+    before do
+      Lepus::Producers::Hooks.reset!
+      stub_const("TestProducerClass", test_producer_class)
+
+      allow(channel).to receive(:exchange).and_return(exchange)
+      allow(exchange).to receive(:publish)
+    end
+
+    after do
+      Lepus::Producers::Hooks.reset!
+    end
+
+    it "publishes when exchange is enabled" do
+      Lepus::Producers.enable!("test_exchange")
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.channel_publish(channel, "test message")
+
+      expect(exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+    end
+
+    it "does not publish when exchange is disabled" do
+      Lepus::Producers.disable!("test_exchange")
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.channel_publish(channel, "test message")
+
+      expect(exchange).not_to have_received(:publish)
+    end
+
+    it "publishes when exchange is enabled via producer class" do
+      Lepus::Producers.enable!(test_producer_class)
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.channel_publish(channel, "test message")
+
+      expect(exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+    end
+
+    it "does not publish when exchange is disabled via producer class" do
+      Lepus::Producers.disable!(test_producer_class)
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.channel_publish(channel, "test message")
+
+      expect(exchange).not_to have_received(:publish)
+    end
+
+    it "publishes for exchanges with no producers (default enabled)" do
+      publisher = Lepus::Publisher.new("nonexistent_exchange")
+      publisher.channel_publish(channel, "test message")
+
+      expect(exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+    end
+
+    it "respects hooks when publishing JSON messages" do
+      Lepus::Producers.disable!("test_exchange")
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.channel_publish(channel, {key: "value"})
+
+      expect(exchange).not_to have_received(:publish)
+    end
+
+    it "respects hooks when publishing with custom options" do
+      Lepus::Producers.disable!("test_exchange")
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.channel_publish(channel, "test message", expiration: 60, content_type: "text/xml")
+
+      expect(exchange).not_to have_received(:publish)
     end
   end
 end
