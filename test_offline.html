@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lepus Offline Test</title>
+    <style>
+        body { font-family: system-ui; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Lepus Offline Support Test</h1>
+
+    <div class="test-section info">
+        <h3>Current Status</h3>
+        <p>Online: <span id="online-status">Checking...</span></p>
+        <p>Service Worker: <span id="sw-status">Checking...</span></p>
+    </div>
+
+    <div class="test-section">
+        <h3>Test Controls</h3>
+        <button onclick="simulateOffline()">Simulate Offline</button>
+        <button onclick="simulateOnline()">Simulate Online</button>
+        <button onclick="testExternalDependencies()">Test External Dependencies</button>
+        <button onclick="testServiceWorker()">Test Service Worker</button>
+        <button onclick="testOfflineModules()">Test Offline Modules</button>
+    </div>
+
+    <div class="test-section">
+        <h3>Test Results</h3>
+        <div id="test-results"></div>
+    </div>
+
+    <script>
+        // Test offline functionality
+        function updateStatus() {
+            document.getElementById('online-status').textContent = navigator.onLine ? 'Yes' : 'No';
+            document.getElementById('online-status').style.color = navigator.onLine ? 'green' : 'red';
+        }
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('test-results');
+            const div = document.createElement('div');
+            div.className = `test-section ${type}`;
+            div.innerHTML = `<p>${new Date().toLocaleTimeString()}: ${message}</p>`;
+            results.appendChild(div);
+        }
+
+        function simulateOffline() {
+            Object.defineProperty(navigator, 'onLine', {
+                writable: true,
+                value: false
+            });
+            window.dispatchEvent(new Event('offline'));
+            updateStatus();
+            addResult('Simulated offline state', 'info');
+        }
+
+        function simulateOnline() {
+            Object.defineProperty(navigator, 'onLine', {
+                writable: true,
+                value: true
+            });
+            window.dispatchEvent(new Event('online'));
+            updateStatus();
+            addResult('Simulated online state', 'success');
+        }
+
+        async function testExternalDependencies() {
+            addResult('Testing external dependencies...', 'info');
+
+            try {
+                // Test Stimulus CDN
+                const stimulusResponse = await fetch('https://unpkg.com/@hotwired/stimulus@3.2.2/dist/stimulus.umd.js');
+                if (stimulusResponse.ok) {
+                    addResult('✓ Stimulus CDN accessible', 'success');
+                } else {
+                    addResult('✗ Stimulus CDN not accessible', 'error');
+                }
+            } catch (error) {
+                addResult('✗ Stimulus CDN failed: ' + error.message, 'error');
+            }
+
+            try {
+                // Test Chart.js CDN
+                const chartResponse = await fetch('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
+                if (chartResponse.ok) {
+                    addResult('✓ Chart.js CDN accessible', 'success');
+                } else {
+                    addResult('✗ Chart.js CDN not accessible', 'error');
+                }
+            } catch (error) {
+                addResult('✗ Chart.js CDN failed: ' + error.message, 'error');
+            }
+        }
+
+        function testServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        addResult('✓ Service Worker registered successfully', 'success');
+                        return navigator.serviceWorker.ready;
+                    })
+                    .then(registration => {
+                        addResult('✓ Service Worker ready', 'success');
+                        document.getElementById('sw-status').textContent = 'Active';
+                        document.getElementById('sw-status').style.color = 'green';
+                    })
+                    .catch(error => {
+                        addResult('✗ Service Worker failed: ' + error.message, 'error');
+                        document.getElementById('sw-status').textContent = 'Failed';
+                        document.getElementById('sw-status').style.color = 'red';
+                    });
+            } else {
+                addResult('✗ Service Worker not supported', 'error');
+                document.getElementById('sw-status').textContent = 'Not Supported';
+                document.getElementById('sw-status').style.color = 'red';
+            }
+        }
+
+        async function testOfflineModules() {
+            addResult('Testing offline modules...', 'info');
+
+            try {
+                // Test offline-manager.js
+                const offlineResponse = await fetch('/assets/js/offline-manager.js');
+                if (offlineResponse.ok) {
+                    addResult('✓ offline-manager.js accessible', 'success');
+                } else {
+                    addResult('✗ offline-manager.js not accessible', 'error');
+                }
+            } catch (error) {
+                addResult('✗ offline-manager.js failed: ' + error.message, 'error');
+            }
+
+            try {
+                // Test service-worker-manager.js
+                const swResponse = await fetch('/assets/js/service-worker-manager.js');
+                if (swResponse.ok) {
+                    addResult('✓ service-worker-manager.js accessible', 'success');
+                } else {
+                    addResult('✗ service-worker-manager.js not accessible', 'error');
+                }
+            } catch (error) {
+                addResult('✗ service-worker-manager.js failed: ' + error.message, 'error');
+            }
+
+            // Test if modules are loaded in window
+            if (window.OfflineManager) {
+                addResult('✓ OfflineManager class available', 'success');
+            } else {
+                addResult('✗ OfflineManager class not available', 'error');
+            }
+
+            if (window.ServiceWorkerManager) {
+                addResult('✓ ServiceWorkerManager class available', 'success');
+            } else {
+                addResult('✗ ServiceWorkerManager class not available', 'error');
+            }
+        }
+
+        // Initialize
+        updateStatus();
+
+        // Listen for online/offline events
+        window.addEventListener('online', () => {
+            updateStatus();
+            addResult('Browser went online', 'success');
+        });
+
+        window.addEventListener('offline', () => {
+            updateStatus();
+            addResult('Browser went offline', 'error');
+        });
+
+        // Auto-test on load
+        setTimeout(() => {
+            testExternalDependencies();
+            testServiceWorker();
+            testOfflineModules();
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -18,6 +18,9 @@ module Lepus
       when ".png" then "image/png"
       when ".jpg", ".jpeg" then "image/jpeg"
       when ".svg" then "image/svg+xml"
+      when ".woff", ".woff2" then "font/woff"
+      when ".ttf" then "font/ttf"
+      when ".eot" then "application/vnd.ms-fontobject"
       else "application/octet-stream"
       end
     end
