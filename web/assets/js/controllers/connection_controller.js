@@ -12,6 +12,13 @@
     }
 
     async check() {
+      // Check if we're offline first
+      if (!navigator.onLine) {
+        this.indicatorTarget.classList.add('disconnected');
+        this.textTarget.textContent = 'Offline';
+        return;
+      }
+
       try {
         const res = await fetch('/api/health');
         if (res.ok) {
@@ -21,9 +28,14 @@
           this.indicatorTarget.classList.add('disconnected');
           this.textTarget.textContent = 'Disconnected';
         }
-      } catch (_) {
+      } catch (error) {
         this.indicatorTarget.classList.add('disconnected');
-        this.textTarget.textContent = 'Disconnected';
+        // More specific error handling
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          this.textTarget.textContent = 'Offline';
+        } else {
+          this.textTarget.textContent = 'Disconnected';
+        }
       }
     }
   });
