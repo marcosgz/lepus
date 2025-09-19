@@ -4,7 +4,7 @@ module Lepus
   module Producers
     # Definition class for producer-specific settings
     class Definition
-      attr_reader :exchange_options, :publish_options
+      attr_reader :publish_options
 
       def initialize(options = {})
         opts = Lepus::Primitive::Hash.new(options).deep_symbolize_keys
