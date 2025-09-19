@@ -68,7 +68,25 @@ Lepus.configure do |config|
 end
 ```
 
+Once configured, you can use `Lepus::Publisher` to publish messages to RabbitMQ exchanges:
 
+```ruby
+# Create a publisher for a specific exchange
+publisher = Lepus::Publisher.new("my_exchange", type: :topic, durable: true)
+
+# Publish a string message
+publisher.publish("Hello, RabbitMQ!")
+
+# Publish a JSON message (automatically serialized)
+publisher.publish({user_id: 123, action: "login"}, routing_key: "user.login")
+
+# Publish with custom options
+publisher.publish("Important message",
+  routing_key: "notifications.urgent",
+  expiration: 30000,
+  priority: 10
+)
+```
 
 
 ### Configuration > Consumer Worker
