@@ -128,6 +128,57 @@ RSpec.describe Lepus::Configuration do
     end
   end
 
+  describe "#producer" do
+    it "returns a producer config instance" do
+      expect(configuration.producer).to be_a(Lepus::Producers::Config)
+    end
+
+    it "allows setting options inline" do
+      configuration.producer(pool_size: 3, pool_timeout: 10.0)
+
+      expect(configuration.producer_config.pool_size).to eq(3)
+      expect(configuration.producer_config.pool_timeout).to eq(10.0)
+    end
+
+    it "yields the producer config to a block" do
+      yielded = nil
+      configuration.producer do |config|
+        yielded = config
+        config.pool_size = 5
+        config.pool_timeout = 15.0
+      end
+
+      expect(yielded).to be(configuration.producer_config)
+      expect(yielded.pool_size).to eq(5)
+      expect(yielded.pool_timeout).to eq(15.0)
+    end
+
+    it "allows both inline options and block configuration" do
+      yielded = nil
+      configuration.producer(pool_size: 2) do |config|
+        yielded = config
+        config.pool_timeout = 8.0
+      end
+
+      expect(yielded).to be(configuration.producer_config)
+      expect(configuration.producer_config.pool_size).to eq(2)
+      expect(configuration.producer_config.pool_timeout).to eq(8.0)
+    end
+
+    it "returns the same producer config instance" do
+      result = configuration.producer
+      expect(result).to be(configuration.producer_config)
+    end
+  end
+
+  describe "#producer_config" do
+    it "is initialized with default values" do
+      expect(configuration.producer_config).to be_a(Lepus::Producers::Config)
+      expect(configuration.producer_config.pool_size).to eq(1)
+      expect(configuration.producer_config.pool_timeout).to eq(5.0)
+    end
+  end
+
   describe "#logger=" do
     it "sets the Lepus.logger" do
       logger = Logger.new($stdout)

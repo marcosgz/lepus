@@ -51,6 +51,8 @@ module Lepus
       @process_alive_threshold = 5 * 60
     end
 
+    # @param suffix [String] the suffix to add to the connection name
+    # @return [Bunny::Session] the connection to RabbitMQ
     def create_connection(suffix: nil)
       kwargs = connection_config
       if suffix && connection_name
@@ -61,10 +63,14 @@ module Lepus
         .tap { |conn| conn.start }
     end
 
+    # @param value [Pathname] the directory where the consumers are stored.
     def consumers_directory=(value)
       @consumers_directory = value.is_a?(Pathname) ? value : Pathname.new(value)
     end
 
+    # Configure the worker process that will run the consumers.
+    # @param names [Array<Symbol>] the names of the workers to configure
+    # @param options [Hash] the options to assign to the worker configuration
     def worker(*names, **options)
       names << Lepus::Consumers::WorkerFactory::DEFAULT_NAME if names.empty?
 
@@ -75,6 +81,21 @@ module Lepus
       end
     end
 
+    # Configure the producer related settings.
+    # @param options [Hash] the options to assign to the producer configuration
+    def producer(**options)
+      producer_config.assign(options) if options.any?
+      yield(producer_config) if block_given?
+      producer_config
+    end
+
+    # @return [Lepus::Producers::Config] the producer configuration
+    def producer_config
+      @producer_config ||= Lepus::Producers::Config.new
+    end
+
+    # @param value [Logger] the logger to set
+    # @return [void]
     def logger=(value)
       Lepus.logger = value
     end

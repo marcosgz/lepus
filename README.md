@@ -50,6 +50,157 @@ The configuration options are:
 - `worker`: A block to configure the worker process that will run the consumers. You can set the `pool_size`, `pool_timeout`, and before/after fork callbacks inline options or using a block. Main worker is `:default`, but you can define more workers with different names for different consumers.
 - `logger`: The logger instance. Default: `Logger.new($stdout)`.
 
+### Configuration > Producer
+
+Lepus can be used to both **produce** and **consume** RabbitMQ events. Producers and consumers use separate connection pools, allowing for efficient and isolated message publishing and processing.
+
+You can configure the producer connection pool using the `producer` method inside the configuration block:
+
+```ruby
+Lepus.configure do |config|
+  # Block
+  config.producer do |c|
+    c.pool_size = 2
+    c.pool_timeout = 10.0
+  end
+  # Inline
+  config.producer(pool_size: 1, pool_timeout: 5.0)
+end
+```
+
+Once configured, you can use `Lepus::Publisher` to publish messages to RabbitMQ exchanges:
+
+```ruby
+# Create a publisher for a specific exchange
+publisher = Lepus::Publisher.new("my_exchange", type: :topic, durable: true)
+
+# Publish a string message
+publisher.publish("Hello, RabbitMQ!")
+
+# Publish a JSON message (automatically serialized)
+publisher.publish({user_id: 123, action: "login"}, routing_key: "user.login")
+
+# Publish with custom options
+publisher.publish("Important message",
+  routing_key: "notifications.urgent",
+  expiration: 30000,
+  priority: 10
+)
+```
+
+### Using Lepus::Producer
+
+For a more structured approach, you can use `Lepus::Producer` to define reusable producer classes with pre-configured exchange settings:
+
+```ruby
+# Define a producer with exchange configuration
+class UserEventsProducer < Lepus::Producer
+  configure(exchange: "user_events")
+end
+
+# Define a producer with detailed exchange and publish options
+class OrderEventsProducer < Lepus::Producer
+  configure(
+    exchange: {
+      name: "order_events",
+      type: :direct,
+      durable: true
+    },
+    publish: {
+      persistent: true,
+      mandatory: false
+    }
+  )
+end
+
+# Define a producer with block configuration
+class NotificationProducer < Lepus::Producer
+  configure(exchange: "notifications") do |definition|
+    definition.publish_options[:persistent] = true
+  end
+end
+
+# Usage examples:
+
+# Publish using class methods
+UserEventsProducer.publish("User created: 123")
+OrderEventsProducer.publish(
+  { order_id: 456, status: "created" },
+  routing_key: "order.created"
+)
+
+# Publish using instance methods
+producer = NotificationProducer.new
+producer.publish(
+  { message: "Welcome!", user_id: 789 },
+  routing_key: "user.welcome"
+)
+```
+
+The `Lepus::Producer` class provides:
+- **Pre-configured exchanges**: Define exchange settings once in your producer class
+- **Default publish options**: Set default publish behavior (persistent, mandatory, etc.)
+- **Class and instance methods**: Use either `ProducerClass.publish()` or `producer_instance.publish()`
+- **Block configuration**: Fine-tune settings using configuration blocks
+
+### Producer Hooks
+
+Lepus provides a powerful hooks system that allows you to control when producers can publish messages. This is particularly useful for testing, debugging, or temporarily disabling message publishing in specific environments.
+
+#### Basic Usage
+
+```ruby
+# Disable all producers
+Lepus::Producers.disable!
+
+# Enable all producers
+Lepus::Producers.enable!
+
+# Disable specific producers
+Lepus::Producers.disable!(UserEventsProducer, OrderEventsProducer)
+
+# Enable specific producers
+Lepus::Producers.enable!(UserEventsProducer)
+
+# Disable by exchange name (affects all producers using that exchange)
+Lepus::Producers.disable!("user_events", "order_events")
+
+# Enable by exchange name
+Lepus::Producers.enable!("notifications")
+
+# Check if producers are enabled/disabled
+Lepus::Producers.enabled?(UserEventsProducer)  # => true/false
+Lepus::Producers.disabled?(UserEventsProducer) # => true/false
+```
+
+#### Block-based Control
+
+The hooks system provides block-based methods for temporary control:
+
+```ruby
+# Temporarily disable publishing for a block
+Lepus::Producers.without_publishing do
+  # All producer.publish() calls will be ignored
+  UserEventsProducer.publish("This won't be sent")
+  OrderEventsProducer.publish("This won't be sent either")
+end
+# Publishing is automatically restored after the block
+
+# Temporarily disable specific producers
+Lepus::Producers.without_publishing(UserEventsProducer) do
+  UserEventsProducer.publish("This won't be sent")      # Disabled
+  OrderEventsProducer.publish("This will be sent")      # Still enabled
+end
+
+# Temporarily enable publishing for a block
+Lepus::Producers.disable!
+Lepus::Producers.with_publishing do
+  # Publishing is temporarily enabled
+  UserEventsProducer.publish("This will be sent")
+end
+# Publishing is automatically restored to disabled state
+```
+
 ### Configuration > Consumer Worker
 
 You can configure the consumer process using the `worker` method. The default worker is named `:default`, but you can define more workers with different names for different consumers.

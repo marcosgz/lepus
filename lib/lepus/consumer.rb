@@ -156,6 +156,28 @@ module Lepus
 
     private
 
+    # Publishes a message using the consumer's own exchange configuration.
+    # When exchange_name is different from the consumer's exchange, uses default options.
+    #
+    # @param [String, Hash] message The message to publish
+    # @param [String, nil] exchange_name Override the exchange name (optional)
+    # @param [Hash] options Additional publish options
+    # @return [void]
+    def publish_message(message, exchange_name: nil, channel: nil, **options)
+      target_exchange = exchange_name || self.class.config.exchange_name
+      return unless Lepus::Producers.exchange_enabled?(target_exchange)
+
+      opts = (target_exchange == self.class.config.exchange_name) ? self.class.config.exchange_options : {}
+      opts.merge!(options)
+
+      channel ||= instance_variable_get(:@_handler_channel) # The Lepus::Consumers::Handler sets this variable
+      if channel
+        Lepus::Publisher.new(target_exchange, **opts).channel_publish(channel, message, **opts)
+      else
+        Lepus::Publisher.new(target_exchange, **opts).publish(message, **opts)
+      end
+    end
+
     def work_proc
       ->(message) do
         perform(message).tap do |result|

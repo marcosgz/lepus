@@ -43,6 +43,9 @@ module Lepus
   class InvalidConsumerConfigError < Error
   end
 
+  class InvalidProducerConfigError < Error
+  end
+
   class ShutdownError < Error
   end
 
