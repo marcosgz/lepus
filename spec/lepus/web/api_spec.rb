@@ -30,7 +30,7 @@ RSpec.describe Lepus::Web::API do
 
         response_data = JSON.parse(body.first)
         expect(response_data).to be_an(Array)
-        expect(response_data.length).to eq(3)
+        expect(response_data.length).to eq(5)
 
         # Check first process (Supervisor A)
         supervisor = response_data.find { |p| p["name"] == "Supervisor A" }
@@ -144,10 +144,11 @@ RSpec.describe Lepus::Web::API do
 
         response_data = JSON.parse(body.first)
         expect(response_data).to be_an(Array)
-        expect(response_data.length).to eq(2)
+        expect(response_data.length).to eq(3)
 
         expect(response_data[0]).to include("name" => "conn-1")
         expect(response_data[1]).to include("name" => "conn-2")
+        expect(response_data[2]).to include("name" => "conn-3")
       end
     end
 
