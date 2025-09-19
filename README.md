@@ -88,6 +88,61 @@ publisher.publish("Important message",
 )
 ```
 
+### Using Lepus::Producer
+
+For a more structured approach, you can use `Lepus::Producer` to define reusable producer classes with pre-configured exchange settings:
+
+```ruby
+# Define a producer with exchange configuration
+class UserEventsProducer < Lepus::Producer
+  configure(exchange: "user_events")
+end
+
+# Define a producer with detailed exchange and publish options
+class OrderEventsProducer < Lepus::Producer
+  configure(
+    exchange: {
+      name: "order_events",
+      type: :direct,
+      durable: true
+    },
+    publish: {
+      persistent: true,
+      mandatory: false
+    }
+  )
+end
+
+# Define a producer with block configuration
+class NotificationProducer < Lepus::Producer
+  configure(exchange: "notifications") do |definition|
+    definition.publish_options[:persistent] = true
+  end
+end
+
+# Usage examples:
+
+# Publish using class methods
+UserEventsProducer.publish("User created: 123")
+OrderEventsProducer.publish(
+  { order_id: 456, status: "created" },
+  routing_key: "order.created"
+)
+
+# Publish using instance methods
+producer = NotificationProducer.new
+producer.publish(
+  { message: "Welcome!", user_id: 789 },
+  routing_key: "user.welcome"
+)
+```
+
+The `Lepus::Producer` class provides:
+- **Pre-configured exchanges**: Define exchange settings once in your producer class
+- **Default publish options**: Set default publish behavior (persistent, mandatory, etc.)
+- **Class and instance methods**: Use either `ProducerClass.publish()` or `producer_instance.publish()`
+- **Block configuration**: Fine-tune settings using configuration blocks
+
 
 ### Configuration > Consumer Worker
 

@@ -89,9 +89,9 @@ module Lepus
       producer_config
     end
 
-    # @return [Lepus::ProducerConfig] the producer configuration
+    # @return [Lepus::Producers::Config] the producer configuration
     def producer_config
-      @producer_config ||= Lepus::ProducerConfig.new
+      @producer_config ||= Lepus::Producers::Config.new
     end
 
     # @param value [Logger] the logger to set

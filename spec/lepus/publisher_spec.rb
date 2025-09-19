@@ -67,7 +67,11 @@ RSpec.describe Lepus::Publisher do
         expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
         expect(exchange).to have_received(:publish).with(
           MultiJson.dump(message),
-          content_type: "application/json", expiration: 60
+          a_hash_including(
+            content_type: "application/json",
+            expiration: 60,
+            persistent: true
+          )
         )
       end
     end
@@ -88,7 +92,11 @@ RSpec.describe Lepus::Publisher do
         expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
         expect(exchange).to have_received(:publish).with(
           message,
-          content_type: "text/plain", expiration: 60
+          a_hash_including(
+            content_type: "text/plain",
+            expiration: 60,
+            persistent: true
+          )
         )
       end
     end

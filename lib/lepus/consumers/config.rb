@@ -167,6 +167,7 @@ module Lepus
         case value
         when Hash then value
         when String then {name: value}
+        when Symbol then {name: value.to_s}
         when NilClass then {}
         when TrueClass then {}
         end

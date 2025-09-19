@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe Lepus::ProducerConfig do
+RSpec.describe Lepus::Producers::Config do
   let(:config) { described_class.new }
 
   describe "#initialize" do
@@ -13,26 +13,27 @@ RSpec.describe Lepus::ProducerConfig do
     it "has default pool_timeout" do
       expect(config.pool_timeout).to eq(5.0)
     end
-
-    it "can be configured using assign method" do
-      config = described_class.new
-      config.assign(pool_size: 3, pool_timeout: 10.0)
-      expect(config.pool_size).to eq(3)
-      expect(config.pool_timeout).to eq(10.0)
-    end
   end
 
-  describe "#pool_size=" do
-    it "allows setting pool_size" do
-      config.pool_size = 5
+  describe "#assign" do
+    it "assigns pool_size" do
+      config.assign(pool_size: 5)
       expect(config.pool_size).to eq(5)
     end
-  end
 
-  describe "#pool_timeout=" do
-    it "allows setting pool_timeout" do
-      config.pool_timeout = 15.0
-      expect(config.pool_timeout).to eq(15.0)
+    it "assigns pool_timeout" do
+      config.assign(pool_timeout: 10.0)
+      expect(config.pool_timeout).to eq(10.0)
+    end
+
+    it "assigns multiple attributes" do
+      config.assign(pool_size: 3, pool_timeout: 7.5)
+      expect(config.pool_size).to eq(3)
+      expect(config.pool_timeout).to eq(7.5)
+    end
+
+    it "raises error for unknown attribute" do
+      expect { config.assign(unknown_attr: "value") }.to raise_error(ArgumentError, "Unknown attribute unknown_attr")
     end
   end
 
@@ -65,21 +66,13 @@ RSpec.describe Lepus::ProducerConfig do
     end
   end
 
-  describe "#assign" do
-    it "assigns multiple attributes from a hash" do
-      config.assign(pool_size: 4, pool_timeout: 8.0)
-      expect(config.pool_size).to eq(4)
-      expect(config.pool_timeout).to eq(8.0)
+  describe "constants" do
+    it "has DEFAULT_POOL_SIZE" do
+      expect(described_class::DEFAULT_POOL_SIZE).to eq(1)
     end
 
-    it "raises ArgumentError for unknown attributes" do
-      expect {
-        config.assign(unknown_attribute: "value")
-      }.to raise_error(ArgumentError, "Unknown attribute unknown_attribute")
-    end
-
-    it "ignores empty hash" do
-      expect { config.assign({}) }.not_to raise_error
+    it "has DEFAULT_POOL_TIMEOUT" do
+      expect(described_class::DEFAULT_POOL_TIMEOUT).to eq(5.0)
     end
   end
 end

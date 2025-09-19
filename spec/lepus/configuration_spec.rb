@@ -130,7 +130,7 @@ RSpec.describe Lepus::Configuration do
 
   describe "#producer" do
     it "returns the producer_config instance" do
-      expect(configuration.producer).to be_a(Lepus::ProducerConfig)
+      expect(configuration.producer).to be_a(Lepus::Producers::Config)
     end
 
     it "allows setting options inline" do
@@ -173,7 +173,7 @@ RSpec.describe Lepus::Configuration do
 
   describe "#producer_config" do
     it "is initialized with default values" do
-      expect(configuration.producer_config).to be_a(Lepus::ProducerConfig)
+      expect(configuration.producer_config).to be_a(Lepus::Producers::Config)
       expect(configuration.producer_config.pool_size).to eq(1)
       expect(configuration.producer_config.pool_timeout).to eq(5.0)
     end

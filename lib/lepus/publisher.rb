@@ -10,6 +10,10 @@ module Lepus
       auto_delete: false
     }.freeze
 
+    DEFAULT_PUBLISH_OPTIONS = {
+      persistent: true,
+    }.freeze
+
     # @param exchange_name [String] The name of the exchange to publish messages to.
     # @param options [Hash] Additional options for the exchange (type, durable, auto_delete).
     def initialize(exchange_name, **options)
@@ -18,11 +22,12 @@ module Lepus
     end
 
     def publish(message, **options)
+      opts = DEFAULT_PUBLISH_OPTIONS.merge(options)
       payload = if message.is_a?(String)
-        options[:content_type] ||= "text/plain"
+        opts[:content_type] ||= "text/plain"
         message
       else
-        options[:content_type] ||= "application/json"
+        opts[:content_type] ||= "application/json"
         MultiJson.dump(message)
       end
 
@@ -31,7 +36,7 @@ module Lepus
           exchange = channel.exchange(@exchange_name, @exchange_options)
           exchange.publish(
             payload,
-            options
+            opts
           )
         end
       end
