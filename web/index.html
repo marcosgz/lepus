@@ -8,6 +8,15 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%236ea8fe'/%3E%3Ctext x='16' y='22' font-family='system-ui, -apple-system, sans-serif' font-size='18' font-weight='700' text-anchor='middle' fill='white'%3EL%3C/text%3E%3C/svg%3E" />
   </head>
   <body data-controller="theme connection dashboard">
+    <!-- Offline notification banner -->
+    <div id="offline-banner" class="offline-banner" style="display: none;">
+      <div class="offline-content">
+        <span class="offline-icon">⚠️</span>
+        <span class="offline-message">You're offline. Some features may not work properly.</span>
+        <button id="dismiss-offline" class="offline-dismiss">×</button>
+      </div>
+    </div>
+
     <header class="navbar">
       <div class="brand">
         <span class="logo-badge">L</span>
@@ -32,6 +41,24 @@
     </header>
 
     <main class="container">
+      <!-- Offline content placeholder -->
+      <div id="offline-content" class="offline-content-placeholder" style="display: none;">
+        <div class="offline-card">
+          <div class="offline-icon-large">📡</div>
+          <h2>You're Offline</h2>
+          <p>The Lepus dashboard requires an internet connection to function properly.</p>
+          <p>Some features may be limited while offline:</p>
+          <ul class="offline-limitations">
+            <li>Real-time data updates won't work</li>
+            <li>External dependencies may not load</li>
+            <li>Charts may show fallback content</li>
+          </ul>
+          <div class="offline-actions">
+            <button onclick="window.location.reload()" class="btn btn-primary">Retry Connection</button>
+            <button onclick="document.getElementById('offline-content').style.display='none'" class="btn btn-secondary">Continue Offline</button>
+          </div>
+        </div>
+      </div>
 
       <section class="grid stats-grid">
         <div class="card stat-card">
@@ -120,13 +147,24 @@
 
     </main>
 
-    <script src="https://unpkg.com/@hotwired/stimulus@3.2.2/dist/stimulus.umd.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="/assets/js/app.js"></script>
-    <script src="/assets/js/controllers/theme_controller.js"></script>
-    <script src="/assets/js/controllers/connection_controller.js"></script>
-    <script src="/assets/js/controllers/dashboard_controller.js"></script>
-    <script src="/assets/js/controllers/queue_controller.js"></script>
+    <!-- Load offline support modules -->
+    <script src="/assets/js/offline-manager.js"></script>
+    <script src="/assets/js/service-worker-manager.js"></script>
+
+    <!-- Initialize offline support -->
+    <script>
+      // Initialize offline support and dependencies
+      (async function() {
+        const offlineManager = new OfflineManager();
+        const serviceWorkerManager = new ServiceWorkerManager();
+
+        // Register service worker first
+        await serviceWorkerManager.register();
+
+        // Initialize offline manager and load dependencies
+        await offlineManager.initialize();
+      })();
+    </script>
   </body>
   </html>
 

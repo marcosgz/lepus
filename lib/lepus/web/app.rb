@@ -8,7 +8,7 @@ module Lepus
 
         Rack::Builder.new do
           use Rack::Static,
-            urls: ["/assets", "/index.html"],
+            urls: ["/assets", "/index.html", "/sw.js"],
             root: root.to_s
 
           map "/api" do
