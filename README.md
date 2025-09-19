@@ -143,6 +143,63 @@ The `Lepus::Producer` class provides:
 - **Class and instance methods**: Use either `ProducerClass.publish()` or `producer_instance.publish()`
 - **Block configuration**: Fine-tune settings using configuration blocks
 
+### Producer Hooks
+
+Lepus provides a powerful hooks system that allows you to control when producers can publish messages. This is particularly useful for testing, debugging, or temporarily disabling message publishing in specific environments.
+
+#### Basic Usage
+
+```ruby
+# Disable all producers
+Lepus::Producers.disable!
+
+# Enable all producers
+Lepus::Producers.enable!
+
+# Disable specific producers
+Lepus::Producers.disable!(UserEventsProducer, OrderEventsProducer)
+
+# Enable specific producers
+Lepus::Producers.enable!(UserEventsProducer)
+
+# Disable by exchange name (affects all producers using that exchange)
+Lepus::Producers.disable!("user_events", "order_events")
+
+# Enable by exchange name
+Lepus::Producers.enable!("notifications")
+
+# Check if producers are enabled/disabled
+Lepus::Producers.enabled?(UserEventsProducer)  # => true/false
+Lepus::Producers.disabled?(UserEventsProducer) # => true/false
+```
+
+#### Block-based Control
+
+The hooks system provides block-based methods for temporary control:
+
+```ruby
+# Temporarily disable publishing for a block
+Lepus::Producers.without_publishing do
+  # All producer.publish() calls will be ignored
+  UserEventsProducer.publish("This won't be sent")
+  OrderEventsProducer.publish("This won't be sent either")
+end
+# Publishing is automatically restored after the block
+
+# Temporarily disable specific producers
+Lepus::Producers.without_publishing(UserEventsProducer) do
+  UserEventsProducer.publish("This won't be sent")      # Disabled
+  OrderEventsProducer.publish("This will be sent")      # Still enabled
+end
+
+# Temporarily enable publishing for a block
+Lepus::Producers.disable!
+Lepus::Producers.with_publishing do
+  # Publishing is temporarily enabled
+  UserEventsProducer.publish("This will be sent")
+end
+# Publishing is automatically restored to disabled state
+```
 
 ### Configuration > Consumer Worker
 

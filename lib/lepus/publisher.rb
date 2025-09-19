@@ -22,6 +22,8 @@ module Lepus
     end
 
     def publish(message, **options)
+      return unless Producers.exchange_enabled?(@exchange_name)
+
       opts = DEFAULT_PUBLISH_OPTIONS.merge(options)
       payload = if message.is_a?(String)
         opts[:content_type] ||= "text/plain"

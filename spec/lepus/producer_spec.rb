@@ -237,6 +237,8 @@ RSpec.describe Lepus::Producer do
     let(:mock_exchange) { double("exchange") }
 
     before do
+      Lepus::Producers::Hooks.reset!
+
       producer_class.configure(
         exchange: "instance_exchange",
         publish: { persistent: false }

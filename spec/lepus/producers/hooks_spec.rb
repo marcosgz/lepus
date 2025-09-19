@@ -60,6 +60,28 @@ RSpec.describe Lepus::Producers::Hooks do
         expect(subject.enabled?(test_producer_class, another_producer_class)).to be true
       end
     end
+
+    context "when exchange is specified as string" do
+      it "enables producers that use the specified exchange" do
+        subject.enable!("test_exchange")
+
+        expect(subject.enabled?(test_producer_class)).to be true
+        # another_producer_class uses "another_exchange", so it should remain in its current state
+        # Since we're only enabling "test_exchange", another_producer_class should be enabled by default
+        expect(subject.enabled?(another_producer_class)).to be true
+      end
+    end
+
+    context "when exchange is specified as symbol" do
+      it "enables producers that use the specified exchange" do
+        subject.enable!(:"another_exchange")
+
+        # test_producer_class uses "test_exchange", so it should remain in its current state
+        # Since we're only enabling "another_exchange", test_producer_class should be enabled by default
+        expect(subject.enabled?(test_producer_class)).to be true
+        expect(subject.enabled?(another_producer_class)).to be true
+      end
+    end
   end
 
   describe "#disable!" do
@@ -84,6 +106,28 @@ RSpec.describe Lepus::Producers::Hooks do
         subject.disable!(test_producer_class, another_producer_class)
 
         expect(subject.disabled?(test_producer_class, another_producer_class)).to be true
+      end
+    end
+
+    context "when exchange is specified as string" do
+      it "disables producers that use the specified exchange" do
+        subject.disable!("test_exchange")
+
+        expect(subject.disabled?(test_producer_class)).to be true
+        # another_producer_class uses "another_exchange", so it should remain in its current state
+        # Since we're only disabling "test_exchange", another_producer_class should be enabled by default
+        expect(subject.disabled?(another_producer_class)).to be false
+      end
+    end
+
+    context "when exchange is specified as symbol" do
+      it "disables producers that use the specified exchange" do
+        subject.disable!(:"another_exchange")
+
+        # test_producer_class uses "test_exchange", so it should remain in its current state
+        # Since we're only disabling "another_exchange", test_producer_class should be enabled by default
+        expect(subject.disabled?(test_producer_class)).to be false
+        expect(subject.disabled?(another_producer_class)).to be true
       end
     end
   end
@@ -112,6 +156,36 @@ RSpec.describe Lepus::Producers::Hooks do
         subject.disable!(another_producer_class)
         expect(subject.enabled?(test_producer_class, another_producer_class)).to be false
       end
+    end
+  end
+
+  describe "#exchange_enabled?" do
+    it "returns true when all producers using the exchange are enabled" do
+      subject.enable!(test_producer_class)
+
+      expect(subject.exchange_enabled?("test_exchange")).to be true
+    end
+
+    it "returns false when any producer using the exchange is disabled" do
+      subject.disable!(test_producer_class)
+
+      expect(subject.exchange_enabled?("test_exchange")).to be false
+    end
+
+    it "returns true for exchanges with no producers (default enabled)" do
+      expect(subject.exchange_enabled?("nonexistent_exchange")).to be true
+    end
+
+    it "returns true when exchange is enabled via exchange name" do
+      subject.enable!("test_exchange")
+
+      expect(subject.exchange_enabled?("test_exchange")).to be true
+    end
+
+    it "returns false when exchange is disabled via exchange name" do
+      subject.disable!("test_exchange")
+
+      expect(subject.exchange_enabled?("test_exchange")).to be false
     end
   end
 
@@ -251,8 +325,8 @@ RSpec.describe Lepus::Producers::Hooks do
   describe "error handling" do
     context "when invalid producer is provided" do
       it "raises ArgumentError for non-class, non-string, non-symbol values" do
-        expect { subject.enable!(123) }.to raise_error(ArgumentError, "Invalid producer name: 123")
-        expect { subject.disable!(123) }.to raise_error(ArgumentError, "Invalid producer name: 123")
+        expect { subject.enable!(123) }.to raise_error(ArgumentError, "Invalid producer or exchange name: 123")
+        expect { subject.disable!(123) }.to raise_error(ArgumentError, "Invalid producer or exchange name: 123")
       end
 
       it "raises ArgumentError for non-producer classes" do
@@ -262,9 +336,11 @@ RSpec.describe Lepus::Producers::Hooks do
         expect { subject.disable!(non_producer_class) }.to raise_error(ArgumentError, "Invalid producer class: #{non_producer_class.inspect}")
       end
 
-      it "raises NameError for non-existent constant names" do
-        expect { subject.enable!("NonExistentProducer") }.to raise_error(NameError)
-        expect { subject.disable!("NonExistentProducer") }.to raise_error(NameError)
+      it "accepts string and symbol as exchange names" do
+        expect { subject.enable!("SomeExchange") }.not_to raise_error
+        expect { subject.disable!("SomeExchange") }.not_to raise_error
+        expect { subject.enable!(:"SomeExchange") }.not_to raise_error
+        expect { subject.disable!(:"SomeExchange") }.not_to raise_error
       end
     end
   end

@@ -43,6 +43,23 @@ module Lepus
         filter_producers(*producers).all? { |producer| repo[producer] }
       end
 
+      # Check if the given exchange is enabled for publishing.
+      #
+      # @param exchange_name [String] The exchange name to check
+      # @return [Boolean]
+      def exchange_enabled?(exchange_name)
+        # Find all producers that use this exchange
+        matching_producers = all_producers.select do |producer|
+          producer.definition.exchange_name == exchange_name
+        end
+
+        # If no producers use this exchange, consider it enabled by default
+        return true if matching_producers.empty?
+
+        # Check if all matching producers are enabled
+        matching_producers.all? { |producer| repo[producer] }
+      end
+
       # Disable publishing callbacks execution for the block execution.
       # Example:
       #  Lepus::Producers.without_publishing { User.create! }
@@ -75,13 +92,27 @@ module Lepus
         Lepus::Producer.descendants.reject(&:abstract_class?)
       end
 
-      # Returns a list of all producers for the given model
-      # If no producer is specified, all producers will be returned.
+      # Returns a list of all producers for the given arguments
+      # If no producer/exchange is specified, all producers will be returned.
       # @return [Array<*Lepus::Producer>] List of producers
       def filter_producers(*producers)
         return all_producers if producers.empty?
 
-        expand_given_producers(*producers) & all_producers
+        expanded = expand_given_producers(*producers)
+        # Separate Producer classes from exchange names
+        producer_classes = expanded.select { |item| item.is_a?(Class) }
+        exchange_names = expanded.select { |item| item.is_a?(String) }
+
+        # For Producer classes, filter by actual descendants
+        filtered_producers = producer_classes & all_producers
+
+        # For exchange names, find matching producers
+        matching_producers = all_producers.select do |producer|
+          exchange_names.include?(producer.definition.exchange_name)
+        end
+
+        # Combine both lists and remove duplicates
+        (filtered_producers + matching_producers).uniq
       end
 
       def expand_given_producers(*producers)
@@ -90,10 +121,9 @@ module Lepus
           when Class
             ensure_producer_class(value)
           when String, Symbol
-            constant = Primitive::String.new(value.to_s).classify.constantize
-            ensure_producer_class(constant)
+            value.to_s
           else
-            raise ArgumentError, "Invalid producer name: #{value.inspect}"
+            raise ArgumentError, "Invalid producer or exchange name: #{value.inspect}"
           end
         end
       end

@@ -101,4 +101,73 @@ RSpec.describe Lepus::Publisher do
       end
     end
   end
+
+  describe "hooks integration" do
+    let(:test_producer_class) do
+      Class.new(Lepus::Producer) do
+        configure(exchange: "test_exchange")
+      end
+    end
+
+    let(:mock_connection) { double("connection") }
+    let(:mock_channel) { double("channel") }
+    let(:mock_exchange) { double("exchange") }
+
+    before do
+      Lepus::Producers::Hooks.reset!
+      stub_const("TestProducerClass", test_producer_class)
+
+      allow(Lepus.config.producer_config).to receive(:with_connection).and_yield(mock_connection)
+      allow(mock_connection).to receive(:with_channel).and_yield(mock_channel)
+      allow(mock_channel).to receive(:exchange).and_return(mock_exchange)
+      allow(mock_exchange).to receive(:publish)
+    end
+
+    after do
+      Lepus::Producers::Hooks.reset!
+    end
+
+    it "publishes when exchange is enabled" do
+      Lepus::Producers.enable!("test_exchange")
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.publish("test message")
+
+      expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+    end
+
+    it "does not publish when exchange is disabled" do
+      Lepus::Producers.disable!("test_exchange")
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.publish("test message")
+
+      expect(mock_exchange).not_to have_received(:publish)
+    end
+
+    it "publishes when exchange is enabled via producer class" do
+      Lepus::Producers.enable!(test_producer_class)
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.publish("test message")
+
+      expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+    end
+
+    it "does not publish when exchange is disabled via producer class" do
+      Lepus::Producers.disable!(test_producer_class)
+
+      publisher = Lepus::Publisher.new("test_exchange")
+      publisher.publish("test message")
+
+      expect(mock_exchange).not_to have_received(:publish)
+    end
+
+    it "publishes for exchanges with no producers (default enabled)" do
+      publisher = Lepus::Publisher.new("nonexistent_exchange")
+      publisher.publish("test message")
+
+      expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+    end
+  end
 end
