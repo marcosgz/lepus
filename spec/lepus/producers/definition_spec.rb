@@ -79,7 +79,7 @@ RSpec.describe Lepus::Producers::Definition do
     end
   end
 
-  describe "#exchange_args" do
+  describe "#exchange name and options" do
     it "returns exchange name and options without name key" do
       definition = described_class.new(
         exchange: {
@@ -89,9 +89,8 @@ RSpec.describe Lepus::Producers::Definition do
         }
       )
 
-      name, options = definition.exchange_args
-      expect(name).to eq("test_exchange")
-      expect(options).to eq(type: :fanout, durable: false, auto_delete: false)
+      expect(definition.exchange_name).to eq("test_exchange")
+      expect(definition.exchange_options).to eq(type: :fanout, durable: false, auto_delete: false)
     end
   end
 

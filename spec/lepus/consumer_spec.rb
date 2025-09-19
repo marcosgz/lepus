@@ -62,7 +62,8 @@ RSpec.describe Lepus::Consumer do
 
       expect(custom_consumer_class.config).to be_a(Lepus::Consumers::Config)
       expect(custom_consumer_class.config.consumer_queue_args).to eq(["test", {durable: true}])
-      expect(custom_consumer_class.config.exchange_args).to eq(["exchange", {durable: true, type: :topic}])
+      expect(custom_consumer_class.config.exchange_options).to eq({durable: true, type: :topic})
+      expect(custom_consumer_class.config.exchange_name).to eq("exchange")
       expect(custom_consumer_class.config.binds_args).to eq([{routing_key: "test.new"}])
     end
   end

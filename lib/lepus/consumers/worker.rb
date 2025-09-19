@@ -95,7 +95,7 @@ module Lepus
                 handle_thread_error(error)
               end
 
-              exchange = channel.exchange(*consumer_config.exchange_args)
+              exchange = channel.exchange(consumer_config.exchange_name, **consumer_config.exchange_options)
 
               if (args = consumer_config.retry_queue_args)
                 _retry_queue = channel.queue(*args)

@@ -24,8 +24,8 @@ module Lepus
         @exchange_options[:name] || raise(InvalidProducerConfigError, "Exchange name is required")
       end
 
-      def exchange_args
-        [exchange_name, @exchange_options.reject { |k, v| k == :name }]
+      def exchange_options
+        @exchange_options.reject { |k, v| k == :name }
       end
 
       private

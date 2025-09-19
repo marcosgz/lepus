@@ -57,7 +57,7 @@ module Lepus
       # Creates a publisher instance configured with this producer's settings.
       # @return [Lepus::Publisher] A publisher instance ready to send messages.
       def publisher
-        @publisher ||= Publisher.new(*definition.exchange_args)
+        @publisher ||= Publisher.new(definition.exchange_name, **definition.exchange_options)
       end
 
       # Publishes a message using this producer's configuration.
@@ -81,7 +81,7 @@ module Lepus
     attr_reader :definition
 
     def publisher
-      @publisher ||= Publisher.new(*definition.exchange_args)
+      @publisher ||= Publisher.new(definition.exchange_name, **definition.exchange_options)
     end
 
     def publish(message, **options)

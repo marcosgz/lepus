@@ -152,16 +152,17 @@ RSpec.describe Lepus::Consumers::Config do
     end
   end
 
-  describe "#exchange_args" do
+  describe "#exchange name and options" do
     it "raises InvalidConsumerConfigError when exchange name is not given" do
-      expect { config.exchange_args }.to raise_error(Lepus::InvalidConsumerConfigError)
+      expect { config.exchange_name }.to raise_error(Lepus::InvalidConsumerConfigError)
     end
 
     context "when exchange is set as a string" do
       let(:options) { {exchange: "exchange-name"} }
 
       it "returns the exchange args" do
-        expect(config.exchange_args).to eq(["exchange-name", {type: :topic, durable: true}])
+        expect(config.exchange_name).to eq("exchange-name")
+        expect(config.exchange_options).to eq({type: :topic, durable: true})
       end
     end
 
@@ -169,7 +170,8 @@ RSpec.describe Lepus::Consumers::Config do
       let(:options) { {exchange: {name: "exchange-name", type: :direct, auto_delete: false}} }
 
       it "returns the exchange args" do
-        expect(config.exchange_args).to eq(["exchange-name", {type: :direct, durable: true, auto_delete: false}])
+        expect(config.exchange_name).to eq("exchange-name")
+        expect(config.exchange_options).to eq({type: :direct, durable: true, auto_delete: false})
       end
     end
   end

@@ -81,10 +81,6 @@ module Lepus
         ]
       end
 
-      def exchange_args
-        [exchange_name, exchange_options]
-      end
-
       def exchange_name
         @exchange_opts[:name] || raise(InvalidConsumerConfigError, "Exchange name is required")
       end
