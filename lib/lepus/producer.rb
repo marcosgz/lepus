@@ -78,9 +78,7 @@ module Lepus
       @definition = self.class.definition
     end
 
-    def definition
-      @definition
-    end
+    attr_reader :definition
 
     def publisher
       @publisher ||= Publisher.new(*definition.exchange_args)

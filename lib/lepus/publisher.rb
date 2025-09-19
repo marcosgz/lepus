@@ -11,7 +11,7 @@ module Lepus
     }.freeze
 
     DEFAULT_PUBLISH_OPTIONS = {
-      persistent: true,
+      persistent: true
     }.freeze
 
     # @param exchange_name [String] The name of the exchange to publish messages to.

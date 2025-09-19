@@ -279,9 +279,9 @@ RSpec.describe Lepus::Consumer do
       end
     end
     let(:instance) { consumer_class.new }
-    let(:mock_connection) { instance_double("Bunny::Session") }
-    let(:mock_channel) { instance_double("Bunny::Channel") }
-    let(:mock_exchange) { instance_double("Bunny::Exchange") }
+    let(:mock_connection) { instance_double(Bunny::Session) }
+    let(:mock_channel) { instance_double(Bunny::Channel) }
+    let(:mock_exchange) { instance_double(Bunny::Exchange) }
     let(:test_message) { "test message" }
     let(:test_hash_message) { {key: "value"} }
 
@@ -314,7 +314,7 @@ RSpec.describe Lepus::Consumer do
         end
 
         it "publishes hash message as JSON" do
-          instance.send(:publish_message,test_hash_message)
+          instance.send(:publish_message, test_hash_message)
 
           expect(mock_exchange).to have_received(:publish).with(
             MultiJson.dump(test_hash_message),
@@ -323,7 +323,7 @@ RSpec.describe Lepus::Consumer do
         end
 
         it "merges custom options with exchange options" do
-          instance.send(:publish_message,test_message, expiration: 60, content_type: "text/xml")
+          instance.send(:publish_message, test_message, expiration: 60, content_type: "text/xml")
 
           expect(mock_exchange).to have_received(:publish).with(
             test_message,
@@ -333,14 +333,14 @@ RSpec.describe Lepus::Consumer do
       end
 
       context "with channel parameter" do
-        let(:provided_channel) { instance_double("Bunny::Channel") }
+        let(:provided_channel) { instance_double(Bunny::Channel) }
 
         before do
           allow(provided_channel).to receive(:exchange).and_return(mock_exchange)
         end
 
         it "publishes message using provided channel and channel_publish method" do
-          instance.send(:publish_message,test_message, channel: provided_channel)
+          instance.send(:publish_message, test_message, channel: provided_channel)
 
           expect(Lepus.config.producer_config).not_to have_received(:with_connection)
           expect(provided_channel).to have_received(:exchange).with("test_exchange", {type: :topic, durable: true, auto_delete: false})
@@ -348,7 +348,7 @@ RSpec.describe Lepus::Consumer do
         end
 
         it "publishes hash message as JSON using provided channel" do
-          instance.send(:publish_message,test_hash_message, channel: provided_channel)
+          instance.send(:publish_message, test_hash_message, channel: provided_channel)
 
           expect(mock_exchange).to have_received(:publish).with(
             MultiJson.dump(test_hash_message),
@@ -357,7 +357,7 @@ RSpec.describe Lepus::Consumer do
         end
 
         it "merges custom options when using provided channel" do
-          instance.send(:publish_message,test_message, channel: provided_channel, expiration: 30)
+          instance.send(:publish_message, test_message, channel: provided_channel, expiration: 30)
 
           expect(mock_exchange).to have_received(:publish).with(
             test_message,
@@ -368,20 +368,20 @@ RSpec.describe Lepus::Consumer do
 
       context "with custom exchange_name" do
         it "uses custom exchange name instead of consumer's exchange" do
-          instance.send(:publish_message,test_message, exchange_name: "custom_exchange")
+          instance.send(:publish_message, test_message, exchange_name: "custom_exchange")
 
           expect(mock_channel).to have_received(:exchange).with("custom_exchange", {type: :topic, durable: true, auto_delete: false})
           expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
         end
 
         it "uses default exchange options for custom exchange" do
-          instance.send(:publish_message,test_message, exchange_name: "custom_exchange", type: :direct)
+          instance.send(:publish_message, test_message, exchange_name: "custom_exchange", type: :direct)
 
           expect(mock_channel).to have_received(:exchange).with("custom_exchange", {type: :direct, durable: true, auto_delete: false})
         end
 
         it "merges custom options for custom exchange" do
-          instance.send(:publish_message,test_message, exchange_name: "custom_exchange", expiration: 120)
+          instance.send(:publish_message, test_message, exchange_name: "custom_exchange", expiration: 120)
 
           expect(mock_exchange).to have_received(:publish).with(
             test_message,
@@ -398,7 +398,7 @@ RSpec.describe Lepus::Consumer do
         end
 
         it "uses handler channel when no channel parameter is provided" do
-          instance.send(:publish_message,test_message)
+          instance.send(:publish_message, test_message)
 
           expect(Lepus.config.producer_config).not_to have_received(:with_connection)
           expect(mock_channel).to have_received(:exchange).with("test_exchange", {type: :topic, durable: true, auto_delete: false})
@@ -406,10 +406,10 @@ RSpec.describe Lepus::Consumer do
         end
 
         it "prioritizes provided channel over handler channel" do
-          provided_channel = instance_double("Bunny::Channel")
+          provided_channel = instance_double(Bunny::Channel)
           allow(provided_channel).to receive(:exchange).and_return(mock_exchange)
 
-          instance.send(:publish_message,test_message, channel: provided_channel)
+          instance.send(:publish_message, test_message, channel: provided_channel)
 
           expect(provided_channel).to have_received(:exchange)
           expect(mock_channel).not_to have_received(:exchange)
@@ -423,17 +423,17 @@ RSpec.describe Lepus::Consumer do
       end
 
       it "does not publish message" do
-        instance.send(:publish_message,test_message)
+        instance.send(:publish_message, test_message)
 
         expect(Lepus.config.producer_config).not_to have_received(:with_connection)
         expect(mock_exchange).not_to have_received(:publish)
       end
 
       it "does not publish message even with channel parameter" do
-        provided_channel = instance_double("Bunny::Channel")
+        provided_channel = instance_double(Bunny::Channel)
         allow(provided_channel).to receive(:exchange).and_return(mock_exchange)
 
-        instance.send(:publish_message,test_message, channel: provided_channel)
+        instance.send(:publish_message, test_message, channel: provided_channel)
 
         expect(provided_channel).not_to have_received(:exchange)
         expect(mock_exchange).not_to have_received(:publish)
@@ -455,11 +455,10 @@ RSpec.describe Lepus::Consumer do
     end
 
     context "with producer class hooks" do
-
       it "respects producer class enable/disable" do
         Lepus::Producers.enable!(test_producer_class)
 
-        instance.send(:publish_message,test_message)
+        instance.send(:publish_message, test_message)
 
         expect(mock_exchange).to have_received(:publish)
       end
@@ -467,7 +466,7 @@ RSpec.describe Lepus::Consumer do
       it "does not publish when producer class is disabled" do
         Lepus::Producers.disable!(test_producer_class)
 
-        instance.send(:publish_message,test_message)
+        instance.send(:publish_message, test_message)
 
         expect(mock_exchange).not_to have_received(:publish)
       end
@@ -475,7 +474,7 @@ RSpec.describe Lepus::Consumer do
 
     context "with exchange options merging" do
       it "uses consumer exchange options for same exchange" do
-        instance.send(:publish_message,test_message, exchange_name: "test_exchange", durable: false)
+        instance.send(:publish_message, test_message, exchange_name: "test_exchange", durable: false)
 
         expect(mock_channel).to have_received(:exchange).with(
           "test_exchange",
@@ -484,7 +483,7 @@ RSpec.describe Lepus::Consumer do
       end
 
       it "uses only custom options for different exchange" do
-        instance.send(:publish_message,test_message, exchange_name: "other_exchange", type: :direct, durable: false)
+        instance.send(:publish_message, test_message, exchange_name: "other_exchange", type: :direct, durable: false)
 
         expect(mock_channel).to have_received(:exchange).with(
           "other_exchange",
@@ -495,7 +494,7 @@ RSpec.describe Lepus::Consumer do
 
     context "with unknown exchange (default enabled)" do
       it "publishes to unknown exchange by default" do
-        instance.send(:publish_message,test_message, exchange_name: "unknown_exchange")
+        instance.send(:publish_message, test_message, exchange_name: "unknown_exchange")
 
         expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
       end

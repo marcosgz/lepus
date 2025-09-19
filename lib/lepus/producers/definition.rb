@@ -4,7 +4,6 @@ module Lepus
   module Producers
     # Definition class for producer-specific settings
     class Definition
-
       attr_reader :exchange_options, :publish_options
 
       def initialize(options = {})
@@ -38,8 +37,8 @@ module Lepus
       def declaration_config(value)
         case value
         when Hash then value
-        when String then { name: value }
-        when Symbol then { name: value.to_s }
+        when String then {name: value}
+        when Symbol then {name: value.to_s}
         when NilClass then {}
         when TrueClass then {}
         end

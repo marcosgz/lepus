@@ -4,7 +4,7 @@ require "spec_helper"
 
 RSpec.describe Lepus::Producer do
   let(:producer_class) do
-    Class.new(Lepus::Producer)
+    Class.new(described_class)
   end
 
   before do
@@ -14,7 +14,7 @@ RSpec.describe Lepus::Producer do
   describe ".abstract_class?" do
     context "when the class is abstract" do
       it "returns true" do
-        expect(Lepus::Producer.abstract_class?).to be true
+        expect(described_class.abstract_class?).to be true
       end
     end
 
@@ -100,7 +100,7 @@ RSpec.describe Lepus::Producer do
 
     context "when called on abstract class" do
       it "raises an error" do
-        expect { Lepus::Producer.configure(exchange: "test") }.to raise_error(ArgumentError, "Cannot configure an abstract class")
+        expect { described_class.configure(exchange: "test") }.to raise_error(ArgumentError, "Cannot configure an abstract class")
       end
     end
   end
@@ -130,7 +130,7 @@ RSpec.describe Lepus::Producer do
     before do
       producer_class.configure(
         exchange: "test_exchange",
-        publish: { persistent: true, mandatory: false }
+        publish: {persistent: true, mandatory: false}
       )
 
       # Ensure hooks are enabled for this producer
@@ -159,7 +159,7 @@ RSpec.describe Lepus::Producer do
 
     context "with hash message" do
       it "publishes the message as JSON" do
-        message = { user_id: 123, action: "created" }
+        message = {user_id: 123, action: "created"}
         producer_class.publish(message)
 
         expect(mock_exchange).to have_received(:publish).with(
@@ -175,13 +175,13 @@ RSpec.describe Lepus::Producer do
 
     context "with additional options" do
       it "merges additional options with defaults" do
-        producer_class.publish("Hello", routing_key: "test.key", headers: { "x-custom": "value" })
+        producer_class.publish("Hello", routing_key: "test.key", headers: {"x-custom": "value"})
 
         expect(mock_exchange).to have_received(:publish).with(
           "Hello",
           hash_including(
             routing_key: "test.key",
-            headers: { "x-custom": "value" },
+            headers: {"x-custom": "value"},
             persistent: true,
             mandatory: false
           )
@@ -241,7 +241,7 @@ RSpec.describe Lepus::Producer do
 
       producer_class.configure(
         exchange: "instance_exchange",
-        publish: { persistent: false }
+        publish: {persistent: false}
       )
 
       # Ensure hooks are enabled for this producer
@@ -266,7 +266,7 @@ RSpec.describe Lepus::Producer do
 
   describe ".descendants" do
     let(:child_class) do
-      Class.new(Lepus::Producer)
+      Class.new(described_class)
     end
 
     before do
@@ -278,7 +278,7 @@ RSpec.describe Lepus::Producer do
       producer_class
       child_class
 
-      descendants = Lepus::Producer.descendants
+      descendants = described_class.descendants
       expect(descendants).to include(producer_class, child_class)
     end
   end

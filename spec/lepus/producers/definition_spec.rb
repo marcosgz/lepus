@@ -105,7 +105,7 @@ RSpec.describe Lepus::Producers::Definition do
 
     context "with hash value" do
       it "uses hash as is" do
-        definition = described_class.new(exchange: { name: "hash_exchange", type: :direct })
+        definition = described_class.new(exchange: {name: "hash_exchange", type: :direct})
         expect(definition.exchange_name).to eq("hash_exchange")
         expect(definition.exchange_options).to include(type: :direct)
       end

@@ -9,21 +9,49 @@ module Lepus
         Thread.current[KEY] = nil
       end
 
-      # Global enable publishing callbacks. If no producer is specified, all producers will be enabled.
-      # @param producers [Array<Lepus::Producer>]
+      # Global enable publishing callbacks. If no producer/exchange is specified, all producers will be enabled.
+      # @param targets [Array<Lepus::Producer, String, Symbol>] Producer classes, exchange names, or both
       # @return [void]
-      def enable!(*producers)
-        filter_producers(*producers).each do |producer|
-          repo[producer] = true
+      def enable!(*targets)
+        if targets.empty?
+          # Enable all producers
+          all_producers.each { |producer| repo[:producers][producer] = true }
+        else
+          targets.each do |target|
+            case target
+            when Class
+              ensure_producer_class(target)
+              repo[:producers][target] = true
+            when String, Symbol
+              exchange_name = target.to_s
+              repo[:exchanges][exchange_name] = true
+            else
+              raise ArgumentError, "Invalid producer or exchange name: #{target.inspect}"
+            end
+          end
         end
       end
 
-      # Global disable publishing callbacks. If no producer is specified, all producers will be disabled.
-      # @param producers [Array<Lepus::Producer>]
+      # Global disable publishing callbacks. If no producer/exchange is specified, all producers will be disabled.
+      # @param targets [Array<Lepus::Producer, String, Symbol>] Producer classes, exchange names, or both
       # @return [void]
-      def disable!(*producers)
-        filter_producers(*producers).each do |producer|
-          repo[producer] = false
+      def disable!(*targets)
+        if targets.empty?
+          # Disable all producers
+          all_producers.each { |producer| repo[:producers][producer] = false }
+        else
+          targets.each do |target|
+            case target
+            when Class
+              ensure_producer_class(target)
+              repo[:producers][target] = false
+            when String, Symbol
+              exchange_name = target.to_s
+              repo[:exchanges][exchange_name] = false
+            else
+              raise ArgumentError, "Invalid producer or exchange name: #{target.inspect}"
+            end
+          end
         end
       end
 
@@ -32,7 +60,11 @@ module Lepus
       # @param producers [Array<Lepus::Producer>]
       # @return [Boolean]
       def disabled?(*producers)
-        filter_producers(*producers).all? { |producer| !repo[producer] }
+        if producers.empty?
+          all_producers.all? { |producer| !producer_enabled?(producer) }
+        else
+          producers.all? { |producer| !producer_enabled?(producer) }
+        end
       end
 
       # Check if the given producer is enabled for publishing. If no producer is specified, all producers will be checked.
@@ -40,7 +72,11 @@ module Lepus
       # @param producers [Array<Lepus::Producer>]
       # @return [Boolean]
       def enabled?(*producers)
-        filter_producers(*producers).all? { |producer| repo[producer] }
+        if producers.empty?
+          all_producers.all? { |producer| producer_enabled?(producer) }
+        else
+          producers.all? { |producer| producer_enabled?(producer) }
+        end
       end
 
       # Check if the given exchange is enabled for publishing.
@@ -48,6 +84,11 @@ module Lepus
       # @param exchange_name [String] The exchange name to check
       # @return [Boolean]
       def exchange_enabled?(exchange_name)
+        # Check if exchange is explicitly configured
+        if repo[:exchanges].key?(exchange_name)
+          return repo[:exchanges][exchange_name]
+        end
+
         # Find all producers that use this exchange
         matching_producers = all_producers.select do |producer|
           producer.definition.exchange_name == exchange_name
@@ -57,33 +98,33 @@ module Lepus
         return true if matching_producers.empty?
 
         # Check if all matching producers are enabled
-        matching_producers.all? { |producer| repo[producer] }
+        matching_producers.all? { |producer| producer_enabled?(producer) }
       end
 
       # Disable publishing callbacks execution for the block execution.
       # Example:
       #  Lepus::Producers.without_publishing { User.create! }
-      #  Lepus::Producers.without_publishing(UsersIndex, AccountsIndex.producer(:user)) { User.create! }
-      def without_publishing(*producers)
-        state_before_disable = repo.dup
-        disable!(*producers)
+      #  Lepus::Producers.without_publishing(UsersIndex, "exchange_name") { User.create! }
+      def without_publishing(*targets)
+        state_before_disable = deep_copy_repo
+        disable!(*targets)
 
         yield
       ensure
-        repo.replace(state_before_disable)
+        restore_repo(state_before_disable)
       end
 
       # Enable the publishing callbacks execution for the block execution.
       # Example:
       #  Lepus::Producers.with_publishing { User.create! }
-      #  Lepus::Producers.with_publishing(UsersIndex, AccountsIndex.producer(:user)) { User.create! }
-      def with_publishing(*producers)
-        state_before_enable = repo.dup
-        enable!(*producers)
+      #  Lepus::Producers.with_publishing(UsersIndex, "exchange_name") { User.create! }
+      def with_publishing(*targets)
+        state_before_enable = deep_copy_repo
+        enable!(*targets)
 
         yield
       ensure
-        repo.replace(state_before_enable)
+        restore_repo(state_before_enable)
       end
 
       private
@@ -92,51 +133,37 @@ module Lepus
         Lepus::Producer.descendants.reject(&:abstract_class?)
       end
 
-      # Returns a list of all producers for the given arguments
-      # If no producer/exchange is specified, all producers will be returned.
-      # @return [Array<*Lepus::Producer>] List of producers
-      def filter_producers(*producers)
-        return all_producers if producers.empty?
-
-        expanded = expand_given_producers(*producers)
-        # Separate Producer classes from exchange names
-        producer_classes = expanded.select { |item| item.is_a?(Class) }
-        exchange_names = expanded.select { |item| item.is_a?(String) }
-
-        # For Producer classes, filter by actual descendants
-        filtered_producers = producer_classes & all_producers
-
-        # For exchange names, find matching producers
-        matching_producers = all_producers.select do |producer|
-          exchange_names.include?(producer.definition.exchange_name)
-        end
-
-        # Combine both lists and remove duplicates
-        (filtered_producers + matching_producers).uniq
-      end
-
-      def expand_given_producers(*producers)
-        producers.flat_map do |value|
-          case value
-          when Class
-            ensure_producer_class(value)
-          when String, Symbol
-            value.to_s
-          else
-            raise ArgumentError, "Invalid producer or exchange name: #{value.inspect}"
-          end
-        end
+      # Check if a specific producer is enabled
+      def producer_enabled?(producer)
+        repo[:producers][producer]
       end
 
       def ensure_producer_class(value)
-        value <= Lepus::Producer ? value : raise(ArgumentError, "Invalid producer class: #{value.inspect}")
+        (value <= Lepus::Producer) ? value : raise(ArgumentError, "Invalid producer class: #{value.inspect}")
+      end
+
+      def deep_copy_repo
+        {
+          producers: repo[:producers].dup,
+          exchanges: repo[:exchanges].dup
+        }
+      end
+
+      def restore_repo(saved_state)
+        Thread.current[KEY] = saved_state
       end
 
       # Data Structure:
       #
-      # { <Lepus::Producer class> => <true|false>, ... }
+      # {
+      #   producers: { <Lepus::Producer class> => <true|false>, ... },
+      #   exchanges: { <String> => <true|false>, ... }
+      # }
       def repo
-        Thread.current[KEY] ||= all_producers.map { |k| [k, true] }.to_h
+        Thread.current[KEY] ||= {
+          producers: all_producers.map { |k| [k, true] }.to_h,
+          exchanges: {}
+        }
       end
     end
   end

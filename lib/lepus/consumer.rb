@@ -167,7 +167,7 @@ module Lepus
       target_exchange = exchange_name || self.class.config.exchange_name
       return unless Lepus::Producers.exchange_enabled?(target_exchange)
 
-      opts = target_exchange == self.class.config.exchange_name ? self.class.config.exchange_options : {}
+      opts = (target_exchange == self.class.config.exchange_name) ? self.class.config.exchange_options : {}
       opts.merge!(options)
 
       channel ||= instance_variable_get(:@_handler_channel) # The Lepus::Consumers::Handler sets this variable

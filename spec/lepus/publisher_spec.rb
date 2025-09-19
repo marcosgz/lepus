@@ -206,11 +206,10 @@ RSpec.describe Lepus::Publisher do
       Lepus::Producers::Hooks.reset!
     end
 
-
     it "publishes when exchange is enabled" do
       Lepus::Producers.enable!("test_exchange")
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.publish("test message")
 
       expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
@@ -219,7 +218,7 @@ RSpec.describe Lepus::Publisher do
     it "does not publish when exchange is disabled" do
       Lepus::Producers.disable!("test_exchange")
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.publish("test message")
 
       expect(mock_exchange).not_to have_received(:publish)
@@ -228,7 +227,7 @@ RSpec.describe Lepus::Publisher do
     it "publishes when exchange is enabled via producer class" do
       Lepus::Producers.enable!(test_producer_class)
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.publish("test message")
 
       expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
@@ -237,14 +236,14 @@ RSpec.describe Lepus::Publisher do
     it "does not publish when exchange is disabled via producer class" do
       Lepus::Producers.disable!(test_producer_class)
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.publish("test message")
 
       expect(mock_exchange).not_to have_received(:publish)
     end
 
     it "publishes for exchanges with no producers (default enabled)" do
-      publisher = Lepus::Publisher.new("nonexistent_exchange")
+      publisher = described_class.new("nonexistent_exchange")
       publisher.publish("test message")
 
       expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
@@ -276,7 +275,7 @@ RSpec.describe Lepus::Publisher do
     it "publishes when exchange is enabled" do
       Lepus::Producers.enable!("test_exchange")
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.channel_publish(channel, "test message")
 
       expect(exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
@@ -285,7 +284,7 @@ RSpec.describe Lepus::Publisher do
     it "does not publish when exchange is disabled" do
       Lepus::Producers.disable!("test_exchange")
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.channel_publish(channel, "test message")
 
       expect(exchange).not_to have_received(:publish)
@@ -294,7 +293,7 @@ RSpec.describe Lepus::Publisher do
     it "publishes when exchange is enabled via producer class" do
       Lepus::Producers.enable!(test_producer_class)
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.channel_publish(channel, "test message")
 
       expect(exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
@@ -303,14 +302,14 @@ RSpec.describe Lepus::Publisher do
     it "does not publish when exchange is disabled via producer class" do
       Lepus::Producers.disable!(test_producer_class)
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.channel_publish(channel, "test message")
 
       expect(exchange).not_to have_received(:publish)
     end
 
     it "publishes for exchanges with no producers (default enabled)" do
-      publisher = Lepus::Publisher.new("nonexistent_exchange")
+      publisher = described_class.new("nonexistent_exchange")
       publisher.channel_publish(channel, "test message")
 
       expect(exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
@@ -319,7 +318,7 @@ RSpec.describe Lepus::Publisher do
     it "respects hooks when publishing JSON messages" do
       Lepus::Producers.disable!("test_exchange")
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.channel_publish(channel, {key: "value"})
 
       expect(exchange).not_to have_received(:publish)
@@ -328,7 +327,7 @@ RSpec.describe Lepus::Publisher do
     it "respects hooks when publishing with custom options" do
       Lepus::Producers.disable!("test_exchange")
 
-      publisher = Lepus::Publisher.new("test_exchange")
+      publisher = described_class.new("test_exchange")
       publisher.channel_publish(channel, "test message", expiration: 60, content_type: "text/xml")
 
       expect(exchange).not_to have_received(:publish)
