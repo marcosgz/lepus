@@ -34,17 +34,29 @@
     }
 
     async poll() {
-      const [processes, queues, connections] = await Promise.all([
-        this.fetchLepusProcesses(),
-        this.fetchRabbitQueues(),
-        this.fetchRabbitConnections()
-      ]);
-      this.renderStats(processes, queues, connections);
-      this.renderProcesses(processes);
-      this.renderQueues(queues);
-      this.updateCharts(queues);
-      this.restoreConsumerStates();
-      this.restoreQueueStates();
+      // Check if we're offline
+      if (!navigator.onLine) {
+        this.showOfflineMessage();
+        return;
+      }
+
+      try {
+        const [processes, queues, connections] = await Promise.all([
+          this.fetchLepusProcesses(),
+          this.fetchRabbitQueues(),
+          this.fetchRabbitConnections()
+        ]);
+        this.renderStats(processes, queues, connections);
+        this.renderProcesses(processes);
+        this.renderQueues(queues);
+        this.updateCharts(queues);
+        this.restoreConsumerStates();
+        this.restoreQueueStates();
+        this.hideOfflineMessage();
+      } catch (error) {
+        console.warn('Dashboard poll failed:', error);
+        this.showOfflineMessage();
+      }
     }
 
     async fetchLepusProcesses() {
@@ -475,6 +487,29 @@
           }
         }
       });
+    }
+
+    showOfflineMessage() {
+      // Update stats to show offline state
+      this.processCountTarget.textContent = '—';
+      this.queueCountTarget.textContent = '—';
+      this.totalMessagesTarget.textContent = '—';
+      this.memoryUsageTarget.textContent = '—';
+      this.connectionCountTarget.textContent = '—';
+      this.publishRateTarget.textContent = '—';
+      this.consumeRateTarget.textContent = '—';
+
+      // Update detail texts
+      this.processDetailTarget.textContent = 'Offline';
+      this.queueDetailTarget.textContent = 'Offline';
+      this.messageDetailTarget.textContent = 'Offline';
+      this.memoryDetailTarget.textContent = 'Offline';
+      this.connectionDetailTarget.textContent = 'Offline';
+      this.rateDetailTarget.textContent = 'Offline';
+    }
+
+    hideOfflineMessage() {
+      // Clear any offline indicators - normal operation will update these
     }
 
     escape(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
