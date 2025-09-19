@@ -65,6 +65,8 @@ module Lepus
       # @param options [Hash] Additional publish options (routing_key, headers, etc.).
       # @return [void]
       def publish(message, **options)
+        return unless Producers.enabled?(self)
+
         # Merge default publish options with provided options
         publish_opts = definition.publish_options.merge(options)
         publisher.publish(message, **publish_opts)
@@ -85,6 +87,8 @@ module Lepus
     end
 
     def publish(message, **options)
+      return unless Producers.enabled?(self.class)
+
       publish_opts = definition.publish_options.merge(options)
       publisher.publish(message, **publish_opts)
     end

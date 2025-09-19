@@ -133,6 +133,9 @@ RSpec.describe Lepus::Producer do
         publish: { persistent: true, mandatory: false }
       )
 
+      # Ensure hooks are enabled for this producer
+      Lepus::Producers.enable!(producer_class)
+
       allow(Lepus.config.producer_config).to receive(:with_connection).and_yield(mock_connection)
       allow(mock_connection).to receive(:with_channel).and_yield(mock_channel)
       allow(mock_channel).to receive(:exchange).and_return(mock_exchange)
@@ -239,6 +242,9 @@ RSpec.describe Lepus::Producer do
         publish: { persistent: false }
       )
 
+      # Ensure hooks are enabled for this producer
+      Lepus::Producers.enable!(producer_class)
+
       allow(Lepus.config.producer_config).to receive(:with_connection).and_yield(mock_connection)
       allow(mock_connection).to receive(:with_channel).and_yield(mock_channel)
       allow(mock_channel).to receive(:exchange).and_return(mock_exchange)
@@ -272,6 +278,86 @@ RSpec.describe Lepus::Producer do
 
       descendants = Lepus::Producer.descendants
       expect(descendants).to include(producer_class, child_class)
+    end
+  end
+
+  describe "hooks integration" do
+    let(:configured_producer_class) do
+      Class.new(Lepus::Producer) do
+        configure(exchange: "test_exchange")
+      end
+    end
+
+    let(:mock_connection) { double("connection") }
+    let(:mock_channel) { double("channel") }
+    let(:mock_exchange) { double("exchange") }
+
+    before do
+      Lepus::Producers::Hooks.reset!
+      stub_const("ConfiguredProducer", configured_producer_class)
+
+      allow(Lepus.config.producer_config).to receive(:with_connection).and_yield(mock_connection)
+      allow(mock_connection).to receive(:with_channel).and_yield(mock_channel)
+      allow(mock_channel).to receive(:exchange).and_return(mock_exchange)
+      allow(mock_exchange).to receive(:publish)
+    end
+
+    after do
+      Lepus::Producers::Hooks.reset!
+    end
+
+    describe ".publish" do
+      it "publishes when hooks are enabled" do
+        Lepus::Producers.enable!(configured_producer_class)
+
+        configured_producer_class.publish("test message")
+
+        expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+      end
+
+      it "does not publish when hooks are disabled" do
+        Lepus::Producers.disable!(configured_producer_class)
+
+        configured_producer_class.publish("test message")
+
+        expect(mock_exchange).not_to have_received(:publish)
+      end
+
+      it "publishes when all producers are enabled" do
+        Lepus::Producers.enable!
+
+        configured_producer_class.publish("test message")
+
+        expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+      end
+
+      it "does not publish when all producers are disabled" do
+        Lepus::Producers.disable!
+
+        configured_producer_class.publish("test message")
+
+        expect(mock_exchange).not_to have_received(:publish)
+      end
+    end
+
+    describe "#publish" do
+      it "publishes when hooks are enabled" do
+        Lepus::Producers.enable!(configured_producer_class)
+
+        instance = configured_producer_class.new
+        instance.publish("test message")
+
+        expect(mock_exchange).to have_received(:publish).with("test message", hash_including(persistent: true))
+      end
+
+      it "does not publish when hooks are disabled" do
+        Lepus::Producers.disable!(configured_producer_class)
+
+        instance = configured_producer_class.new
+        instance.publish("test message")
+
+        expect(mock_exchange).not_to have_received(:publish)
+      end
     end
   end
 end
