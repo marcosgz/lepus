@@ -50,6 +50,27 @@ The configuration options are:
 - `worker`: A block to configure the worker process that will run the consumers. You can set the `pool_size`, `pool_timeout`, and before/after fork callbacks inline options or using a block. Main worker is `:default`, but you can define more workers with different names for different consumers.
 - `logger`: The logger instance. Default: `Logger.new($stdout)`.
 
+### Configuration > Producer
+
+Lepus can be used to both **produce** and **consume** RabbitMQ events. Producers and consumers use separate connection pools, allowing for efficient and isolated message publishing and processing.
+
+You can configure the producer connection pool using the `producer` method inside the configuration block:
+
+```ruby
+Lepus.configure do |config|
+  # Block
+  config.producer do |c|
+    c.pool_size = 2
+    c.pool_timeout = 10.0
+  end
+  # Inline
+  config.producer(pool_size: 1, pool_timeout: 5.0)
+end
+```
+
+
+
+
 ### Configuration > Consumer Worker
 
 You can configure the consumer process using the `worker` method. The default worker is named `:default`, but you can define more workers with different names for different consumers.

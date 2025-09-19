@@ -11,6 +11,8 @@ module Lepus
     # AMPQ settings, queue names, etc.
     class WorkerFactory
       DEFAULT_NAME = "default"
+      DEFAULT_POOL_SIZE = 1
+      DEFAULT_POOL_TIMEOUT = 5.0
 
       class << self
         def [](name)
@@ -61,8 +63,8 @@ module Lepus
       # You probably want to use .[] or .default to get an instance instead of calling new directly.
       def initialize(name)
         @name = name.to_s
-        @pool_size = 1
-        @pool_timeout = 5
+        @pool_size = DEFAULT_POOL_SIZE
+        @pool_timeout = DEFAULT_POOL_TIMEOUT
         @consumers = []
         @callbacks = {before_fork: [], after_fork: []}
       end
