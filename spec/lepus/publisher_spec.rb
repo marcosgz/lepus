@@ -54,69 +54,67 @@ RSpec.describe Lepus::Publisher do
       allow(exchange).to receive(:publish)
     end
 
-    context "when channel is provided" do
-      context "when the message is different than String" do
-        let(:message) { {key: "value"} }
+    context "when channel is provided and message is different than String" do
+      let(:message) { {key: "value"} }
 
-        it "publishes the message to the exchange as JSON" do
-          publisher.channel_publish(channel, message, **options)
+      it "publishes the message to the exchange as JSON" do
+        publisher.channel_publish(channel, message, **options)
 
-          expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
-          expect(exchange).to have_received(:publish).with(
-            MultiJson.dump(message),
-            a_hash_including(
-              content_type: "application/json",
-              expiration: 60,
-              persistent: true
-            )
+        expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
+        expect(exchange).to have_received(:publish).with(
+          MultiJson.dump(message),
+          a_hash_including(
+            content_type: "application/json",
+            expiration: 60,
+            persistent: true
           )
-        end
+        )
       end
+    end
 
-      context "when the message is a String" do
-        let(:message) { "test message" }
+    context "when channel is provided and message is a String" do
+      let(:message) { "test message" }
 
-        it "publishes the message to the exchange as text" do
-          publisher.channel_publish(channel, message, **options)
+      it "publishes the message to the exchange as text" do
+        publisher.channel_publish(channel, message, **options)
 
-          expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
-          expect(exchange).to have_received(:publish).with(
-            message,
-            a_hash_including(
-              content_type: "text/plain",
-              expiration: 60,
-              persistent: true
-            )
+        expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
+        expect(exchange).to have_received(:publish).with(
+          message,
+          a_hash_including(
+            content_type: "text/plain",
+            expiration: 60,
+            persistent: true
           )
-        end
+        )
       end
+    end
 
-      context "when custom content type is provided" do
-        let(:message) { "test message" }
-        let(:options) { {content_type: "application/xml"} }
+    context "when channel is provided and custom content type is provided" do
+      let(:message) { "test message" }
+      let(:options) { {content_type: "application/xml"} }
 
-        it "uses the provided content type" do
-          publisher.channel_publish(channel, message, **options)
+      it "uses the provided content type" do
+        publisher.channel_publish(channel, message, **options)
 
-          expect(exchange).to have_received(:publish).with(
-            message,
-            a_hash_including(content_type: "application/xml")
-          )
-        end
+        expect(exchange).to have_received(:publish).with(
+          message,
+          a_hash_including(content_type: "application/xml")
+        )
       end
+    end
 
-      context "when custom exchange options are provided" do
-        let(:publisher) { described_class.new(exchange_name, type: :direct, durable: false) }
-        let(:message) { "test message" }
+    context "when channel is provided and custom exchange options are provided" do
+      let(:publisher) { described_class.new(exchange_name, type: :direct, durable: false) }
+      let(:message) { "test message" }
 
-        it "uses the custom exchange options" do
-          publisher.channel_publish(channel, message)
+      it "uses the custom exchange options" do
+        publisher.channel_publish(channel, message)
 
-          expect(channel).to have_received(:exchange).with(
-            exchange_name,
-            described_class::DEFAULT_EXCHANGE_OPTIONS.merge(type: :direct, durable: false)
-          )
-        end
+        expect(channel).to have_received(:exchange).with(
+          exchange_name,
+          described_class::DEFAULT_EXCHANGE_OPTIONS.merge(type: :direct, durable: false)
+        )
       end
     end
 
@@ -188,9 +186,9 @@ RSpec.describe Lepus::Publisher do
       end
     end
 
-    let(:mock_connection) { double("connection") }
-    let(:mock_channel) { double("channel") }
-    let(:mock_exchange) { double("exchange") }
+    let(:mock_connection) { instance_double(Bunny::Session) }
+    let(:mock_channel) { instance_double(Bunny::Channel) }
+    let(:mock_exchange) { instance_double(Bunny::Exchange) }
 
     before do
       Lepus::Producers::Hooks.reset!

@@ -123,9 +123,9 @@ RSpec.describe Lepus::Producer do
   end
 
   describe ".publish" do
-    let(:mock_connection) { double("connection") }
-    let(:mock_channel) { double("channel") }
-    let(:mock_exchange) { double("exchange") }
+    let(:mock_connection) { instance_double(Bunny::Session) }
+    let(:mock_channel) { instance_double(Bunny::Channel) }
+    let(:mock_exchange) { instance_double(Bunny::Exchange) }
 
     before do
       producer_class.configure(
@@ -232,9 +232,9 @@ RSpec.describe Lepus::Producer do
   end
 
   describe "#publish" do
-    let(:mock_connection) { double("connection") }
-    let(:mock_channel) { double("channel") }
-    let(:mock_exchange) { double("exchange") }
+    let(:mock_connection) { instance_double(Bunny::Session) }
+    let(:mock_channel) { instance_double(Bunny::Channel) }
+    let(:mock_exchange) { instance_double(Bunny::Exchange) }
 
     before do
       Lepus::Producers::Hooks.reset!
@@ -290,9 +290,9 @@ RSpec.describe Lepus::Producer do
       end
     end
 
-    let(:mock_connection) { double("connection") }
-    let(:mock_channel) { double("channel") }
-    let(:mock_exchange) { double("exchange") }
+    let(:mock_connection) { instance_double(Bunny::Session) }
+    let(:mock_channel) { instance_double(Bunny::Channel) }
+    let(:mock_exchange) { instance_double(Bunny::Exchange) }
 
     before do
       Lepus::Producers::Hooks.reset!

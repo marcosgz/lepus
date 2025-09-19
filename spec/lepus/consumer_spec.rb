@@ -298,122 +298,126 @@ RSpec.describe Lepus::Consumer do
       Lepus::Producers::Hooks.reset!
     end
 
-    context "when exchange is enabled" do
+    context "when exchange is enabled and no channel parameter" do
       before do
         Lepus::Producers.enable!(test_producer_class)
       end
 
-      context "without channel parameter" do
-        it "publishes message using default exchange and publish method" do
-          instance.send(:publish_message, test_message)
+      it "publishes message using default exchange and publish method" do
+        instance.send(:publish_message, test_message)
 
-          expect(Lepus.config.producer_config).to have_received(:with_connection)
-          expect(mock_connection).to have_received(:with_channel)
-          expect(mock_channel).to have_received(:exchange).with("test_exchange", {type: :topic, durable: true, auto_delete: false})
-          expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
-        end
-
-        it "publishes hash message as JSON" do
-          instance.send(:publish_message, test_hash_message)
-
-          expect(mock_exchange).to have_received(:publish).with(
-            MultiJson.dump(test_hash_message),
-            hash_including(content_type: "application/json", persistent: true)
-          )
-        end
-
-        it "merges custom options with exchange options" do
-          instance.send(:publish_message, test_message, expiration: 60, content_type: "text/xml")
-
-          expect(mock_exchange).to have_received(:publish).with(
-            test_message,
-            hash_including(expiration: 60, content_type: "text/xml", persistent: true)
-          )
-        end
+        expect(Lepus.config.producer_config).to have_received(:with_connection)
+        expect(mock_connection).to have_received(:with_channel)
+        expect(mock_channel).to have_received(:exchange).with("test_exchange", {type: :topic, durable: true, auto_delete: false})
+        expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
       end
 
-      context "with channel parameter" do
-        let(:provided_channel) { instance_double(Bunny::Channel) }
+      it "publishes hash message as JSON" do
+        instance.send(:publish_message, test_hash_message)
 
-        before do
-          allow(provided_channel).to receive(:exchange).and_return(mock_exchange)
-        end
-
-        it "publishes message using provided channel and channel_publish method" do
-          instance.send(:publish_message, test_message, channel: provided_channel)
-
-          expect(Lepus.config.producer_config).not_to have_received(:with_connection)
-          expect(provided_channel).to have_received(:exchange).with("test_exchange", {type: :topic, durable: true, auto_delete: false})
-          expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
-        end
-
-        it "publishes hash message as JSON using provided channel" do
-          instance.send(:publish_message, test_hash_message, channel: provided_channel)
-
-          expect(mock_exchange).to have_received(:publish).with(
-            MultiJson.dump(test_hash_message),
-            hash_including(content_type: "application/json", persistent: true)
-          )
-        end
-
-        it "merges custom options when using provided channel" do
-          instance.send(:publish_message, test_message, channel: provided_channel, expiration: 30)
-
-          expect(mock_exchange).to have_received(:publish).with(
-            test_message,
-            hash_including(expiration: 30, persistent: true)
-          )
-        end
+        expect(mock_exchange).to have_received(:publish).with(
+          MultiJson.dump(test_hash_message),
+          hash_including(content_type: "application/json", persistent: true)
+        )
       end
 
-      context "with custom exchange_name" do
-        it "uses custom exchange name instead of consumer's exchange" do
-          instance.send(:publish_message, test_message, exchange_name: "custom_exchange")
+      it "merges custom options with exchange options" do
+        instance.send(:publish_message, test_message, expiration: 60, content_type: "text/xml")
 
-          expect(mock_channel).to have_received(:exchange).with("custom_exchange", {type: :topic, durable: true, auto_delete: false})
-          expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
-        end
+        expect(mock_exchange).to have_received(:publish).with(
+          test_message,
+          hash_including(expiration: 60, content_type: "text/xml", persistent: true)
+        )
+      end
+    end
 
-        it "uses default exchange options for custom exchange" do
-          instance.send(:publish_message, test_message, exchange_name: "custom_exchange", type: :direct)
+    context "when exchange is enabled and with channel parameter" do
+      let(:provided_channel) { instance_double(Bunny::Channel) }
 
-          expect(mock_channel).to have_received(:exchange).with("custom_exchange", {type: :direct, durable: true, auto_delete: false})
-        end
-
-        it "merges custom options for custom exchange" do
-          instance.send(:publish_message, test_message, exchange_name: "custom_exchange", expiration: 120)
-
-          expect(mock_exchange).to have_received(:publish).with(
-            test_message,
-            hash_including(expiration: 120, persistent: true)
-          )
-        end
+      before do
+        Lepus::Producers.enable!(test_producer_class)
+        allow(provided_channel).to receive(:exchange).and_return(mock_exchange)
       end
 
-      context "with handler channel" do
-        before do
-          # Simulate the handler setting the channel
-          instance.instance_variable_set(:@_handler_channel, mock_channel)
-          allow(mock_channel).to receive(:exchange).and_return(mock_exchange)
-        end
+      it "publishes message using provided channel and channel_publish method" do
+        instance.send(:publish_message, test_message, channel: provided_channel)
 
-        it "uses handler channel when no channel parameter is provided" do
-          instance.send(:publish_message, test_message)
+        expect(Lepus.config.producer_config).not_to have_received(:with_connection)
+        expect(provided_channel).to have_received(:exchange).with("test_exchange", {type: :topic, durable: true, auto_delete: false})
+        expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
+      end
 
-          expect(Lepus.config.producer_config).not_to have_received(:with_connection)
-          expect(mock_channel).to have_received(:exchange).with("test_exchange", {type: :topic, durable: true, auto_delete: false})
-          expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
-        end
+      it "publishes hash message as JSON using provided channel" do
+        instance.send(:publish_message, test_hash_message, channel: provided_channel)
 
-        it "prioritizes provided channel over handler channel" do
-          provided_channel = instance_double(Bunny::Channel)
-          allow(provided_channel).to receive(:exchange).and_return(mock_exchange)
+        expect(mock_exchange).to have_received(:publish).with(
+          MultiJson.dump(test_hash_message),
+          hash_including(content_type: "application/json", persistent: true)
+        )
+      end
 
-          instance.send(:publish_message, test_message, channel: provided_channel)
+      it "merges custom options when using provided channel" do
+        instance.send(:publish_message, test_message, channel: provided_channel, expiration: 30)
 
-          expect(provided_channel).to have_received(:exchange)
-          expect(mock_channel).not_to have_received(:exchange)
-        end
+        expect(mock_exchange).to have_received(:publish).with(
+          test_message,
+          hash_including(expiration: 30, persistent: true)
+        )
+      end
+    end
+
+    context "when exchange is enabled and with custom exchange_name" do
+      before do
+        Lepus::Producers.enable!(test_producer_class)
+      end
+
+      it "uses custom exchange name instead of consumer's exchange" do
+        instance.send(:publish_message, test_message, exchange_name: "custom_exchange")
+
+        expect(mock_channel).to have_received(:exchange).with("custom_exchange", {type: :topic, durable: true, auto_delete: false})
+        expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
+      end
+
+      it "uses default exchange options for custom exchange" do
+        instance.send(:publish_message, test_message, exchange_name: "custom_exchange", type: :direct)
+
+        expect(mock_channel).to have_received(:exchange).with("custom_exchange", {type: :direct, durable: true, auto_delete: false})
+      end
+
+      it "merges custom options for custom exchange" do
+        instance.send(:publish_message, test_message, exchange_name: "custom_exchange", expiration: 120)
+
+        expect(mock_exchange).to have_received(:publish).with(
+          test_message,
+          hash_including(expiration: 120, persistent: true)
+        )
+      end
+    end
+
+    context "when exchange is enabled and with handler channel" do
+      before do
+        Lepus::Producers.enable!(test_producer_class)
+        # Simulate the handler setting the channel
+        instance.instance_variable_set(:@_handler_channel, mock_channel)
+        allow(mock_channel).to receive(:exchange).and_return(mock_exchange)
+      end
+
+      it "uses handler channel when no channel parameter is provided" do
+        instance.send(:publish_message, test_message)
+
+        expect(Lepus.config.producer_config).not_to have_received(:with_connection)
+        expect(mock_channel).to have_received(:exchange).with("test_exchange", {type: :topic, durable: true, auto_delete: false})
+        expect(mock_exchange).to have_received(:publish).with(test_message, hash_including(persistent: true))
+      end
+
+      it "prioritizes provided channel over handler channel" do
+        provided_channel = instance_double(Bunny::Channel)
+        allow(provided_channel).to receive(:exchange).and_return(mock_exchange)
+
+        instance.send(:publish_message, test_message, channel: provided_channel)
+
+        expect(provided_channel).to have_received(:exchange)
+        expect(mock_channel).not_to have_received(:exchange)
       end
     end
 

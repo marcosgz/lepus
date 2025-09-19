@@ -129,7 +129,7 @@ RSpec.describe Lepus::Configuration do
   end
 
   describe "#producer" do
-    it "returns the producer_config instance" do
+    it "returns a producer config instance" do
       expect(configuration.producer).to be_a(Lepus::Producers::Config)
     end
 
@@ -165,7 +165,7 @@ RSpec.describe Lepus::Configuration do
       expect(configuration.producer_config.pool_timeout).to eq(8.0)
     end
 
-    it "returns the producer_config instance" do
+    it "returns the same producer config instance" do
       result = configuration.producer
       expect(result).to be(configuration.producer_config)
     end
