@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "multi_json"
+
 module Lepus
   class Publisher
     DEFAULT_EXCHANGE_OPTIONS = {
