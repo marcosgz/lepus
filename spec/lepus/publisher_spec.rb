@@ -5,7 +5,7 @@ require "spec_helper"
 RSpec.describe Lepus::Publisher do
   let(:exchange_name) { "test_exchange" }
   let(:bunny) { instance_double(Bunny::Session) }
-  let(:publisher) { described_class.new(exchange_name, connection: bunny) }
+  let(:publisher) { described_class.new(exchange_name) }
 
   describe "#initialize" do
     it "sets the exchange name" do
@@ -17,27 +17,27 @@ RSpec.describe Lepus::Publisher do
         described_class::DEFAULT_EXCHANGE_OPTIONS
       )
 
-      publisher = described_class.new(exchange_name, connection: bunny, type: :direct, durable: false, auto_delete: true)
+      publisher = described_class.new(exchange_name, type: :direct, durable: false, auto_delete: true)
       expect(publisher.instance_variable_get(:@exchange_options)).to eq(
         described_class::DEFAULT_EXCHANGE_OPTIONS.merge(type: :direct, durable: false, auto_delete: true)
       )
 
-      publisher = described_class.new(exchange_name, connection: bunny, type: :direct)
+      publisher = described_class.new(exchange_name, type: :direct)
       expect(publisher.instance_variable_get(:@exchange_options)).to eq(
         described_class::DEFAULT_EXCHANGE_OPTIONS.merge(type: :direct)
       )
 
-      publisher = described_class.new(exchange_name, connection: bunny, durable: false)
+      publisher = described_class.new(exchange_name, durable: false)
       expect(publisher.instance_variable_get(:@exchange_options)).to eq(
         described_class::DEFAULT_EXCHANGE_OPTIONS.merge(durable: false)
       )
 
-      publisher = described_class.new(exchange_name, connection: bunny, auto_delete: true)
+      publisher = described_class.new(exchange_name, auto_delete: true)
       expect(publisher.instance_variable_get(:@exchange_options)).to eq(
         described_class::DEFAULT_EXCHANGE_OPTIONS.merge(auto_delete: true)
       )
 
-      publisher = described_class.new(exchange_name, connection: bunny, type: :direct, durable: false)
+      publisher = described_class.new(exchange_name, type: :direct, durable: false)
       expect(publisher.instance_variable_get(:@exchange_options)).to eq(
         described_class::DEFAULT_EXCHANGE_OPTIONS.merge(type: :direct, durable: false)
       )
@@ -46,6 +46,10 @@ RSpec.describe Lepus::Publisher do
 
   describe "#publish" do
     let(:options) { {expiration: 60} }
+
+    before do
+      allow(Lepus.config.producer_config).to receive(:with_connection).and_yield(bunny)
+    end
 
     context "when the message is different than String" do
       let(:message) { {key: "value"} }
