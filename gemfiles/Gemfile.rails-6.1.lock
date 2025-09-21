@@ -259,6 +259,8 @@ DEPENDENCIES
   dotenv
   lepus!
   pry
+  rack (>= 2.2)
+  rack-test
   rails (~> 6.1, >= 6.1.7.10)
   rspec
   rubocop
