@@ -5,8 +5,10 @@
 /_yardoc/
 /coverage/
 /doc/
+/examples/
 /pkg/
 /spec/reports/
 /tmp/
 *.gem
 /app/consumers/
+/web/test/

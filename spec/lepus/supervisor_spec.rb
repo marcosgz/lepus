@@ -5,7 +5,7 @@ require "spec_helper"
 RSpec.describe Lepus::Supervisor do
   subject(:supervisor) { described_class.new(**options) }
 
-  let(:pidfile) { app_root.join("tmp/pids/lepus_#{SecureRandom.hex}.pid") }
+  let(:pidfile) { lepus_root.join("tmp/pids/lepus_#{SecureRandom.hex}.pid") }
   let(:options) do
     {
       pidfile: pidfile
