@@ -26,38 +26,38 @@ RSpec.describe Lepus::Testing::RSpecMatchers do
     Lepus::Testing.disable!
   end
 
-  describe "publish_lepus_message matcher" do
+  describe "lepus_publish_message matcher" do
     before do
       Lepus::Testing.clear_all_messages!
     end
 
     it "matches when a message is published" do
-      expect { TestProducerForMatchers.publish("test message") }.to publish_lepus_message
+      expect { TestProducerForMatchers.publish("test message") }.to lepus_publish_message
     end
 
     it "matches when a specific number of messages are published" do
       expect do
         TestProducerForMatchers.publish("message 1")
         TestProducerForMatchers.publish("message 2")
-      end.to publish_lepus_message(2)
+      end.to lepus_publish_message(2)
     end
 
     it "matches when publishing to a specific exchange" do
-      expect { TestProducerForMatchers.publish("test") }.to publish_lepus_message.to_exchange("test_exchange")
+      expect { TestProducerForMatchers.publish("test") }.to lepus_publish_message.to_exchange("test_exchange")
     end
 
     it "matches when publishing with a specific routing key" do
-      expect { TestProducerForMatchers.publish("test", routing_key: "test.key") }.to publish_lepus_message.with_routing_key("test.key")
+      expect { TestProducerForMatchers.publish("test", routing_key: "test.key") }.to lepus_publish_message.with_routing_key("test.key")
     end
 
     it "matches when publishing with specific payload" do
-      expect { TestProducerForMatchers.publish({user_id: 123}) }.to publish_lepus_message.with(a_hash_including(user_id: 123))
+      expect { TestProducerForMatchers.publish({user_id: 123}) }.to lepus_publish_message.with(a_hash_including(user_id: 123))
     end
 
     it "combines multiple expectations" do
       expect do
         TestProducerForMatchers.publish({user_id: 123}, routing_key: "user.created")
-      end.to publish_lepus_message
+      end.to lepus_publish_message
         .to_exchange("test_exchange")
         .with_routing_key("user.created")
         .with(a_hash_including(user_id: 123))
@@ -69,18 +69,18 @@ RSpec.describe Lepus::Testing::RSpecMatchers do
 
       expect do
         # Do nothing
-      end.not_to publish_lepus_message
+      end.not_to lepus_publish_message
     end
 
     it "fails when wrong number of messages are published" do
       expect do
         TestProducerForMatchers.publish("message 1")
         TestProducerForMatchers.publish("message 2")
-      end.not_to publish_lepus_message(1)
+      end.not_to lepus_publish_message(1)
     end
 
     it "fails when publishing to wrong exchange" do
-      expect { TestProducerForMatchers.publish("test") }.not_to publish_lepus_message.to_exchange("wrong_exchange")
+      expect { TestProducerForMatchers.publish("test") }.not_to lepus_publish_message.to_exchange("wrong_exchange")
     end
   end
 end
