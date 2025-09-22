@@ -65,9 +65,15 @@ module Lepus
       # @param options [Hash] Additional publish options (routing_key, headers, etc.).
       # @return [void]
       def publish(message, **options)
+        if definition.nil?
+          raise InvalidProducerConfigError, <<~ERROR
+            The #{name} producer is not configured.
+            Please call #{name}.configure before using #{self.class.name}.publish.
+          ERROR
+        end
+
         return unless Producers.enabled?(self)
 
-        # Merge default publish options with provided options
         publish_opts = definition.publish_options.merge(options)
         publisher.publish(message, **publish_opts)
       end
@@ -85,10 +91,7 @@ module Lepus
     end
 
     def publish(message, **options)
-      return unless Producers.enabled?(self.class)
-
-      publish_opts = definition.publish_options.merge(options)
-      publisher.publish(message, **publish_opts)
+      self.class.publish(message, **options)
     end
   end
 end

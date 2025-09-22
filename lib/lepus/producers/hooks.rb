@@ -91,7 +91,7 @@ module Lepus
 
         # Find all producers that use this exchange
         matching_producers = all_producers.select do |producer|
-          producer.definition.exchange_name == exchange_name
+          producer.definition&.exchange_name == exchange_name
         end
 
         # If no producers use this exchange, consider it enabled by default

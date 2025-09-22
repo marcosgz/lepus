@@ -142,6 +142,15 @@ RSpec.describe Lepus::Producer do
       allow(mock_exchange).to receive(:publish)
     end
 
+    it "raises an error when definition is not set" do
+      klass = Class.new(described_class)
+      klass.abstract_class = false
+      klass.define_singleton_method(:name) { "MyProducer" }
+      klass.define_singleton_method(:definition) { nil }
+
+      expect { klass.publish("test message") }.to raise_error(Lepus::InvalidProducerConfigError, /The MyProducer producer is not configured./)
+    end
+
     context "with string message" do
       it "publishes the message with default options" do
         producer_class.publish("Hello World")
