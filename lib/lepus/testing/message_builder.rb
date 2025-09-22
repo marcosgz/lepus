@@ -33,6 +33,11 @@ module Lepus
 
       # Set the message payload
       def with_payload(payload)
+        if payload.is_a?(Hash) || payload.is_a?(Array)
+          payload = MultiJson.dump(payload)
+          @metadata_attrs[:content_type] ||= "application/json"
+        end
+
         @payload = payload
         self
       end

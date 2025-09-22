@@ -238,13 +238,25 @@ RSpec.describe Lepus::Testing::MessageBuilder do
         .with_correlation_id("corr-456")
         .build
 
-      expect(message.payload).to eq({user_id: 123, action: "create"})
+      expect(message.payload).to eq(MultiJson.dump({user_id: 123, action: "create"}))
       expect(message.delivery_info.delivery_tag).to eq(42)
       expect(message.delivery_info.routing_key).to eq("users.create")
       expect(message.delivery_info.exchange).to eq("users")
       expect(message.metadata.content_type).to eq("application/json")
       expect(message.metadata.headers).to eq({"correlation_id" => "abc-123"})
       expect(message.metadata.correlation_id).to eq("corr-456")
+    end
+  end
+
+  describe "array payloads" do
+    it "JSON-encodes arrays and sets content_type" do
+      payload = [{user_id: 1}, {user_id: 2}]
+      message = builder
+        .with_payload(payload)
+        .build
+
+      expect(message.payload).to eq(MultiJson.dump(payload))
+      expect(message.metadata.content_type).to eq("application/json")
     end
   end
 end

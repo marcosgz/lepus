@@ -9,9 +9,10 @@ RSpec.describe Lepus::Testing::RSpecMatchers do # rubocop:disable RSpec/SpecFile
       configure(queue: "test_queue", exchange: "test_exchange")
 
       def perform(message)
-        case message.payload
+        content = /^(\{.*\}|".*")$/.match?(message.payload.to_s) ? MultiJson.load(message.payload) : message.payload
+        case content
         when Hash
-          case message.payload["action"]
+          case content["action"]
           when "reject"
             reject!
           when "requeue"
@@ -23,20 +24,16 @@ RSpec.describe Lepus::Testing::RSpecMatchers do # rubocop:disable RSpec/SpecFile
           else
             ack!
           end
-        when String
-          if message.payload == "reject"
-            reject!
-          elsif message.payload == "requeue"
-            requeue!
-          elsif message.payload == "nack"
-            nack!
-          elsif message.payload == "error"
-            raise "Simulated error"
-          else
-            ack!
-          end
+        when "reject"
+          :reject
+        when "requeue"
+          :requeue
+        when "nack"
+          :nack
+        when "error"
+          raise "Simulated error"
         else
-          ack!
+          :ack
         end
       end
     end
