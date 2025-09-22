@@ -19,8 +19,9 @@ loader.inflector.inflect "api" => "API"
 loader.collapse("#{__dir__}/lepus/rails.rb")
 loader.collapse("#{__dir__}/lepus/rails/*")
 loader.ignore("#{__dir__}/puma")
+loader.ignore("#{__dir__}/lepus/testing.rb")
+loader.ignore("#{__dir__}/lepus/testing/*")
 loader.ignore("#{__dir__}/lepus/rails")
-loader.ignore("#{__dir__}/lepus/testing")
 loader.ignore("#{__dir__}/lepus/rails.rb")
 loader.ignore("#{__dir__}/lepus/cli.rb")
 loader.ignore("#{__dir__}/lepus/middlewares")
@@ -95,4 +96,4 @@ if defined?(::Rails)
   require_relative "lepus/rails"
 end
 
-# loader.eager_load
+loader.eager_load
