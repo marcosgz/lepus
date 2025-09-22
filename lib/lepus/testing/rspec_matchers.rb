@@ -126,9 +126,89 @@ module Lepus
         end
       end
 
-      # Main matcher method
-      def publish_lepus_message(expected_count = nil)
+      # RSpec matcher for testing consumer message processing
+      class ProcessLepusMessage
+        def initialize(expected_result = :ack)
+          @expected_result = expected_result
+          @consumer_class = nil
+          @message_or_payload = nil
+          @delivery_info = nil
+          @metadata = nil
+        end
+
+        def matches?(consumer_class_or_message)
+          if consumer_class_or_message.is_a?(Class) && consumer_class_or_message < Lepus::Consumer
+            # Called with consumer class, expect message to be provided via with_message
+            @consumer_class = consumer_class_or_message
+            return false unless @message_or_payload
+          else
+            # Called with message, expect consumer to be provided via with_consumer
+            @message_or_payload = consumer_class_or_message
+            return false unless @consumer_class
+          end
+
+          result = Lepus::Testing.consumer_perform(
+            @consumer_class,
+            @message_or_payload
+          )
+
+          @actual_result = result
+          result == @expected_result
+        end
+
+        def failure_message
+          "expected #{@consumer_class} to #{@expected_result} message, but got #{@actual_result}"
+        end
+
+        def failure_message_when_negated
+          "expected #{@consumer_class} not to #{@expected_result} message, but it did"
+        end
+
+        def description
+          "#{@expected_result} message with #{@consumer_class}"
+        end
+
+        # Chainable methods
+        def with_message(message_or_payload)
+          @message_or_payload = message_or_payload
+          self
+        end
+
+        def with_delivery_info(delivery_info)
+          @delivery_info = delivery_info
+          self
+        end
+
+        def with_metadata(metadata)
+          @metadata = metadata
+          self
+        end
+      end
+
+      # Main matcher methods
+      def lepus_publish_message(expected_count = nil)
         PublishLepusMessage.new(expected_count)
+      end
+
+      def lepus_acknowledge_message(message_or_payload = nil)
+        matcher = ProcessLepusMessage.new(:ack)
+        message_or_payload ? matcher.with_message(message_or_payload) : matcher
+      end
+      alias_method :lepus_ack_message, :lepus_acknowledge_message
+
+      def lepus_reject_message(message_or_payload = nil)
+        matcher = ProcessLepusMessage.new(:reject)
+        message_or_payload ? matcher.with_message(message_or_payload) : matcher
+      end
+
+      def lepus_requeue_message(message_or_payload = nil)
+        matcher = ProcessLepusMessage.new(:requeue)
+        message_or_payload ? matcher.with_message(message_or_payload) : matcher
+      end
+
+      def lepus_nack_message(message_or_payload = nil)
+        matcher = ProcessLepusMessage.new(:nack)
+        message_or_payload ? matcher.with_message(message_or_payload) : matcher
       end
     end
   end

@@ -2,6 +2,7 @@
 
 require_relative "testing/exchange"
 require_relative "testing/rspec_matchers"
+require_relative "testing/message_builder"
 
 module Lepus
   module Testing
@@ -46,6 +47,64 @@ module Lepus
       rescue
         # If there's an error getting the exchange name, return empty array
         []
+      end
+    end
+
+    # Test a consumer with a message
+    # @param consumer_class [Class] The consumer class to test
+    # @param message_or_payload [Lepus::Message, Hash, String] The message to process
+    # @return [Symbol] The result of the consumer's perform method (:ack, :reject, :requeue, :nack)
+    def self.consumer_perform(consumer_class, message_or_payload)
+      message = build_message(message_or_payload)
+      consumer = consumer_class.new
+      consumer.process_delivery(message.delivery_info, message.metadata, message.payload)
+    end
+
+    # Create a message builder for custom scenarios
+    # @return [MessageBuilder] A new message builder instance
+    def self.message_builder
+      MessageBuilder.new
+    end
+
+    private
+
+    # Build a message from various input types
+    def self.build_message(message_or_payload)
+      case message_or_payload
+      when Lepus::Message
+        message_or_payload
+      when Hash
+        if message_or_payload.key?(:payload)
+          # Hash with payload and other options
+          payload = message_or_payload.delete(:payload)
+          MessageBuilder.new
+            .with_payload(payload)
+            .tap { |builder| apply_options(builder, message_or_payload) }
+            .build
+        else
+          # Hash as payload - create message with Hash payload
+          MessageBuilder.new
+            .with_payload(message_or_payload)
+            .with_content_type("application/json")
+            .build
+        end
+      when String
+        MessageBuilder.new
+          .with_payload(message_or_payload)
+          .with_content_type("text/plain")
+          .build
+      else
+        raise ArgumentError, "Invalid message type: #{message_or_payload.class}"
+      end
+    end
+
+    # Apply options to a message builder
+    def self.apply_options(builder, options)
+      options.each do |key, value|
+        method_name = "with_#{key}"
+        if builder.respond_to?(method_name)
+          builder.send(method_name, value)
+        end
       end
     end
 
