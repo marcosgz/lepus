@@ -3,7 +3,7 @@
 require "spec_helper"
 require "lepus/testing"
 
-RSpec.describe Lepus::Testing::RSpecMatchers do
+RSpec.describe Lepus::Testing::RSpecMatchers do # rubocop:disable RSpec/SpecFilePathFormat
   let(:test_consumer_class) do
     Class.new(Lepus::Consumer) do
       configure(queue: "test_queue", exchange: "test_exchange")
@@ -192,12 +192,7 @@ RSpec.describe Lepus::Testing::RSpecMatchers do
 
     it "allows chaining with_delivery_info" do
       custom_delivery_info = instance_double(Bunny::DeliveryInfo)
-      allow(custom_delivery_info).to receive(:delivery_tag).and_return(99)
-      allow(custom_delivery_info).to receive(:redelivered).and_return(false)
-      allow(custom_delivery_info).to receive(:exchange).and_return("custom")
-      allow(custom_delivery_info).to receive(:routing_key).and_return("custom.key")
-      allow(custom_delivery_info).to receive(:consumer_tag).and_return("custom_consumer")
-      allow(custom_delivery_info).to receive(:to_h).and_return({})
+      allow(custom_delivery_info).to receive_messages(delivery_tag: 99, redelivered: false, exchange: "custom", routing_key: "custom.key", consumer_tag: "custom_consumer", to_h: {})
 
       expect(TestConsumer).to lepus_acknowledge_message
         .with_message({"action" => "create"})
@@ -206,21 +201,7 @@ RSpec.describe Lepus::Testing::RSpecMatchers do
 
     it "allows chaining with_metadata" do
       custom_metadata = instance_double(Bunny::MessageProperties)
-      allow(custom_metadata).to receive(:content_type).and_return("text/plain")
-      allow(custom_metadata).to receive(:content_encoding).and_return("utf-8")
-      allow(custom_metadata).to receive(:headers).and_return({})
-      allow(custom_metadata).to receive(:delivery_mode).and_return(1)
-      allow(custom_metadata).to receive(:priority).and_return(0)
-      allow(custom_metadata).to receive(:correlation_id).and_return(nil)
-      allow(custom_metadata).to receive(:reply_to).and_return(nil)
-      allow(custom_metadata).to receive(:expiration).and_return(nil)
-      allow(custom_metadata).to receive(:message_id).and_return("custom-id")
-      allow(custom_metadata).to receive(:timestamp).and_return(Time.now.to_i)
-      allow(custom_metadata).to receive(:type).and_return(nil)
-      allow(custom_metadata).to receive(:user_id).and_return(nil)
-      allow(custom_metadata).to receive(:app_id).and_return(nil)
-      allow(custom_metadata).to receive(:cluster_id).and_return(nil)
-      allow(custom_metadata).to receive(:to_h).and_return({})
+      allow(custom_metadata).to receive_messages(content_type: "text/plain", content_encoding: "utf-8", headers: {}, delivery_mode: 1, priority: 0, correlation_id: nil, reply_to: nil, expiration: nil, message_id: "custom-id", timestamp: Time.now.to_i, type: nil, user_id: nil, app_id: nil, cluster_id: nil, to_h: {})
 
       expect(TestConsumer).to lepus_acknowledge_message
         .with_message({"action" => "create"})
@@ -230,7 +211,7 @@ RSpec.describe Lepus::Testing::RSpecMatchers do
 
   describe "error handling" do
     it "handles consumer errors gracefully" do
-      allow(Lepus).to receive(:logger).and_return(double("logger", error: nil))
+      allow(Lepus).to receive(:logger).and_return(instance_double(Logger, error: nil))
 
       expect {
         expect(TestConsumer).to lepus_acknowledge_message({"action" => "error"})

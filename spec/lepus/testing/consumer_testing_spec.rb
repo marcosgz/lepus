@@ -3,7 +3,7 @@
 require "spec_helper"
 require "lepus/testing"
 
-RSpec.describe Lepus::Testing do
+RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
   let(:test_consumer_class) do
     Class.new(Lepus::Consumer) do
       configure(queue: "test_queue", exchange: "test_exchange")
@@ -43,19 +43,19 @@ RSpec.describe Lepus::Testing do
   end
 
   before do
-    Lepus::Testing.fake_publisher!
-    Lepus::Testing.clear_all_messages!
+    described_class.fake_publisher!
+    described_class.clear_all_messages!
     stub_const("TestConsumer", test_consumer_class)
   end
 
   after do
-    Lepus::Testing.disable!
+    described_class.disable!
   end
 
   describe ".consumer_perform" do
     context "with Lepus::Message" do
       it "processes the message and returns the result" do
-        message = Lepus::Testing.message_builder
+        message = described_class.message_builder
           .with_payload({action: "create"})
           .build
 
@@ -127,7 +127,6 @@ RSpec.describe Lepus::Testing do
       end
     end
   end
-
 
   describe ".message_builder" do
     it "returns a new MessageBuilder instance" do
