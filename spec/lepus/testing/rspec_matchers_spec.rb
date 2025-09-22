@@ -42,6 +42,11 @@ RSpec.describe Lepus::Testing::RSpecMatchers do
       end.to lepus_publish_message(2)
     end
 
+    it "matches later published messages" do
+      TestProducerForMatchers.publish("message 1")
+      expect(TestProducerForMatchers).to lepus_publish_message
+    end
+
     it "matches when publishing to a specific exchange" do
       expect { TestProducerForMatchers.publish("test") }.to lepus_publish_message.to_exchange("test_exchange")
     end

@@ -17,11 +17,25 @@ module Lepus
           true
         end
 
-        def matches?(block)
-          @messages_before = count_all_messages
-          block.call
-          @messages_after = count_all_messages
-          @published_count = @messages_after - @messages_before
+        # Supports both block expectations and value expectations with a producer class
+        def matches?(actual = nil, &block)
+          if block || actual.is_a?(Proc)
+            @producer_class = nil
+            @scoped_messages = nil
+
+            @messages_before = count_all_messages
+            (block || actual).call
+            @messages_after = count_all_messages
+            @published_count = @messages_after - @messages_before
+          elsif actual.is_a?(Class) && actual < Lepus::Producer
+            @producer_class = actual
+            @scoped_messages = Lepus::Testing.producer_messages(@producer_class)
+            @messages_before = 0
+            @messages_after = @scoped_messages.size
+            @published_count = @messages_after
+          else
+            return false
+          end
 
           matches_count? && matches_exchange? && matches_routing_key? && matches_payload?
         end
@@ -131,12 +145,20 @@ module Lepus
         end
 
         def get_recent_messages(count)
-          all_messages = []
-          Lepus::Testing::Exchange.all.each_value do |exchange|
-            all_messages.concat(exchange.messages)
-          end
+          count ||= 0
+          messages =
+            if @scoped_messages
+              @scoped_messages
+            else
+              all_messages = []
+              Lepus::Testing::Exchange.all.each_value do |exchange|
+                all_messages.concat(exchange.messages)
+              end
+              all_messages
+            end
+
           # Sort by timestamp and get the most recent messages
-          all_messages.sort_by { |msg| msg[:timestamp] }.last(count)
+          messages.sort_by { |msg| msg[:timestamp] }.last(count)
         end
       end
 
