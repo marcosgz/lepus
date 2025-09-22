@@ -50,8 +50,12 @@ RSpec.describe Lepus::Testing::RSpecMatchers do
       expect { TestProducerForMatchers.publish("test", routing_key: "test.key") }.to lepus_publish_message.with_routing_key("test.key")
     end
 
-    it "matches when publishing with specific payload" do
-      expect { TestProducerForMatchers.publish({user_id: 123}) }.to lepus_publish_message.with(a_hash_including(user_id: 123))
+    it "matches when publishing with a hash including a specific key" do
+      expect { TestProducerForMatchers.publish({user_id: 123, ignore: "me"}) }.to lepus_publish_message.with(a_hash_including(user_id: 123))
+    end
+
+    it "matches when publishing with a hash exact match" do
+      expect { TestProducerForMatchers.publish({user_id: 123}) }.to lepus_publish_message.with(user_id: 123)
     end
 
     it "combines multiple expectations" do

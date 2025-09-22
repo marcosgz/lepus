@@ -109,7 +109,21 @@ module Lepus
           return false if @published_count == 0
 
           recent_messages = get_recent_messages(@published_count)
-          recent_messages.any? { |msg| @expected_payload.matches?(msg[:payload]) }
+
+          payload_matcher =
+            if @expected_payload.respond_to?(:matches?)
+              @expected_payload
+            elsif defined?(RSpec::Matchers)
+              RSpec::Matchers::BuiltIn::Eq.new(@expected_payload)
+            else
+              Struct.new(:expected) do
+                def matches?(actual)
+                  actual == expected
+                end
+              end.new(@expected_payload)
+            end
+
+          recent_messages.any? { |msg| payload_matcher.matches?(msg[:payload]) }
         end
 
         def count_all_messages
