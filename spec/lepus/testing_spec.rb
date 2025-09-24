@@ -23,7 +23,7 @@ RSpec.describe Lepus::Testing do
   end
 
   before do
-    Lepus::Testing.fake_publisher! # rubocop:disable RSpec/DescribedClass
+    Lepus::Testing.enable! # rubocop:disable RSpec/DescribedClass
     Lepus::Testing.clear_all_messages! # rubocop:disable RSpec/DescribedClass
 
     # Stub the producer classes as constants
@@ -50,12 +50,48 @@ RSpec.describe Lepus::Testing do
   end
 
   describe ".disable!" do
+    before do
+      described_class.enable!
+    end
+
     it "disables fake publishing mode" do
-      described_class.fake_publisher!
       expect(described_class.fake_publisher_enabled?).to be true
+      expect(described_class.consumer_raise_errors?).to be true
 
       described_class.disable!
       expect(described_class.fake_publisher_enabled?).to be false
+      expect(described_class.consumer_raise_errors?).to be false
+    end
+  end
+
+  describe ".enable!" do
+    before do
+      described_class.disable!
+    end
+
+    it "enables fake publishing mode" do
+      expect(described_class.fake_publisher_enabled?).to be false
+      expect(described_class.consumer_raise_errors?).to be false
+
+      described_class.enable!
+      expect(described_class.fake_publisher_enabled?).to be true
+      expect(described_class.consumer_raise_errors?).to be true
+    end
+  end
+
+  describe "consumer error raising toggles" do
+    before do
+      described_class.disable!
+    end
+
+    it "enables and disables consumer error re-raising" do
+      expect(described_class.consumer_raise_errors?).to be false
+
+      described_class.consumer_raise_errors!
+      expect(described_class.consumer_raise_errors?).to be true
+
+      described_class.consumer_capture_errors!
+      expect(described_class.consumer_raise_errors?).to be false
     end
   end
 

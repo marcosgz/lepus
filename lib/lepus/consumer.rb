@@ -108,10 +108,13 @@ module Lepus
         .call(message)
     rescue Lepus::InvalidConsumerReturnError
       raise
-    rescue Exception => ex # rubocop:disable Lint/RescueException
-      # @TODO: add error handling
-      logger.error(ex)
+    rescue Exception => _ex # rubocop:disable Lint/RescueException
+      # In testing, allow specs to observe errors instead of swallowing them
+      if defined?(Lepus::Testing) && Lepus::Testing.respond_to?(:consumer_raise_errors?) && Lepus::Testing.consumer_raise_errors?
+        raise
+      end
 
+      # logger.error(ex)
       reject!
     end
 
