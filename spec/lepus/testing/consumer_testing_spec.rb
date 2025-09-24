@@ -188,4 +188,63 @@ RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
       expect(result).to eq(:ack)
     end
   end
+
+  describe "middlewares integration" do
+    context "with Lepus::Middlewares::JSON" do
+      before do
+        stub_const("JsonTestConsumer", Class.new(TestConsumer) do
+          use(:json)
+
+          def perform(message)
+            raise "not a json" unless message.payload.is_a?(Hash)
+
+            ack!
+          end
+        end)
+      end
+
+      it "can test consumer with Lepus::Middlewares::JSON" do
+        message = described_class.message_builder
+          .with_payload({action: "create"})
+          .build
+
+        result = described_class.consumer_perform(JsonTestConsumer, message)
+        expect(result).to eq(:ack)
+      end
+    end
+
+    context "with Lepus::Middlewares::ExceptionLogger" do
+      before do
+        stub_const("MyLogger", Logger.new(StringIO.new))
+
+        stub_const("ExceptionLoggerTestConsumer", Class.new(TestConsumer) do
+          use(:exception_logger, logger: MyLogger)
+        end)
+
+        allow(MyLogger).to receive(:error)
+      end
+
+      it "does not log error when the message is processed successfully" do
+        message = described_class.message_builder
+          .with_payload("ok")
+          .build
+
+        result = described_class.consumer_perform(ExceptionLoggerTestConsumer, message)
+        expect(result).to eq(:ack)
+        expect(MyLogger).not_to have_received(:error).with("ok")
+      end
+
+      it "logs error when the message is processed with an error" do
+        message = described_class.message_builder
+          .with_payload("error")
+          .build
+
+        expect {
+          described_class.consumer_perform(ExceptionLoggerTestConsumer, message)
+        }.to raise_error(MyCustomError)
+
+        expect(MyLogger).to have_received(:error).with("Simulated error")
+      end
+    end
+  end
 end

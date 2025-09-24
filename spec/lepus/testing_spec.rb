@@ -77,7 +77,6 @@ RSpec.describe Lepus::Testing do
       expect(described_class.fake_publisher_enabled?).to be true
       expect(described_class.consumer_raise_errors?).to be true
     end
-
   end
 
   describe "consumer error raising toggles" do

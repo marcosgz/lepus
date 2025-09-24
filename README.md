@@ -314,11 +314,21 @@ Consumers can use middlewares for recurring tasks like logging, error handling, 
 
 * `:max_retry`: Rejects the message and routes it to the error queue after a number of attempts.
 * `:json`: Parses the message payload as JSON.
+* `:honeybadger`: Reports exceptions to Honeybadger.
+* `:exception_logger`: Logs unhandled exceptions to `Lepus.logger` (or a custom logger) and re-raises.
 
 You can use the `use` method to add middlewares to the consumer:
 
 ```ruby
 class MyConsumer < Lepus::Consumer
+  configure(...)
+
+  # If you don't have an error-reporting middleware (e.g. Honeybadger, Airbrake),
+  # add :exception_logger to ensure errors are actually logged.
+  use(
+    :exception_logger
+  )
+
   use(
     :max_retry,
     retries: 6,
@@ -328,7 +338,7 @@ class MyConsumer < Lepus::Consumer
   use(
     :json,
     symbolize_keys: true,
-    on_error: proc { :nack } # The default is :reject on parsing error
+    on_error: proc { :reject } # You can omit since the default value is :reject
   )
 
   def perform(message)
@@ -337,6 +347,8 @@ class MyConsumer < Lepus::Consumer
   end
 end
 ```
+
+> Important: If you are not using an external error-reporting middleware like Honeybadger or Airbrake, make sure to add `:exception_logger` to all consumers. The worker execution flow rescues exceptions to keep the process alive; without a logging middleware, exceptions may be swallowed and go unnoticed. `:exception_logger` ensures the error message is written to your logs.
 
 You can also create your own middlewares, just create subclasses of `Lepus::Middleware` and implement the `call` method:
 
