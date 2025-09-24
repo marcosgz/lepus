@@ -20,7 +20,7 @@ RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
           when "nack"
             nack!
           when "error"
-            raise "Simulated error"
+            raise MyCustomError, "Simulated error"
           else
             ack!
           end
@@ -31,7 +31,7 @@ RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
         when "nack"
           :nack
         when "error"
-          raise "Simulated error"
+          raise MyCustomError, "Simulated error"
         else
           :ack
         end
@@ -40,9 +40,10 @@ RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
   end
 
   before do
-    described_class.fake_publisher!
+    described_class.enable!
     described_class.clear_all_messages!
     stub_const("TestConsumer", test_consumer_class)
+    stub_const("MyCustomError", Class.new(StandardError))
   end
 
   after do
@@ -81,6 +82,23 @@ RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
         result = described_class.consumer_perform(TestConsumer, {"action" => "nack"})
         expect(result).to eq(:nack)
       end
+
+      it "handles error action" do
+        expect(described_class.consumer_raise_errors?).to be true
+        expect {
+          described_class.consumer_perform(TestConsumer, {"action" => "error"})
+        }.to raise_error(MyCustomError, "Simulated error")
+      end
+
+      it "handles error action with consumer_capture_errors!" do
+        described_class.consumer_capture_errors!
+        expect(described_class.consumer_raise_errors?).to be false
+        result = nil
+        expect {
+          result = described_class.consumer_perform(TestConsumer, {"action" => "error"})
+        }.not_to raise_error
+        expect(result).to eq(:reject)
+      end
     end
 
     context "with String payload" do
@@ -115,13 +133,31 @@ RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
         expect(result).to eq(:ack)
       end
     end
+  end
 
-    context "with invalid message type" do
-      it "raises ArgumentError" do
-        expect {
-          described_class.consumer_perform(TestConsumer, 123)
-        }.to raise_error(ArgumentError, "Invalid message type: Integer")
-      end
+  describe ".build_message" do
+    it "raises ArgumentError" do
+      expect {
+        described_class.send(:build_message, 123)
+      }.to raise_error(ArgumentError, "Invalid message type: Integer")
+    end
+
+    it "builds a message from a hash" do
+      message = described_class.send(:build_message, {"action" => "create"})
+      expect(message).to be_a(Lepus::Message)
+      expect(message.payload).to eq(MultiJson.dump({"action" => "create"}))
+    end
+
+    it "builds a message from a string" do
+      message = described_class.send(:build_message, "test message")
+      expect(message).to be_a(Lepus::Message)
+      expect(message.payload).to eq("test message")
+    end
+
+    it "builds a message from a Lepus::Message" do
+      message = described_class.send(:build_message, Lepus::Message.new(nil, nil, "test message"))
+      expect(message).to be_a(Lepus::Message)
+      expect(message.payload).to eq("test message")
     end
   end
 

@@ -7,20 +7,43 @@ require_relative "testing/message_builder"
 module Lepus
   module Testing
     class << self
+      # Enable fake publishing mode and consumer error re-raising
+      def enable!
+        @fake_publisher_enabled = true
+        @consumer_raise_errors_enabled = true
+      end
+
+      # Disable fake publishing mode and consumer error re-raising
+      def disable!
+        @fake_publisher_enabled = false
+        @consumer_raise_errors_enabled = false
+      end
+
       # Enable fake publishing mode for testing
       # When enabled, messages are stored in fake exchanges instead of being sent to RabbitMQ
       def fake_publisher!
         @fake_publisher_enabled = true
       end
 
-      # Disable fake publishing mode
-      def disable!
-        @fake_publisher_enabled = false
-      end
-
       # Check if fake publishing is enabled
       def fake_publisher_enabled?
         @fake_publisher_enabled == true
+      end
+
+      # When enabled, consumer exceptions are re-raised instead of being converted to :reject
+      # This is useful in specs, so RSpec can capture failures instead of false positives
+      def consumer_raise_errors!
+        @consumer_raise_errors_enabled = true
+      end
+
+      # Disable consumer error re-raising (default behavior converts to :reject)
+      def consumer_capture_errors!
+        @consumer_raise_errors_enabled = false
+      end
+
+      # Returns true if consumer errors should be re-raised in tests
+      def consumer_raise_errors?
+        @consumer_raise_errors_enabled == true
       end
 
       # Clear all messages from all fake exchanges
