@@ -6,7 +6,12 @@ require "rack/test"
 RSpec.describe Lepus::Web::API do
   include Rack::Test::Methods
 
+  let(:rabbitmq_client) { instance_double(Lepus::Web::RabbitMQClient) }
   let(:api) { described_class.new }
+
+  before do
+    allow(Lepus::Web::RabbitMQClient).to receive(:new).and_return(rabbitmq_client)
+  end
 
   describe "#call" do
     context "when requesting /health" do
@@ -73,7 +78,48 @@ RSpec.describe Lepus::Web::API do
     end
 
     context "when requesting /queues" do
-      it "returns demo queues data" do
+      it "returns real queues data" do
+        mock_queues_data = [
+          {
+            "name" => "orders.main",
+            "type" => "classic",
+            "messages" => 42,
+            "messages_ready" => 21,
+            "messages_unacknowledged" => 2,
+            "consumers" => 3,
+            "memory" => 8 * 1024 * 1024
+          },
+          {
+            "name" => "orders.retry",
+            "type" => "classic",
+            "messages" => 5,
+            "messages_ready" => 5,
+            "messages_unacknowledged" => 0,
+            "consumers" => 0,
+            "memory" => 1 * 1024 * 1024
+          },
+          {
+            "name" => "orders.error",
+            "type" => "classic",
+            "messages" => 2,
+            "messages_ready" => 2,
+            "messages_unacknowledged" => 0,
+            "consumers" => 0,
+            "memory" => 512 * 1024
+          },
+          {
+            "name" => "invoices",
+            "type" => "quorum",
+            "messages" => 12,
+            "messages_ready" => 12,
+            "messages_unacknowledged" => 0,
+            "consumers" => 2,
+            "memory" => 2 * 1024 * 1024
+          }
+        ]
+
+        allow(rabbitmq_client).to receive(:queues).and_return(mock_queues_data)
+
         env = Rack::MockRequest.env_for("/queues")
         status, headers, body = api.call(env)
 
@@ -135,7 +181,33 @@ RSpec.describe Lepus::Web::API do
     end
 
     context "when requesting /connections" do
-      it "returns demo connections data" do
+      it "returns real connections data" do
+        mock_connections_data = [
+          {
+            "name" => "conn-1",
+            "state" => "running",
+            "user" => "guest",
+            "vhost" => "/",
+            "channels" => 2
+          },
+          {
+            "name" => "conn-2",
+            "state" => "idle",
+            "user" => "guest",
+            "vhost" => "/",
+            "channels" => 1
+          },
+          {
+            "name" => "conn-3",
+            "state" => "running",
+            "user" => "admin",
+            "vhost" => "/",
+            "channels" => 3
+          }
+        ]
+
+        allow(rabbitmq_client).to receive(:connections).and_return(mock_connections_data)
+
         env = Rack::MockRequest.env_for("/connections")
         status, headers, body = api.call(env)
 
@@ -220,6 +292,20 @@ RSpec.describe Lepus::Web::API do
     end
 
     it "returns consistent queue data across multiple calls" do
+      mock_queues_data = [
+        {
+          "name" => "test.queue",
+          "type" => "classic",
+          "messages" => 10,
+          "messages_ready" => 5,
+          "messages_unacknowledged" => 0,
+          "consumers" => 1,
+          "memory" => 1024
+        }
+      ]
+
+      allow(rabbitmq_client).to receive(:queues).and_return(mock_queues_data)
+
       env = Rack::MockRequest.env_for("/queues")
 
       # First call
