@@ -9,9 +9,11 @@ RSpec.describe Lepus::Web::App do
   let(:app) { described_class.build }
   let(:rand_test_dir) { ["test", SecureRandom.hex].join("/") }
   let(:assets_dir) { Lepus::Web.assets_path.join(rand_test_dir) }
+  let(:rabbitmq_client) { instance_double(Lepus::Web::RabbitMQClient) }
 
   before do
     FileUtils.mkdir_p(assets_dir) unless Dir.exist?(assets_dir)
+    allow(Lepus::Web::RabbitMQClient).to receive(:new).and_return(rabbitmq_client)
   end
 
   describe ".build" do
@@ -103,6 +105,20 @@ RSpec.describe Lepus::Web::App do
 
     context "when requesting /api/queues" do
       it "routes to the API" do
+        mock_queues_data = [
+          {
+            "name" => "test.queue",
+            "type" => "classic",
+            "messages" => 10,
+            "messages_ready" => 5,
+            "messages_unacknowledged" => 0,
+            "consumers" => 1,
+            "memory" => 1024
+          }
+        ]
+
+        allow(rabbitmq_client).to receive(:queues).and_return(mock_queues_data)
+
         get "/api/queues"
         expect(last_response.status).to eq(200)
         expect(last_response.headers["Content-Type"]).to eq("application/json")
@@ -114,6 +130,18 @@ RSpec.describe Lepus::Web::App do
 
     context "when requesting /api/connections" do
       it "routes to the API" do
+        mock_connections_data = [
+          {
+            "name" => "test.connection",
+            "state" => "running",
+            "user" => "guest",
+            "vhost" => "/",
+            "channels" => 1
+          }
+        ]
+
+        allow(rabbitmq_client).to receive(:connections).and_return(mock_connections_data)
+
         get "/api/connections"
         expect(last_response.status).to eq(200)
         expect(last_response.headers["Content-Type"]).to eq("application/json")

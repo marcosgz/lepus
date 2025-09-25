@@ -3,6 +3,10 @@
 module Lepus
   module Web
     class API
+      def initialize
+        @rabbitmq_client = RabbitMQClient.new
+      end
+
       def call(env)
         req = Rack::Request.new(env)
         case req.path_info
@@ -11,12 +15,25 @@ module Lepus
         when "/processes"
           demo_processes
         when "/queues"
-          demo_queues
+          real_queues
         when "/connections"
-          demo_connections
+          real_connections
+        when "/overview"
+          real_overview
+        when "/nodes"
+          real_nodes
+        when "/channels"
+          real_channels
+        when "/consumers"
+          real_consumers
         else
           Web::RespondWith.json(template: :not_found)
         end
+      rescue RabbitMQClient::Error => e
+        Web::RespondWith.json(
+          status: 500,
+          body: { error: "rabbitmq_error", message: e.message }
+        )
       end
 
       private
@@ -149,6 +166,48 @@ module Lepus
           {name: "conn-3", state: "running", user: "admin", vhost: "/", channels: 3}
         ]
         Web::RespondWith.json(template: :ok, body: payload)
+      end
+
+      def real_overview
+        data = @rabbitmq_client.overview
+        Web::RespondWith.json(template: :ok, body: data)
+      end
+
+      def real_nodes
+        data = @rabbitmq_client.nodes
+        Web::RespondWith.json(template: :ok, body: data)
+      end
+
+      def real_connections
+        data = @rabbitmq_client.connections
+        Web::RespondWith.json(template: :ok, body: data)
+      end
+
+      def real_channels
+        data = @rabbitmq_client.channels
+        Web::RespondWith.json(template: :ok, body: data)
+      end
+
+      def real_queues
+        data = @rabbitmq_client.queues
+        # Transform the data to match the expected format
+        transformed_data = data.map do |queue|
+          {
+            name: queue["name"],
+            type: queue["type"] || "classic",
+            messages: queue["messages"] || 0,
+            messages_ready: queue["messages_ready"] || 0,
+            messages_unacknowledged: queue["messages_unacknowledged"] || 0,
+            consumers: queue["consumers"] || 0,
+            memory: queue["memory"] || 0
+          }
+        end
+        Web::RespondWith.json(template: :ok, body: transformed_data)
+      end
+
+      def real_consumers
+        data = @rabbitmq_client.consumers
+        Web::RespondWith.json(template: :ok, body: data)
       end
     end
   end
