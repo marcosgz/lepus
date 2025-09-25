@@ -49,6 +49,19 @@ RSpec.describe Lepus::Testing do
     end
   end
 
+  describe ".fake_publisher_disable!" do
+    it "disables fake publishing mode only" do
+      described_class.enable!
+      expect(described_class.fake_publisher_enabled?).to be true
+      expect(described_class.consumer_raise_errors?).to be true
+
+      described_class.fake_publisher_disable!
+      expect(described_class.fake_publisher_enabled?).to be false
+      # Does not toggle consumer error behavior
+      expect(described_class.consumer_raise_errors?).to be true
+    end
+  end
+
   describe ".disable!" do
     before do
       described_class.enable!

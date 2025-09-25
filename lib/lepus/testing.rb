@@ -9,14 +9,14 @@ module Lepus
     class << self
       # Enable fake publishing mode and consumer error re-raising
       def enable!
-        @fake_publisher_enabled = true
-        @consumer_raise_errors_enabled = true
+        fake_publisher!
+        consumer_raise_errors!
       end
 
       # Disable fake publishing mode and consumer error re-raising
       def disable!
-        @fake_publisher_enabled = false
-        @consumer_raise_errors_enabled = false
+        fake_publisher_disable!
+        consumer_capture_errors!
       end
 
       # Enable fake publishing mode for testing
@@ -28,6 +28,11 @@ module Lepus
       # Check if fake publishing is enabled
       def fake_publisher_enabled?
         @fake_publisher_enabled == true
+      end
+
+      # Disable fake publishing mode for testing
+      def fake_publisher_disable!
+        @fake_publisher_enabled = false
       end
 
       # When enabled, consumer exceptions are re-raised instead of being converted to :reject
