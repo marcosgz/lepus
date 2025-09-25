@@ -119,7 +119,7 @@
       const queueCount = queues.filter(q => !q.name.endsWith('.retry') && !q.name.endsWith('.error')).length;
       const totalMessages = queues.reduce((sum, q) => sum + (q.messages || 0), 0);
       const memory = processes.reduce((sum, p) => sum + (p.rss_memory || 0), 0);
-      console.log('renderStats', { processes, queues, connections });
+      // console.log('renderStats', { processes, queues, connections });
 
       // Process details
       const supervisors = processes.filter(p => p.kind === 'supervisor').length;
@@ -320,7 +320,12 @@
       tbody.innerHTML = '';
 
       for (const group of groupedQueues) {
-        const q = group.main || {name: group.name, type: 'classic', messages_ready: 0, messages_unacknowledged: 0, messages: 0, consumers: 0};
+        // Handle new API structure with nested queues
+        const mainQueue = group.queues?.main || group.main;
+        const retryQueue = group.queues?.retry || group.retry;
+        const errorQueue = group.queues?.error || group.error;
+
+        const q = mainQueue || {name: group.name, type: 'classic', messages_ready: 0, messages_unacknowledged: 0, messages: 0, consumers: 0};
         const tr = document.createElement('tr');
         tr.className = 'queue-row';
         tr.dataset.queue = group.name;
@@ -334,12 +339,13 @@
         td.colSpan = 8;
         td.innerHTML = `
           <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px;">
-            ${group.retry ? `<div class="metric"><div class="metric-label">Retry</div>${this.queueInline(group.retry)}</div>` : ''}
-            ${group.error ? `<div class="metric"><div class="metric-label">Error</div>${this.queueInline(group.error)}</div>` : ''}
-            ${!group.retry && !group.error ? '<div class="metric"><div class="metric-label">No extra queues</div><div class="metric-value">—</div></div>' : ''}
+            ${retryQueue ? `<div class="metric"><div class="metric-label">Retry</div>${this.queueInline(retryQueue)}</div>` : ''}
+            ${errorQueue ? `<div class="metric"><div class="metric-label">Error</div>${this.queueInline(errorQueue)}</div>` : ''}
+            ${!retryQueue && !errorQueue ? '<div class="metric"><div class="metric-label">No extra queues</div><div class="metric-value">—</div></div>' : ''}
           </div>`;
         sub.appendChild(td);
-        sub.hidden = true;
+        const expanded = this.queueStates[group.name] === true;
+        sub.style.display = expanded ? 'table-row' : 'none';
         tbody.appendChild(sub);
       }
     }
@@ -411,9 +417,14 @@
     updateCharts(groupedQueues) {
       const nowLabel = new Date().toLocaleTimeString();
       const total = groupedQueues.reduce((sum, group) => {
-        const mainMessages = group.main ? (group.main.messages || 0) : 0;
-        const retryMessages = group.retry ? (group.retry.messages || 0) : 0;
-        const errorMessages = group.error ? (group.error.messages || 0) : 0;
+        // Handle new API structure with nested queues
+        const mainQueue = group.queues?.main || group.main;
+        const retryQueue = group.queues?.retry || group.retry;
+        const errorQueue = group.queues?.error || group.error;
+
+        const mainMessages = mainQueue ? (mainQueue.messages || 0) : 0;
+        const retryMessages = retryQueue ? (retryQueue.messages || 0) : 0;
+        const errorMessages = errorQueue ? (errorQueue.messages || 0) : 0;
         return sum + mainMessages + retryMessages + errorMessages;
       }, 0);
       const pub = Math.max(0, Math.round(total * 0.1 + Math.random() * 5));
@@ -429,9 +440,14 @@
 
       this.queueChart.data.labels = groupedQueues.map(group => group.name);
       this.queueChart.data.datasets[0].data = groupedQueues.map(group => {
-        const mainMessages = group.main ? (group.main.messages || 0) : 0;
-        const retryMessages = group.retry ? (group.retry.messages || 0) : 0;
-        const errorMessages = group.error ? (group.error.messages || 0) : 0;
+        // Handle new API structure with nested queues
+        const mainQueue = group.queues?.main || group.main;
+        const retryQueue = group.queues?.retry || group.retry;
+        const errorQueue = group.queues?.error || group.error;
+
+        const mainMessages = mainQueue ? (mainQueue.messages || 0) : 0;
+        const retryMessages = retryQueue ? (retryQueue.messages || 0) : 0;
+        const errorMessages = errorQueue ? (errorQueue.messages || 0) : 0;
         return mainMessages + retryMessages + errorMessages;
       });
       this.queueChart.update('none');
@@ -479,9 +495,9 @@
 
       const sub = row.nextElementSibling;
       if (sub && sub.classList.contains('sub-row')) {
-        const isHidden = sub.hidden;
-        sub.hidden = !isHidden;
-        this.queueStates[queueName] = !isHidden;
+        const isHidden = sub.style.display === 'none';
+        sub.style.display = isHidden ? 'table-row' : 'none';
+        this.queueStates[queueName] = isHidden;
       }
     }
 
@@ -491,7 +507,7 @@
         if (queueRow && this.queueStates[queueName]) {
           const sub = queueRow.nextElementSibling;
           if (sub && sub.classList.contains('sub-row')) {
-            sub.hidden = false;
+            sub.style.display = 'table-row';
           }
         }
       });
