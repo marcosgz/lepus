@@ -391,6 +391,83 @@ plugin :lepus
 
 **Note**: The Puma plugin is only available if you are using Puma 6.x or higher.
 
+## Web UI Dashboard
+
+Lepus includes a built-in web dashboard that provides a real-time view of your message processing infrastructure. The dashboard allows you to monitor processes, queues, connections, and consumer performance.
+
+### Starting the Web Dashboard
+
+You can start the web dashboard using the `lepus web` command:
+
+```bash
+bundle exec lepus web
+```
+
+The dashboard will be available at `http://localhost:9292` by default. You can customize the host and port:
+
+```bash
+bundle exec lepus web --port 3000 --host 127.0.0.1
+```
+
+### Web Dashboard Features
+
+The Lepus web dashboard provides:
+
+- **Process Monitoring**: View all running supervisors and workers with their PIDs, memory usage, and heartbeat status
+- **Queue Management**: Monitor queue statistics including message counts, consumer connections, and memory usage
+- **Connection Tracking**: View active RabbitMQ connections and their states
+- **Consumer Performance**: Track processed, rejected, and errored messages per consumer
+- **Real-time Updates**: Dashboard automatically refreshes to show current system state
+
+### Integrating with Rails
+
+To integrate the Lepus web dashboard into your Rails application, you can mount it as a Rack application in your routes:
+
+```ruby
+# config/routes.rb
+Rails.application.routes.draw do
+  # Your existing routes...
+
+  # Mount Lepus web dashboard (simple way)
+  mount Lepus::Web => "/lepus"
+end
+```
+
+You can also use the more explicit syntax:
+
+```ruby
+# config/routes.rb
+Rails.application.routes.draw do
+  # Your existing routes...
+
+  # Mount Lepus web dashboard (explicit way)
+  mount Lepus::Web::App.build => "/lepus"
+end
+```
+
+This will make the dashboard available at `http://your-app.com/lepus` in your Rails application.
+
+You can also mount it with additional configuration:
+
+```ruby
+# config/routes.rb
+Rails.application.routes.draw do
+  # Your existing routes...
+
+  # Mount with custom path and constraints
+  mount Lepus::Web => "/admin/lepus", constraints: ->(request) {
+    # Add authentication or other constraints here
+    request.env["warden"].authenticated? if defined?(Warden)
+  }
+
+  # OR Mount with basic authentication using constraints
+  mount Lepus::Web => "/admin/lepus", constraints: ->(request) {
+    # Basic auth check
+    username, password = ActionController::HttpAuthentication::Basic.decode_credentials(request)
+    username == "admin" && password == "secret"
+  }
+end
+```
 
 ## Development
 
