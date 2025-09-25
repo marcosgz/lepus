@@ -6,8 +6,11 @@ module Lepus
   module Web
     class RabbitMQClient
       class Error < StandardError; end
+
       class ConnectionError < Error; end
+
       class AuthenticationError < Error; end
+
       class NotFoundError < Error; end
 
       def initialize(configuration = Lepus.config)
@@ -145,8 +148,8 @@ module Lepus
           uri = URI.parse(@configuration.rabbitmq_url)
           # Convert AMQP URL to HTTP management URL
           # amqp://guest:guest@localhost:5672 -> http://guest:guest@localhost:15672
-          scheme = uri.scheme == "amqps" ? "https" : "http"
-          port = uri.scheme == "amqps" ? 15671 : 15672
+          scheme = (uri.scheme == "amqps") ? "https" : "http"
+          port = (uri.scheme == "amqps") ? 15671 : 15672
 
           "#{scheme}://#{uri.host}:#{port}"
         end

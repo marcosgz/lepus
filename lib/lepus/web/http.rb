@@ -46,5 +46,3 @@ module Lepus
     end
   end
 end
-
-
