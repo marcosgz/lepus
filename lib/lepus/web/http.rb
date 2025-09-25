@@ -35,7 +35,6 @@ module Lepus
         http = Net::HTTP.new(uri.host, uri.port)
         if uri.scheme == "https"
           http.use_ssl = true
-          # rely on system defaults; customization can be added later
         end
         http.open_timeout = @open_timeout
         http.read_timeout = @read_timeout

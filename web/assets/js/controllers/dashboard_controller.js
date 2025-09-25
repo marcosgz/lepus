@@ -77,16 +77,24 @@
 
     async fetchRabbitQueues() {
       try {
-        const r = await fetch('/api/queues');
+        const r = await fetch('/api/queues/grouped');
         if (!r.ok) throw new Error('bad');
         return await r.json();
       } catch (_) {
         // demo fallback
         return [
-          { name: 'orders', type: 'classic', messages: 42, messages_ready: 21, messages_unacknowledged: 2, consumers: 3, memory: 1024*1024*8 },
-          { name: 'orders.retry', type: 'classic', messages: 5, messages_ready: 5, messages_unacknowledged: 0, consumers: 0, memory: 1024*1024*1 },
-          { name: 'orders.error', type: 'classic', messages: 2, messages_ready: 2, messages_unacknowledged: 0, consumers: 0, memory: 1024*512 },
-          { name: 'invoices', type: 'quorum', messages: 12, messages_ready: 12, messages_unacknowledged: 0, consumers: 2, memory: 1024*1024*2 }
+          {
+            name: 'orders',
+            main: { name: 'orders', type: 'classic', messages: 42, messages_ready: 21, messages_unacknowledged: 2, consumers: 3, memory: 1024*1024*8 },
+            retry: { name: 'orders.retry', type: 'classic', messages: 5, messages_ready: 5, messages_unacknowledged: 0, consumers: 0, memory: 1024*1024*1 },
+            error: { name: 'orders.error', type: 'classic', messages: 2, messages_ready: 2, messages_unacknowledged: 0, consumers: 0, memory: 1024*512 }
+          },
+          {
+            name: 'invoices',
+            main: { name: 'invoices', type: 'quorum', messages: 12, messages_ready: 12, messages_unacknowledged: 0, consumers: 2, memory: 1024*1024*2 },
+            retry: null,
+            error: null
+          }
         ];
       }
     }
@@ -307,24 +315,15 @@
       `;
     }
 
-    renderQueues(queues) {
+    renderQueues(groupedQueues) {
       const tbody = this.queuesRootTarget;
       tbody.innerHTML = '';
 
-      // Group main->(retry,error)
-      const map = new Map();
-      queues.forEach(q => {
-        const base = q.name.replace(/\.(retry|error)$/,'');
-        if (!map.has(base)) map.set(base, { main: null, retry: null, error: null });
-        const bucket = map.get(base);
-        if (q.name.endsWith('.retry')) bucket.retry = q; else if (q.name.endsWith('.error')) bucket.error = q; else bucket.main = q;
-      });
-
-      for (const [base, g] of map.entries()) {
-        const q = g.main || {name: base, type: 'classic', messages_ready: 0, messages_unacknowledged: 0, messages: 0, consumers: 0};
+      for (const group of groupedQueues) {
+        const q = group.main || {name: group.name, type: 'classic', messages_ready: 0, messages_unacknowledged: 0, messages: 0, consumers: 0};
         const tr = document.createElement('tr');
         tr.className = 'queue-row';
-        tr.dataset.queue = base;
+        tr.dataset.queue = group.name;
         tr.setAttribute('data-action', 'click->dashboard#toggleQueue');
         tr.innerHTML = this.queueCells(q, true);
         tbody.appendChild(tr);
@@ -335,9 +334,9 @@
         td.colSpan = 8;
         td.innerHTML = `
           <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px;">
-            ${g.retry ? `<div class="metric"><div class="metric-label">Retry</div>${this.queueInline(g.retry)}</div>` : ''}
-            ${g.error ? `<div class="metric"><div class="metric-label">Error</div>${this.queueInline(g.error)}</div>` : ''}
-            ${!g.retry && !g.error ? '<div class="metric"><div class="metric-label">No extra queues</div><div class="metric-value">—</div></div>' : ''}
+            ${group.retry ? `<div class="metric"><div class="metric-label">Retry</div>${this.queueInline(group.retry)}</div>` : ''}
+            ${group.error ? `<div class="metric"><div class="metric-label">Error</div>${this.queueInline(group.error)}</div>` : ''}
+            ${!group.retry && !group.error ? '<div class="metric"><div class="metric-label">No extra queues</div><div class="metric-value">—</div></div>' : ''}
           </div>`;
         sub.appendChild(td);
         sub.hidden = true;
@@ -409,9 +408,14 @@
       });
     }
 
-    updateCharts(queues) {
+    updateCharts(groupedQueues) {
       const nowLabel = new Date().toLocaleTimeString();
-      const total = queues.reduce((sum, q) => sum + (q.messages || 0), 0);
+      const total = groupedQueues.reduce((sum, group) => {
+        const mainMessages = group.main ? (group.main.messages || 0) : 0;
+        const retryMessages = group.retry ? (group.retry.messages || 0) : 0;
+        const errorMessages = group.error ? (group.error.messages || 0) : 0;
+        return sum + mainMessages + retryMessages + errorMessages;
+      }, 0);
       const pub = Math.max(0, Math.round(total * 0.1 + Math.random() * 5));
       const con = Math.max(0, Math.round(total * 0.08 + Math.random() * 5));
 
@@ -423,9 +427,13 @@
       this.rateChart.data.datasets[1].data.push(con);
       this.rateChart.update('none');
 
-      const main = queues.filter(q => !q.name.endsWith('.retry') && !q.name.endsWith('.error'));
-      this.queueChart.data.labels = main.map(q => q.name);
-      this.queueChart.data.datasets[0].data = main.map(q => q.messages || 0);
+      this.queueChart.data.labels = groupedQueues.map(group => group.name);
+      this.queueChart.data.datasets[0].data = groupedQueues.map(group => {
+        const mainMessages = group.main ? (group.main.messages || 0) : 0;
+        const retryMessages = group.retry ? (group.retry.messages || 0) : 0;
+        const errorMessages = group.error ? (group.error.messages || 0) : 0;
+        return mainMessages + retryMessages + errorMessages;
+      });
       this.queueChart.update('none');
     }
 

@@ -14,8 +14,8 @@ module Lepus
           Web::RespondWith.json(template: :health)
         when "/processes"
           demo_processes
-        when "/queues"
-          real_queues
+        when "/queues/grouped"
+          grouped_queues
         when "/connections"
           real_connections
         when "/overview"
@@ -188,10 +188,17 @@ module Lepus
         Web::RespondWith.json(template: :ok, body: data)
       end
 
-      def real_queues
+
+      def real_consumers
+        data = @rabbitmq_client.consumers
+        Web::RespondWith.json(template: :ok, body: data)
+      end
+
+      # Group queues by base name: base, with optional .retry and .error children
+      # Returns: [{name: base, queues: {main: q|nil, retry: q|nil, error: q|nil}}]
+      def grouped_queues
         data = @rabbitmq_client.queues
-        # Transform the data to match the expected format
-        transformed_data = data.map do |queue|
+        simplified = data.map do |queue|
           {
             name: queue["name"],
             type: queue["type"] || "classic",
@@ -202,12 +209,22 @@ module Lepus
             memory: queue["memory"] || 0
           }
         end
-        Web::RespondWith.json(template: :ok, body: transformed_data)
-      end
 
-      def real_consumers
-        data = @rabbitmq_client.consumers
-        Web::RespondWith.json(template: :ok, body: data)
+        buckets = {}
+        simplified.each do |q|
+          name = q[:name]
+          base, queue_type = case name
+                            when /\.retry\z/ then [name.sub(/\.retry\z/, ""), :retry]
+                            when /\.error\z/ then [name.sub(/\.error\z/, ""), :error]
+                            else [name.sub(/\.main\z/, ""), :main]
+                            end
+
+          bucket = buckets[base] ||= {name: base, queues: {main: nil, retry: nil, error: nil}}
+          bucket[:queues][queue_type] = q
+        end
+
+        grouped = buckets.values.sort_by { |g| g[:name] }
+        Web::RespondWith.json(template: :ok, body: grouped)
       end
     end
   end

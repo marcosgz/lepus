@@ -103,30 +103,6 @@ RSpec.describe Lepus::Web::App do
       end
     end
 
-    context "when requesting /api/queues" do
-      it "routes to the API" do
-        mock_queues_data = [
-          {
-            "name" => "test.queue",
-            "type" => "classic",
-            "messages" => 10,
-            "messages_ready" => 5,
-            "messages_unacknowledged" => 0,
-            "consumers" => 1,
-            "memory" => 1024
-          }
-        ]
-
-        allow(rabbitmq_client).to receive(:queues).and_return(mock_queues_data)
-
-        get "/api/queues"
-        expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("application/json")
-        response_body = JSON.parse(last_response.body)
-        expect(response_body).to be_an(Array)
-        expect(response_body.first).to include("name", "type", "messages", "messages_ready")
-      end
-    end
 
     context "when requesting /api/connections" do
       it "routes to the API" do
@@ -148,6 +124,27 @@ RSpec.describe Lepus::Web::App do
         response_body = JSON.parse(last_response.body)
         expect(response_body).to be_an(Array)
         expect(response_body.first).to include("name")
+      end
+    end
+
+    context "when requesting /api/queues/grouped" do
+      it "routes to the API" do
+        mock_queues_data = [
+          {"name" => "orders.main"},
+          {"name" => "orders.retry"},
+          {"name" => "orders.error"}
+        ]
+
+        allow(rabbitmq_client).to receive(:queues).and_return(mock_queues_data)
+
+        get "/api/queues/grouped"
+        expect(last_response.status).to eq(200)
+        expect(last_response.headers["Content-Type"]).to eq("application/json")
+        response_body = JSON.parse(last_response.body)
+        expect(response_body).to be_an(Array)
+        expect(response_body.first).to include("name")
+        expect(response_body.first.keys).to include("queues")
+        expect(response_body.first["queues"].keys).to include("main", "retry", "error")
       end
     end
 
