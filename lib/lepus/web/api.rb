@@ -32,7 +32,7 @@ module Lepus
       rescue RabbitMQClient::Error => e
         Web::RespondWith.json(
           status: 500,
-          body: { error: "rabbitmq_error", message: e.message }
+          body: {error: "rabbitmq_error", message: e.message}
         )
       end
 
@@ -188,7 +188,6 @@ module Lepus
         Web::RespondWith.json(template: :ok, body: data)
       end
 
-
       def real_consumers
         data = @rabbitmq_client.consumers
         Web::RespondWith.json(template: :ok, body: data)
@@ -214,10 +213,10 @@ module Lepus
         simplified.each do |q|
           name = q[:name]
           base, queue_type = case name
-                            when /\.retry\z/ then [name.sub(/\.retry\z/, ""), :retry]
-                            when /\.error\z/ then [name.sub(/\.error\z/, ""), :error]
-                            else [name.sub(/\.main\z/, ""), :main]
-                            end
+          when /\.retry\z/ then [name.delete_suffix(".retry"), :retry]
+          when /\.error\z/ then [name.delete_suffix(".error"), :error]
+          else [name.delete_suffix(".main"), :main]
+          end
 
           bucket = buckets[base] ||= {name: base, queues: {main: nil, retry: nil, error: nil}}
           bucket[:queues][queue_type] = q

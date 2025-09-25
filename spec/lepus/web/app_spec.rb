@@ -103,7 +103,6 @@ RSpec.describe Lepus::Web::App do
       end
     end
 
-
     context "when requesting /api/connections" do
       it "routes to the API" do
         mock_connections_data = [

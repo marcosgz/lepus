@@ -77,7 +77,6 @@ RSpec.describe Lepus::Web::API do
       end
     end
 
-
     context "when requesting /connections" do
       it "returns real connections data" do
         mock_connections_data = [
@@ -220,6 +219,5 @@ RSpec.describe Lepus::Web::API do
         expect(process1["kind"]).to eq(process2["kind"])
       end
     end
-
   end
 end

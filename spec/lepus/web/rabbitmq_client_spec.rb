@@ -3,8 +3,8 @@
 require "spec_helper"
 require "webmock/rspec"
 
-RSpec.describe Lepus::Web::RabbitMQClient do
-  let(:configuration) { double("Configuration", rabbitmq_url: "amqp://guest:guest@localhost:5672") }
+RSpec.describe Lepus::Web::RabbitMQClient do # rubocop:disable RSpec/SpecFilePathFormat
+  let(:configuration) { instance_double(Lepus::Configuration, rabbitmq_url: "amqp://guest:guest@localhost:5672") }
   let(:client) { described_class.new(configuration) }
 
   before do
@@ -298,7 +298,7 @@ RSpec.describe Lepus::Web::RabbitMQClient do
 
   describe "URL parsing" do
     context "with AMQP URL" do
-      let(:configuration) { double("Configuration", rabbitmq_url: "amqp://guest:guest@localhost:5672") }
+      let(:configuration) { instance_double(Lepus::Configuration, rabbitmq_url: "amqp://guest:guest@localhost:5672") }
 
       it "converts to HTTP management URL" do
         expect(client.send(:rabbitmq_management_url)).to eq("http://localhost:15672")
@@ -306,7 +306,7 @@ RSpec.describe Lepus::Web::RabbitMQClient do
     end
 
     context "with AMQPS URL" do
-      let(:configuration) { double("Configuration", rabbitmq_url: "amqps://guest:guest@localhost:5671") }
+      let(:configuration) { instance_double(Lepus::Configuration, rabbitmq_url: "amqps://guest:guest@localhost:5671") }
 
       it "converts to HTTPS management URL" do
         expect(client.send(:rabbitmq_management_url)).to eq("https://localhost:15671")
@@ -314,7 +314,7 @@ RSpec.describe Lepus::Web::RabbitMQClient do
     end
 
     context "with custom credentials" do
-      let(:configuration) { double("Configuration", rabbitmq_url: "amqp://admin:secret@rabbitmq.example.com:5672") }
+      let(:configuration) { instance_double(Lepus::Configuration, rabbitmq_url: "amqp://admin:secret@rabbitmq.example.com:5672") }
 
       it "extracts username and password" do
         expect(client.send(:username)).to eq("admin")
