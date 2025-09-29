@@ -30,5 +30,29 @@ module Lepus
 
       Lepus::Supervisor.start(**opts)
     end
+
+    desc "web", "Run Lepus Web dashboard"
+    method_option :port, type: :numeric, aliases: "-p", default: 9292, desc: "Port to listen on"
+    method_option :host, type: :string, aliases: "-o", default: "0.0.0.0", desc: "Host to bind"
+    def web
+      port = (options[:port] || 9292).to_i
+      host = options[:host] || "0.0.0.0"
+
+      puts "Starting Lepus Web dashboard on http://#{host}:#{port}"
+      puts "Press Ctrl+C to stop"
+
+      if system("which rackup > /dev/null 2>&1")
+
+        exec "rackup -p #{port} -o #{host} #{__dir__}/../../config.ru"
+      else
+        puts <<~MSG
+          Rack is not installed. Please install it using the following command:
+
+              gem install rack
+
+          Then run the web dashboard again.
+        MSG
+      end
+    end
   end
 end
