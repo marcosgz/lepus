@@ -19,6 +19,7 @@ module Lepus
       def inherited(subclass)
         super
         subclass.abstract_class = false
+        subclass.instance_variable_set(:@middlewares, middlewares.dup)
       end
 
       def config
@@ -114,7 +115,6 @@ module Lepus
         raise
       end
 
-      # logger.error(ex)
       reject!
     end
 

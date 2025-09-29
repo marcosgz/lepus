@@ -51,6 +51,27 @@ RSpec.describe Lepus::Consumer do
     end
   end
 
+  describe ".inherited" do
+    let(:parent_class) { Class.new(described_class) }
+
+    it "sets abstract_class to false in subclass" do
+      subclass = Class.new(parent_class)
+      expect(subclass.abstract_class?).to be false
+    end
+
+    it "copies middlewares to subclass" do
+      parent_middleware = Class.new(Lepus::Middleware)
+      parent_class.use(parent_middleware)
+      child_middleware = Class.new(Lepus::Middleware)
+
+      subclass = Class.new(parent_class) do
+        use(child_middleware)
+      end
+      expect(parent_class.middlewares).to contain_exactly(parent_middleware)
+      expect(subclass.middlewares).to contain_exactly(parent_middleware, child_middleware)
+    end
+  end
+
   describe ".configure" do
     let(:mandatory_options) do
       {queue: "test", exchange: "exchange", routing_key: ["test.new"]}
