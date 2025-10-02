@@ -8,6 +8,45 @@ RSpec.describe Lepus::Message do
   let(:payload) { {key: "value"} }
   let(:message) { described_class.new(delivery_info, metadata, payload) }
 
+  describe "#consumer_class" do
+    it "can be set and retrieved" do
+      consumer_class = Class.new
+      message.consumer_class = consumer_class
+      expect(message.consumer_class).to eq(consumer_class)
+    end
+
+    it "defaults to nil" do
+      expect(message.consumer_class).to be_nil
+    end
+  end
+
+  describe "#mutate" do
+    let(:consumer_class) { Class.new }
+
+    before do
+      message.consumer_class = consumer_class
+    end
+
+    it "preserves consumer_class when no new value is provided" do
+      mutated_message = message.mutate(payload: "new payload")
+      expect(mutated_message.consumer_class).to eq(consumer_class)
+      expect(mutated_message.payload).to eq("new payload")
+    end
+
+    it "allows overriding consumer_class" do
+      new_consumer_class = Class.new
+      mutated_message = message.mutate(consumer_class: new_consumer_class)
+      expect(mutated_message.consumer_class).to eq(new_consumer_class)
+    end
+
+    it "preserves other attributes when mutating consumer_class" do
+      mutated_message = message.mutate(consumer_class: Class.new)
+      expect(mutated_message.delivery_info).to eq(delivery_info)
+      expect(mutated_message.metadata).to eq(metadata)
+      expect(mutated_message.payload).to eq(payload)
+    end
+  end
+
   describe "#to_h" do
     subject(:msg) { message.to_h }
 

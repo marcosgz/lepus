@@ -99,6 +99,7 @@ module Lepus
     # @raise [InvalidConsumerReturnError] if you return something other than +:ack+, +:reject+ or +:requeue+ from {#perform}.
     def process_delivery(delivery_info, metadata, payload)
       message = Message.new(delivery_info, metadata, payload)
+      message.consumer_class = self.class
       self
         .class
         .middlewares

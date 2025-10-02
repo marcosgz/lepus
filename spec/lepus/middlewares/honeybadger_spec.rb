@@ -41,4 +41,42 @@ RSpec.describe Lepus::Middlewares::Honeybadger do
       )
     end.to raise_error(error)
   end
+
+  context "when no class_name is provided" do
+    let(:middleware) { described_class.new }
+    let(:consumer_class) { Class.new }
+
+    before do
+      message.consumer_class = consumer_class
+      allow(consumer_class).to receive(:name).and_return("TestConsumer")
+    end
+
+    it "uses consumer_class name as fallback" do
+      error = RuntimeError.new("moep")
+      expect(honeybadger).to receive(:notify).with(error, context: {class_name: "TestConsumer"})
+
+      expect do
+        middleware.call(
+          message,
+          proc { raise error }
+        )
+      end.to raise_error(error)
+    end
+  end
+
+  context "when no class_name and no consumer_class" do
+    let(:middleware) { described_class.new }
+
+    it "uses empty context" do
+      error = RuntimeError.new("moep")
+      expect(honeybadger).to receive(:notify).with(error, context: {})
+
+      expect do
+        middleware.call(
+          message,
+          proc { raise error }
+        )
+      end.to raise_error(error)
+    end
+  end
 end
