@@ -5,15 +5,16 @@ module Lepus
     # A middleware that logs exceptions raised by downstream middleware/consumers.
     # Default logger is Lepus.logger.
     class ExceptionLogger < Lepus::Middleware
+      # @param app The next middleware to call or the actual consumer instance.
       # @param [Hash] opts The options for the middleware.
       # @option opts [Logger] :logger The logger to use. Defaults to Lepus.logger.
-      def initialize(logger: Lepus.logger, **)
-        super
+      def initialize(app, logger: Lepus.logger, **opts)
+        super(app, **opts)
 
         @logger = logger
       end
 
-      def call(message, app)
+      def call(message)
         app.call(message)
       rescue => err
         # Log error message; let outer layers decide how to handle the exception

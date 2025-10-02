@@ -354,11 +354,12 @@ You can also create your own middlewares, just create subclasses of `Lepus::Midd
 
 ```ruby
 class MyMiddleware < Lepus::Middleware
-  def initialize(**options)
-    @options = options
+  def initialize(app, my_opt:, **options)
+    @my_opt = my_opt
+    super(app, **options)
   end
 
-  def call(message, app
+  def call(message)
     # Do something before calling the next middleware
     app.call(message)
   end

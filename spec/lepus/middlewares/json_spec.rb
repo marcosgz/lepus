@@ -5,7 +5,8 @@ require "lepus/middlewares/json"
 
 RSpec.describe Lepus::Middlewares::JSON do
   describe "#call" do
-    let(:middleware) { described_class.new(**options) }
+    let(:app) { proc { :result } }
+    let(:middleware) { described_class.new(app, **options) }
     let(:delivery_info) { instance_double(Bunny::DeliveryInfo) }
     let(:metadata) { instance_double(Bunny::MessageProperties) }
     let(:payload) { MultiJson.dump({my: "payload"}) }
@@ -16,29 +17,26 @@ RSpec.describe Lepus::Middlewares::JSON do
     end
 
     it "returns the result of the downstream middleware" do
-      expect(
-        middleware.call(message, proc { :moep })
-      ).to eq(:moep)
+      expect(middleware.call(message)).to eq(:result)
     end
 
     it "calls the next middleware with a parsed payload" do
-      expect do |b|
-        proc =
-          proc do |message, _block|
-            expect(message.payload).to eq("my" => "payload")
-            Proc.new(&b).call
-          end
-        middleware.call(message, proc)
-      end.to yield_control
+      received_message = nil
+      app = proc { |msg| received_message = msg; :ok }
+      middleware = described_class.new(app, **options)
+
+      result = middleware.call(message)
+
+      expect(result).to eq(:ok)
+      expect(received_message.payload).to eq("my" => "payload")
     end
 
     it "does not mutate the original message and passes a new one downstream" do
       received_message = nil
+      app = proc { |msg| received_message = msg; :ok }
+      middleware = described_class.new(app, **options)
 
-      result = middleware.call(message, proc { |msg, _blk|
-                                          received_message = msg
-                                          :ok
-                                        })
+      result = middleware.call(message)
 
       expect(result).to eq(:ok)
       expect(message.payload).to eq(payload)
@@ -47,11 +45,10 @@ RSpec.describe Lepus::Middlewares::JSON do
 
     it "preserves delivery_info and metadata when forwarding the message" do
       received_message = nil
+      app = proc { |msg| received_message = msg; :ok }
+      middleware = described_class.new(app, **options)
 
-      middleware.call(message, proc { |msg, _blk|
-                                 received_message = msg
-                                 :ok
-                               })
+      middleware.call(message)
 
       expect(received_message.delivery_info).to equal(delivery_info)
       expect(received_message.metadata).to equal(metadata)
@@ -61,29 +58,27 @@ RSpec.describe Lepus::Middlewares::JSON do
       consumer_class = Class.new
       message.consumer_class = consumer_class
       received_message = nil
+      app = proc { |msg| received_message = msg; :ok }
+      middleware = described_class.new(app, **options)
 
-      middleware.call(message, proc { |msg, _blk|
-                                 received_message = msg
-                                 :ok
-                               })
+      middleware.call(message)
 
       expect(received_message.consumer_class).to equal(consumer_class)
     end
 
     it "can optionally symbolize keys" do
-      middleware =
-        described_class.new(
-          symbolize_keys: true,
-          on_error: error_handler
-        )
-      expect do |b|
-        proc =
-          proc do |message, _block|
-            expect(message.payload).to eq(my: "payload")
-            Proc.new(&b).call
-          end
-        middleware.call(message, proc)
-      end.to yield_control
+      received_message = nil
+      app = proc { |msg| received_message = msg; :ok }
+      middleware = described_class.new(
+        app,
+        symbolize_keys: true,
+        on_error: error_handler
+      )
+
+      result = middleware.call(message)
+
+      expect(result).to eq(:ok)
+      expect(received_message.payload).to eq(my: "payload")
     end
 
     context "when initialized without error handler" do
@@ -95,42 +90,29 @@ RSpec.describe Lepus::Middlewares::JSON do
       end
 
       it "rejects when encountering an error" do
-        expect(
-          middleware.call(
-            message,
-            proc { :success }
-          )
-        ).to eq(:reject)
+        expect(middleware.call(message)).to eq(:reject)
       end
 
       it "does not call the next middleware when parsing fails" do
-        next_middleware = proc { |_msg, _blk| raise "next middleware should not be called" }
+        app = proc { raise "next middleware should not be called" }
+        middleware = described_class.new(app, **options)
 
-        expect(
-          middleware.call(
-            message,
-            next_middleware
-          )
-        ).to eq(:reject)
+        expect(middleware.call(message)).to eq(:reject)
       end
     end
 
     it "does not catch an error down the line" do
-      expect {
-        middleware.call(message, proc { raise })
-      }.to raise_error(RuntimeError)
+      app = proc { raise RuntimeError }
+      middleware = described_class.new(app, **options)
+
+      expect { middleware.call(message) }.to raise_error(RuntimeError)
     end
 
     context "when encountering an error" do
       let(:payload) { "This is not JSON" }
 
       it "returns the result of the error handler" do
-        expect(
-          middleware.call(
-            message,
-            proc { :success }
-          )
-        ).to eq(:error_handler_result)
+        expect(middleware.call(message)).to eq(:error_handler_result)
       end
 
       it "calls the error handler with the error" do
@@ -138,18 +120,14 @@ RSpec.describe Lepus::Middlewares::JSON do
           instance_of(MultiJson::ParseError)
         )
 
-        middleware.call(message, proc { :success })
+        middleware.call(message)
       end
 
       it "does not call the next middleware when parsing fails" do
-        next_middleware = proc { |_msg, _blk| raise "next middleware should not be called" }
+        app = proc { raise "next middleware should not be called" }
+        middleware = described_class.new(app, **options)
 
-        expect(
-          middleware.call(
-            message,
-            next_middleware
-          )
-        ).to eq(:error_handler_result)
+        expect(middleware.call(message)).to eq(:error_handler_result)
       end
     end
   end

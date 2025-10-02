@@ -4,15 +4,16 @@ module Lepus
   module Middlewares
     # A middleware that automatically wraps {Lepus::Consumer#perform]} in an Honeybadger transaction.
     class Honeybadger < Lepus::Middleware
+      # @param app The next middleware to call or the actual consumer instance.
       # @param [Hash] opts The options for the middleware.
       # @option opts [String] :class_name The name of the class you want to monitor.
-      def initialize(class_name: nil, **)
-        super
+      def initialize(app, class_name: nil, **opts)
+        super(app, **opts)
 
         @class_name = class_name
       end
 
-      def call(message, app)
+      def call(message)
         app.call(message)
       rescue => err
         ::Honeybadger.notify(err, context: context(message))

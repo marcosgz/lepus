@@ -250,7 +250,7 @@ RSpec.describe Lepus::Consumer do
 
     let(:middleware_class) do
       Class.new(Lepus::Middleware) do
-        def call(message, app)
+        def call(message)
           app.call(message)
         end
       end
@@ -262,7 +262,7 @@ RSpec.describe Lepus::Consumer do
 
     it "wraps the given middleware around the call to perform" do
       expect(middleware).to receive(:new).and_return(middleware_instance)
-      expect(middleware_instance).to receive(:call) do |msg, app|
+      expect(middleware_instance).to receive(:call) do |msg|
         expect(message).to eq(msg)
         app.call(msg)
       end
@@ -279,10 +279,10 @@ RSpec.describe Lepus::Consumer do
       expect(second_middleware).to receive(:new).and_return(
         second_middleware_instance
       ).ordered
-      expect(middleware_instance).to receive(:call) do |m, app|
+      expect(middleware_instance).to receive(:call) do |m|
         app.call(m)
       end.ordered
-      expect(second_middleware_instance).to receive(:call) do |m, app|
+      expect(second_middleware_instance).to receive(:call) do |m|
         app.call(m)
       end.ordered
 

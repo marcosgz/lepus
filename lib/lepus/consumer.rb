@@ -52,7 +52,7 @@ module Lepus
           end
         end
 
-        middlewares << middleware.new(**opts)
+        middlewares << [middleware, opts]
       end
 
       # Configures the consumer, setting queue, exchange and other options to be used by
@@ -104,8 +104,8 @@ module Lepus
         .class
         .middlewares
         .reverse
-        .reduce(work_proc) do |next_middleware, middleware|
-          nest_middleware(middleware, next_middleware)
+        .reduce(work_proc) do |next_middleware, middleware_data|
+          nest_middleware(middleware_data, next_middleware)
         end
         .call(message)
     rescue Lepus::InvalidConsumerReturnError
@@ -190,10 +190,9 @@ module Lepus
       end
     end
 
-    def nest_middleware(middleware, next_middleware)
-      ->(message) do
-        middleware.call(message, next_middleware)
-      end
+    def nest_middleware(middleware_data, next_middleware)
+      middleware_class, opts = middleware_data
+      middleware_class.new(next_middleware, **opts)
     end
 
     def verify_result(result)

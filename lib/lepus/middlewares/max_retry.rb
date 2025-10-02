@@ -4,17 +4,18 @@ module Lepus
     class MaxRetry < Lepus::Middleware
       include Lepus::AppExecutor
 
+      # @param app The next middleware to call or the actual consumer instance.
       # @param [Hash] opts The options for the middleware.
       # @option opts [Integer] :retries The number of retries before the message is sent to the error queue.
       # @option opts [String] :error_queue The name of the queue where messages should be sent to when the max retries are reached.
-      def initialize(retries:, error_queue:)
-        super
+      def initialize(app, retries:, error_queue:)
+        super(app, retries: retries, error_queue: error_queue)
 
         @retries = retries
         @error_queue = error_queue
       end
 
-      def call(message, app)
+      def call(message)
         return handle_exceeded(message) if retries_exceeded?(message.metadata)
 
         app.call(message)

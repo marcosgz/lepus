@@ -37,11 +37,11 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
   let(:error_queue) { "my_queue.error" }
   let(:max_retries) { 2 }
 
-  let(:middleware) { described_class.new(retries: max_retries, error_queue: error_queue) }
+  let(:app) { proc { :result } }
+  let(:middleware) { described_class.new(app, retries: max_retries, error_queue: error_queue) }
   let(:channel) { instance_double(Bunny::Channel) }
   let(:default_exchange) { instance_double(Bunny::Exchange) }
   let(:message) { Lepus::Message.new(delivery_info, metadata, payload) }
-  let(:downstream) { proc { :downstream } }
 
   before do
     allow(delivery_info).to receive(:channel).and_return(channel)
@@ -51,7 +51,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
 
   context "when retry count is not exceeded" do
     it "returns the result of the downstream middleware" do
-      expect(middleware.call(message, downstream)).to eq(:downstream)
+      expect(middleware.call(message)).to eq(:result)
     end
   end
 
@@ -61,7 +61,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
     it "acks the message when the max retry count is exceeded" do
       allow(default_exchange).to receive(:publish)
 
-      expect(middleware.call(message, downstream)).to eq(:ack)
+      expect(middleware.call(message)).to eq(:ack)
     end
 
     it "publishes the message to the configured error exchange" do
@@ -73,7 +73,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
         routing_key: error_queue
       )
 
-      middleware.call(message, downstream)
+      middleware.call(message)
     end
 
     context "when payload is a Hash" do
@@ -86,7 +86,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
           routing_key: error_queue
         )
 
-        expect(middleware.call(message, downstream)).to eq(:ack)
+        expect(middleware.call(message)).to eq(:ack)
       end
     end
 
@@ -103,7 +103,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
         handler_called_with = nil
         Lepus.configure { |c| c.on_thread_error = proc { |e| handler_called_with = e } }
         begin
-          result = middleware.call(message, downstream)
+          result = middleware.call(message)
           expect(result).not_to eq(:ack)
           expect(handler_called_with).to eq(error)
         ensure
@@ -117,7 +117,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
     let(:metadata) { instance_double(Bunny::MessageProperties, headers: {}) }
 
     it "returns downstream result if no death headers are present" do
-      expect(middleware.call(message, downstream)).to eq(:downstream)
+      expect(middleware.call(message)).to eq(:result)
     end
   end
 
@@ -125,7 +125,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
     let(:metadata) { instance_double(Bunny::MessageProperties, headers: nil) }
 
     it "returns downstream result if no death headers are present" do
-      expect(middleware.call(message, downstream)).to eq(:downstream)
+      expect(middleware.call(message)).to eq(:result)
     end
   end
 
@@ -142,7 +142,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
     end
 
     it "passes the message downstream" do
-      expect(middleware.call(message, downstream)).to eq(:downstream)
+      expect(middleware.call(message)).to eq(:result)
     end
   end
 
@@ -159,7 +159,7 @@ RSpec.describe Lepus::Middlewares::MaxRetry do
     end
 
     it "passes the message downstream" do
-      expect(middleware.call(message, downstream)).to eq(:downstream)
+      expect(middleware.call(message)).to eq(:result)
     end
   end
 end

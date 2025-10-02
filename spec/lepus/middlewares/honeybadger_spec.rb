@@ -16,34 +16,33 @@ RSpec.describe Lepus::Middlewares::Honeybadger do
       end
     end)
   end
+  let(:app) { proc { :result } }
   let(:middleware) do
-    described_class.new(class_name: "MyConsumer")
+    described_class.new(app, class_name: "MyConsumer")
   end
   let(:message) do
     Lepus::Message.new(delivery_info, metadata, payload)
   end
 
   it "returns the result of the downstream middleware" do
-    result =
-      middleware.call(message, proc { :moep })
+    result = middleware.call(message)
 
-    expect(result).to eq(:moep)
+    expect(result).to eq(:result)
   end
 
   it "calls notify when an error is raised" do
     error = RuntimeError.new("moep")
     expect(honeybadger).to receive(:notify).with(error, context: {class_name: "MyConsumer"})
 
+    middleware = described_class.new(proc { raise error }, class_name: "MyConsumer")
+
     expect do
-      middleware.call(
-        message,
-        proc { raise error }
-      )
+      middleware.call(message)
     end.to raise_error(error)
   end
 
   context "when no class_name is provided" do
-    let(:middleware) { described_class.new }
+    let(:middleware) { described_class.new(app) }
     let(:consumer_class) { Class.new }
 
     before do
@@ -55,27 +54,25 @@ RSpec.describe Lepus::Middlewares::Honeybadger do
       error = RuntimeError.new("moep")
       expect(honeybadger).to receive(:notify).with(error, context: {class_name: "TestConsumer"})
 
+      middleware = described_class.new(proc { raise error })
+
       expect do
-        middleware.call(
-          message,
-          proc { raise error }
-        )
+        middleware.call(message)
       end.to raise_error(error)
     end
   end
 
   context "when no class_name and no consumer_class" do
-    let(:middleware) { described_class.new }
+    let(:middleware) { described_class.new(app) }
 
     it "uses empty context" do
       error = RuntimeError.new("moep")
       expect(honeybadger).to receive(:notify).with(error, context: {})
 
+      middleware = described_class.new(proc { raise error })
+
       expect do
-        middleware.call(
-          message,
-          proc { raise error }
-        )
+        middleware.call(message)
       end.to raise_error(error)
     end
   end
