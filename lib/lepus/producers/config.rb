@@ -10,7 +10,7 @@ module Lepus
       DEFAULT_POOL_SIZE = 1
       DEFAULT_POOL_TIMEOUT = 5.0
 
-      attr_accessor :pool_size, :pool_timeout
+      attr_accessor :pool_size, :pool_timeout, :exchange_namespace
 
       def_delegator :connection_pool, :with_connection
 

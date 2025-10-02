@@ -14,11 +14,18 @@ module Lepus
       persistent: true
     }.freeze
 
+    attr_reader :exchange_name, :exchange_options
+
     # @param exchange_name [String] The name of the exchange to publish messages to.
     # @param options [Hash] Additional options for the exchange (type, durable, auto_delete).
     # @return [void]
     def initialize(exchange_name, **options)
-      @exchange_name = exchange_name
+      @exchange_name = if (ns = Lepus.config.producer_config.exchange_namespace) && !ns.empty?
+        "#{ns}.#{exchange_name}"
+      else
+        exchange_name
+      end
+
       @exchange_options = DEFAULT_EXCHANGE_OPTIONS.merge(options)
     end
 
@@ -46,8 +53,6 @@ module Lepus
     end
 
     private
-
-    attr_reader :exchange_name, :exchange_options
 
     def prepare_message(message, **options)
       opts = DEFAULT_PUBLISH_OPTIONS.merge(options)

@@ -13,6 +13,10 @@ RSpec.describe Lepus::Producers::Config do
     it "has default pool_timeout" do
       expect(config.pool_timeout).to eq(5.0)
     end
+
+    it "has default exchange_namespace as nil" do
+      expect(config.exchange_namespace).to be_nil
+    end
   end
 
   describe "#assign" do
@@ -26,10 +30,16 @@ RSpec.describe Lepus::Producers::Config do
       expect(config.pool_timeout).to eq(10.0)
     end
 
+    it "assigns exchange_namespace" do
+      config.assign(exchange_namespace: "ns")
+      expect(config.exchange_namespace).to eq("ns")
+    end
+
     it "assigns multiple attributes" do
-      config.assign(pool_size: 3, pool_timeout: 7.5)
+      config.assign(pool_size: 3, pool_timeout: 7.5, exchange_namespace: "test")
       expect(config.pool_size).to eq(3)
       expect(config.pool_timeout).to eq(7.5)
+      expect(config.exchange_namespace).to eq("test")
     end
 
     it "raises error for unknown attribute" do
