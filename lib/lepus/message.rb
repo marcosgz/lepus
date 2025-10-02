@@ -3,6 +3,7 @@
 module Lepus
   class Message
     attr_reader :delivery_info, :metadata, :payload
+    attr_accessor :consumer_class
 
     def initialize(delivery_info, metadata, payload)
       @delivery_info = delivery_info
@@ -10,12 +11,14 @@ module Lepus
       @payload = payload
     end
 
-    def mutate(payload: nil, metadata: nil, delivery_info: nil)
+    def mutate(payload: nil, metadata: nil, delivery_info: nil, consumer_class: nil)
       self.class.new(
         delivery_info || @delivery_info,
         metadata || @metadata,
         payload || @payload
-      )
+      ).tap do |message|
+        message.consumer_class = consumer_class || @consumer_class
+      end
     end
 
     def to_h

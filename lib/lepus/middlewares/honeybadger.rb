@@ -15,16 +15,17 @@ module Lepus
       def call(message, app)
         app.call(message)
       rescue => err
-        ::Honeybadger.notify(err, context: context)
+        ::Honeybadger.notify(err, context: context(message))
         raise err
       end
 
       private
 
-      def context
-        return {} unless @class_name
+      def context(message)
+        return {class_name: @class_name} if @class_name
+        return {class_name: message.consumer_class.name} if message.consumer_class
 
-        {class_name: @class_name}
+        {}
       end
     end
   end

@@ -106,6 +106,18 @@ RSpec.describe Lepus::Consumer do
       instance.process_delivery(delivery_info, metadata, payload)
     end
 
+    it "sets the consumer_class on the message" do
+      received_message = nil
+      allow(instance).to receive(:perform) do |message|
+        received_message = message
+        :ack
+      end
+
+      instance.process_delivery(delivery_info, metadata, payload)
+
+      expect(received_message.consumer_class).to eq(instance.class)
+    end
+
     it "returns the result of #perform" do
       allow(instance).to receive(:perform).and_return(:ack)
 

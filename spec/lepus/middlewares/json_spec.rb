@@ -57,6 +57,19 @@ RSpec.describe Lepus::Middlewares::JSON do
       expect(received_message.metadata).to equal(metadata)
     end
 
+    it "preserves consumer_class when forwarding the message" do
+      consumer_class = Class.new
+      message.consumer_class = consumer_class
+      received_message = nil
+
+      middleware.call(message, proc { |msg, _blk|
+                                 received_message = msg
+                                 :ok
+                               })
+
+      expect(received_message.consumer_class).to equal(consumer_class)
+    end
+
     it "can optionally symbolize keys" do
       middleware =
         described_class.new(
