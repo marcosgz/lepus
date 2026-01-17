@@ -19,7 +19,6 @@ module Lepus
       def inherited(subclass)
         super
         subclass.abstract_class = false
-        subclass.instance_variable_set(:@middlewares, middlewares.dup)
       end
 
       def config
@@ -43,10 +42,10 @@ module Lepus
       def use(middleware, opts = {})
         if middleware.is_a?(Symbol) || middleware.is_a?(String)
           begin
-            require_relative "middlewares/#{middleware}"
+            require_relative "consumers/middlewares/#{middleware}"
             class_name = Primitive::String.new(middleware.to_s).classify
             class_name = "JSON" if class_name == "Json"
-            middleware = Lepus::Middlewares.const_get(class_name)
+            middleware = Lepus::Consumers::Middlewares.const_get(class_name)
           rescue LoadError, NameError
             raise ArgumentError, "Middleware #{middleware} not found"
           end
@@ -99,7 +98,6 @@ module Lepus
     # @raise [InvalidConsumerReturnError] if you return something other than +:ack+, +:reject+ or +:requeue+ from {#perform}.
     def process_delivery(delivery_info, metadata, payload)
       message = Message.new(delivery_info, metadata, payload)
-      message.consumer_class = self.class
       self
         .class
         .middlewares
@@ -110,11 +108,9 @@ module Lepus
         .call(message)
     rescue Lepus::InvalidConsumerReturnError
       raise
-    rescue Exception => _ex # rubocop:disable Lint/RescueException
-      # In testing, allow specs to observe errors instead of swallowing them
-      if defined?(Lepus::Testing) && Lepus::Testing.respond_to?(:consumer_raise_errors?) && Lepus::Testing.consumer_raise_errors?
-        raise
-      end
+    rescue Exception => ex # rubocop:disable Lint/RescueException
+      # @TODO: add error handling
+      logger.error(ex)
 
       reject!
     end

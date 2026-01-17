@@ -2,9 +2,9 @@
 
 require "spec_helper"
 
-require "lepus/middlewares/max_retry"
+require "lepus/consumers/middlewares/max_retry"
 
-RSpec.describe Lepus::Middlewares::MaxRetry do
+RSpec.describe Lepus::Consumers::Middlewares::MaxRetry do
   let(:delivery_info) { instance_double(Bunny::DeliveryInfo) }
 
   let(:metadata) do

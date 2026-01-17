@@ -24,7 +24,7 @@ loader.ignore("#{__dir__}/lepus/testing/*")
 loader.ignore("#{__dir__}/lepus/rails")
 loader.ignore("#{__dir__}/lepus/rails.rb")
 loader.ignore("#{__dir__}/lepus/cli.rb")
-loader.ignore("#{__dir__}/lepus/middlewares")
+loader.ignore("#{__dir__}/lepus/consumers/middlewares")
 loader.log! if ENV["DEBUG"]
 loader.setup
 

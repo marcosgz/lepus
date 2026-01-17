@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "lepus/middlewares/exception_logger"
+require "lepus/consumers/middlewares/exception_logger"
 
-RSpec.describe Lepus::Middlewares::ExceptionLogger do
+RSpec.describe Lepus::Consumers::Middlewares::ExceptionLogger do
   let(:delivery_info) { instance_double(Bunny::DeliveryInfo) }
   let(:metadata) { instance_double(Bunny::MessageProperties) }
   let(:payload) { "payload" }

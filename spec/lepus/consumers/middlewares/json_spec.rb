@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "lepus/middlewares/json"
+require "lepus/consumers/middlewares/json"
 
-RSpec.describe Lepus::Middlewares::JSON do
+RSpec.describe Lepus::Consumers::Middlewares::JSON do
   describe "#call" do
     let(:middleware) { described_class.new(**options) }
     let(:delivery_info) { instance_double(Bunny::DeliveryInfo) }

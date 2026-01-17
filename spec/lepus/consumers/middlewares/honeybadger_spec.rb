@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "lepus/middlewares/honeybadger"
+require "lepus/consumers/middlewares/honeybadger"
 
-RSpec.describe Lepus::Middlewares::Honeybadger do
+RSpec.describe Lepus::Consumers::Middlewares::Honeybadger do
   let(:delivery_info) { instance_double(Bunny::DeliveryInfo) }
   let(:metadata) { instance_double(Bunny::MessageProperties) }
   let(:payload) { "payload" }
