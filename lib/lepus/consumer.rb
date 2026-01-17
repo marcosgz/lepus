@@ -110,8 +110,10 @@ module Lepus
     rescue Lepus::InvalidConsumerReturnError
       raise
     rescue Exception => ex # rubocop:disable Lint/RescueException
-      # @TODO: add error handling
-      logger.error(ex)
+      # In testing mode, re-raise exceptions if consumer_raise_errors? is enabled
+      if defined?(Lepus::Testing) && Lepus::Testing.consumer_raise_errors?
+        raise
+      end
 
       reject!
     end
