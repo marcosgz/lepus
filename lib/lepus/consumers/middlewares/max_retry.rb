@@ -10,7 +10,8 @@ module Lepus
         # @param [Hash] opts The options for the middleware.
         # @option opts [Integer] :retries The number of retries before the message is sent to the error queue.
         # @option opts [String] :error_queue The name of the queue where messages should be sent to when the max retries are reached.
-        def initialize(retries:, error_queue:)
+        #   If not provided, will fallback to the consumer's configured error queue name.
+        def initialize(retries:, error_queue: nil)
           super
 
           @retries = retries
@@ -25,18 +26,39 @@ module Lepus
 
         private
 
-        attr_reader :retries, :error_queue
+        attr_reader :retries
 
         def handle_exceeded(message)
           payload = message.payload
           payload = MultiJson.dump(payload) if payload.is_a?(Hash)
           ::Bunny::Exchange.default(message.delivery_info.channel).publish(
             payload,
-            routing_key: error_queue
+            routing_key: error_queue_name(message)
           )
           :ack
+        rescue Lepus::InvalidConsumerConfigError => err
+          raise err
         rescue => err
           handle_thread_error(err)
+        end
+
+        def error_queue_name(message)
+          return @error_queue if @error_queue
+
+          default_error_queue_name(message)
+        end
+
+        def default_error_queue_name(message)
+          unless message.consumer_class&.config
+            raise Lepus::InvalidConsumerConfigError, "Error queue name is required and consumer class is not available"
+          end
+
+          config = message.consumer_class.config
+          unless config.error_queue_name
+            raise Lepus::InvalidConsumerConfigError, "Error queue name is required. Configure error_queue in consumer config or provide error_queue option to middleware"
+          end
+
+          config.error_queue_name
         end
 
         def retries_exceeded?(metadata)
