@@ -31,7 +31,7 @@ module Lepus
         def handle_exceeded(message)
           payload = message.payload
           payload = MultiJson.dump(payload) if payload.is_a?(Hash)
-          ::Bunny::Exchange.default(message.delivery_info.channel).publish(
+          ::Bunny::Exchange.default(message.channel).publish(
             payload,
             routing_key: error_queue_name(message)
           )

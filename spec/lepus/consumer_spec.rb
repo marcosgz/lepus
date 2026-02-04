@@ -7,13 +7,39 @@ RSpec.describe Lepus::Consumer do
   let(:queue) { instance_double(Bunny::Queue) }
   let(:instance) { Class.new(described_class).new }
   let(:delivery_info) do
-    instance_double(Bunny::DeliveryInfo, delivery_tag: delivery_tag)
+    instance_double(
+      Bunny::DeliveryInfo,
+      delivery_tag: delivery_tag,
+      redelivered: false,
+      exchange: "test_exchange",
+      routing_key: "test.routing.key",
+      consumer_tag: "test_consumer",
+      channel: channel
+    )
   end
   let(:delivery_tag) { 1 }
-  let(:metadata) { instance_double(Bunny::MessageProperties) }
+  let(:metadata) do
+    instance_double(
+      Bunny::MessageProperties,
+      content_type: "application/json",
+      content_encoding: "utf-8",
+      headers: {},
+      delivery_mode: 2,
+      priority: 0,
+      correlation_id: nil,
+      reply_to: nil,
+      expiration: nil,
+      message_id: "test-msg-id",
+      timestamp: nil,
+      type: nil,
+      user_id: nil,
+      app_id: nil,
+      cluster_id: nil
+    )
+  end
   let(:payload) { "my payload" }
   let(:message) do
-    Lepus::Message.new(delivery_info, metadata, payload)
+    Lepus::Message.coerce(delivery_info, metadata, payload)
   end
 
   before do

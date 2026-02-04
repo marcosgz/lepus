@@ -40,12 +40,10 @@ RSpec.describe Lepus::Consumers::Middlewares::MaxRetry do
   let(:middleware) { described_class.new(retries: max_retries, error_queue: error_queue) }
   let(:channel) { instance_double(Bunny::Channel) }
   let(:default_exchange) { instance_double(Bunny::Exchange) }
-  let(:message) { Lepus::Message.new(delivery_info, metadata, payload) }
+  let(:message) { Lepus::Message.new(delivery_info, metadata, payload, channel: channel) }
   let(:downstream) { proc { :downstream } }
 
   before do
-    allow(delivery_info).to receive(:channel).and_return(channel)
-
     allow(Bunny::Exchange).to receive(:default).and_return(default_exchange)
   end
 
