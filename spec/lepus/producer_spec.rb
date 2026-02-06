@@ -477,9 +477,9 @@ RSpec.describe Lepus::Producer do
       end
 
       it "allows middleware to add headers" do
-        require "lepus/producers/middlewares/headers"
+        require "lepus/producers/middlewares/header"
 
-        producer_with_middleware.use(:headers, defaults: {"x-custom" => "value"})
+        producer_with_middleware.use(:header, defaults: {"x-custom" => "value"})
         producer_with_middleware.publish("test")
 
         expect(mock_exchange).to have_received(:publish).with(

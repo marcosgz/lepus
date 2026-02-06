@@ -5,7 +5,7 @@ module Lepus
     module Middlewares
       # A middleware that adds default headers to messages.
       # Headers can be static values or dynamic procs.
-      class Headers < Lepus::Middleware
+      class Header < Lepus::Middleware
         # @param opts [Hash] The options for the middleware.
         # @option opts [Hash] :defaults ({}) Default headers to add.
         #   Values can be Procs that will be called with the message.

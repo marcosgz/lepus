@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "lepus/producers/middlewares/headers"
+require "lepus/producers/middlewares/header"
 
-RSpec.describe Lepus::Producers::Middlewares::Headers do
+RSpec.describe Lepus::Producers::Middlewares::Header do
   describe "#call" do
     let(:middleware) { described_class.new(**options) }
     let(:options) { {defaults: default_headers} }

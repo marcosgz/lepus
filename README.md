@@ -208,7 +208,7 @@ Producers support middlewares that can modify the message payload, headers, rout
 #### Built-in Middlewares
 
 * `:json`: Serializes Hash payloads to JSON and sets `content_type` to `application/json`.
-* `:headers`: Adds default headers to messages (static values or dynamic procs).
+* `:header`: Adds default headers to messages (static values or dynamic procs).
 * `:correlation_id`: Auto-generates a `correlation_id` (UUID) if not already set.
 * `:instrumentation`: Emits instrumentation events via `Lepus.instrument` for monitoring.
 
@@ -222,7 +222,7 @@ class OrderEventsProducer < Lepus::Producer
 
   use :json
   use :correlation_id
-  use :headers, defaults: {
+  use :header, defaults: {
     "app" => "my-service",
     "published_at" => -> { Time.now.iso8601 }
   }
