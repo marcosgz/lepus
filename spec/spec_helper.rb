@@ -25,6 +25,19 @@ RSpec.configure do |config|
 
   config.shared_context_metadata_behavior = :apply_to_host_groups
 
+  # Exclude integration tests by default (require RabbitMQ running)
+  # Run with: bundle exec rspec --tag integration
+  config.filter_run_excluding integration: true
+
+  # Include integration helper for integration tests
+  config.include IntegrationHelper, integration: true
+
+  # Clear processed messages before each integration test
+  config.before(:each, :integration) do
+    IntegrationHelper::ProcessedMessages.instance.clear!
+    IntegrationHelper::FileBasedMessageTracker.clear!
+  end
+
   def reset_config!
     Lepus.instance_variable_set(:@config, nil)
     Lepus::ProcessRegistry.reset!

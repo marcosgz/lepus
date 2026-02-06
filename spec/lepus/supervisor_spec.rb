@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe Lepus::Supervisor do
+RSpec.describe Lepus::Supervisor, :integration do
   subject(:supervisor) { described_class.new(**options) }
 
   let(:pidfile) { lepus_root.join("tmp/pids/lepus_#{SecureRandom.hex}.pid") }
