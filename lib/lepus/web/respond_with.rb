@@ -18,7 +18,7 @@ module Lepus
       }.freeze
 
       def self.json(template: nil, body: nil, status: nil, headers: {})
-        headers["Content-Type"] = "application/json"
+        headers["content-type"] = "application/json"
         body ||= TEMPLATES.dig(template, :body)
         status ||= TEMPLATES.dig(template, :status) || 200
         [status, headers, [MultiJson.dump(body)]]

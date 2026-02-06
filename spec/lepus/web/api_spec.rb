@@ -15,7 +15,7 @@ RSpec.describe Lepus::Web::API do
         status, headers, body = api.call(env)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq({"status" => "ok"})
       end
     end
@@ -26,7 +26,7 @@ RSpec.describe Lepus::Web::API do
         status, headers, body = api.call(env)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
 
         response_data = JSON.parse(body.first)
         expect(response_data).to be_an(Array)
@@ -78,7 +78,7 @@ RSpec.describe Lepus::Web::API do
         status, headers, body = api.call(env)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
 
         response_data = JSON.parse(body.first)
         expect(response_data).to be_an(Array)
@@ -140,7 +140,7 @@ RSpec.describe Lepus::Web::API do
         status, headers, body = api.call(env)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
 
         response_data = JSON.parse(body.first)
         expect(response_data).to be_an(Array)
@@ -158,7 +158,7 @@ RSpec.describe Lepus::Web::API do
         status, headers, body = api.call(env)
 
         expect(status).to eq(404)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq({"error" => "not_found"})
       end
     end
@@ -169,7 +169,7 @@ RSpec.describe Lepus::Web::API do
         status, headers, body = api.call(env)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq({"status" => "ok"})
       end
     end

@@ -9,7 +9,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(template: :not_found)
 
         expect(status).to eq(404)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq({"error" => "not_found"})
       end
 
@@ -17,7 +17,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(template: :health)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq({"status" => "ok"})
       end
 
@@ -26,7 +26,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(template: :ok, body: custom_body)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq({"data" => "test"})
       end
     end
@@ -37,7 +37,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(body: custom_body, status: 201)
 
         expect(status).to eq(201)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq({"message" => "Custom response"})
       end
 
@@ -49,7 +49,7 @@ RSpec.describe Lepus::Web::RespondWith do
         )
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(headers["X-Custom-Header"]).to eq("custom-value")
         expect(JSON.parse(body.first)).to eq({"status" => "ok"})
       end
@@ -61,18 +61,18 @@ RSpec.describe Lepus::Web::RespondWith do
           headers: custom_headers
         )
 
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(headers["X-Custom-Header"]).to eq("custom-value")
       end
 
       it "always sets Content-Type to application/json regardless of custom headers" do
-        custom_headers = {"Content-Type" => "text/plain"}
+        custom_headers = {"content-type" => "text/plain"}
         _, headers, _ = described_class.json(
           template: :health,
           headers: custom_headers
         )
 
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
       end
     end
 
@@ -82,7 +82,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(body: custom_body)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq({"data" => "test"})
       end
     end
@@ -92,7 +92,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(status: 204)
 
         expect(status).to eq(204)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to be_nil
       end
     end
@@ -102,7 +102,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to be_nil
       end
     end
@@ -112,7 +112,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(template: :unknown)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to be_nil
       end
     end
@@ -137,7 +137,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(body: complex_body)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq(complex_body)
       end
 
@@ -151,7 +151,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(body: array_body)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq(array_body)
       end
 
@@ -168,7 +168,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(body: mixed_body)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq(mixed_body)
       end
     end
@@ -183,7 +183,7 @@ RSpec.describe Lepus::Web::RespondWith do
         status, headers, body = described_class.json(body: unicode_body)
 
         expect(status).to eq(200)
-        expect(headers["Content-Type"]).to eq("application/json")
+        expect(headers["content-type"]).to eq("application/json")
         expect(JSON.parse(body.first)).to eq(unicode_body)
       end
     end
