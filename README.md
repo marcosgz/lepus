@@ -572,8 +572,6 @@ plugin :lepus
 
 **Note**: The Puma plugin is only available if you are using Puma 6.x or higher.
 
-<<<<<<< HEAD
-=======
 ## Web UI Dashboard
 
 Lepus includes a built-in web dashboard that provides a real-time view of your message processing infrastructure. The dashboard allows you to monitor processes, queues, connections, and consumer performance.
@@ -651,7 +649,6 @@ Rails.application.routes.draw do
   }
 end
 ```
->>>>>>> 6c15257 (feat: start prototyping the web interface for lepus consumers)
 
 ## Development
 
