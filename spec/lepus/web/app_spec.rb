@@ -29,7 +29,7 @@ RSpec.describe Lepus::Web::App do
       it "serves the index.html file" do
         get "/"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("text/html")
+        expect(last_response.headers["content-type"]).to eq("text/html")
         expect(last_response.body).to include("<!DOCTYPE html>")
       end
     end
@@ -38,7 +38,7 @@ RSpec.describe Lepus::Web::App do
       it "serves the index.html file" do
         get "/index.html"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("text/html")
+        expect(last_response.headers["content-type"]).to eq("text/html")
         expect(last_response.body).to include("<!DOCTYPE html>")
       end
     end
@@ -47,7 +47,7 @@ RSpec.describe Lepus::Web::App do
       it "serves CSS files with correct MIME type" do
         get "/assets/css/styles.css"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("text/css")
+        expect(last_response.headers["content-type"]).to eq("text/css")
         expect(last_response.body).to include(":root")
       end
     end
@@ -56,7 +56,7 @@ RSpec.describe Lepus::Web::App do
       it "serves JavaScript files with correct MIME type" do
         get "/assets/js/app.js"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("text/javascript")
+        expect(last_response.headers["content-type"]).to eq("text/javascript")
         expect(last_response.body).to include("Stimulus.Application.start")
       end
     end
@@ -65,7 +65,7 @@ RSpec.describe Lepus::Web::App do
       it "falls back to serving index.html" do
         get "/non-existent-file.html"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("text/html")
+        expect(last_response.headers["content-type"]).to eq("text/html")
         expect(last_response.body).to include("<!DOCTYPE html>")
       end
     end
@@ -74,7 +74,7 @@ RSpec.describe Lepus::Web::App do
       it "falls back to serving index.html" do
         get "/non-existent/directory/file.html"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("text/html")
+        expect(last_response.headers["content-type"]).to eq("text/html")
         expect(last_response.body).to include("<!DOCTYPE html>")
       end
     end
@@ -85,7 +85,7 @@ RSpec.describe Lepus::Web::App do
       it "routes to the API" do
         get "/api/health"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("application/json")
+        expect(last_response.headers["content-type"]).to eq("application/json")
         expect(JSON.parse(last_response.body)).to eq({"status" => "ok"})
       end
     end
@@ -94,7 +94,7 @@ RSpec.describe Lepus::Web::App do
       it "routes to the API" do
         get "/api/processes"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("application/json")
+        expect(last_response.headers["content-type"]).to eq("application/json")
         response_body = JSON.parse(last_response.body)
         expect(response_body).to be_an(Array)
         expect(response_body.first).to include("id", "name", "pid", "hostname", "kind")
@@ -105,7 +105,7 @@ RSpec.describe Lepus::Web::App do
       it "routes to the API" do
         get "/api/queues"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("application/json")
+        expect(last_response.headers["content-type"]).to eq("application/json")
         response_body = JSON.parse(last_response.body)
         expect(response_body).to be_an(Array)
         expect(response_body.first).to include("name", "type", "messages", "messages_ready")
@@ -116,7 +116,7 @@ RSpec.describe Lepus::Web::App do
       it "routes to the API" do
         get "/api/connections"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["Content-Type"]).to eq("application/json")
+        expect(last_response.headers["content-type"]).to eq("application/json")
         response_body = JSON.parse(last_response.body)
         expect(response_body).to be_an(Array)
         expect(response_body.first).to include("name")
@@ -127,7 +127,7 @@ RSpec.describe Lepus::Web::App do
       it "returns 404" do
         get "/api/unknown"
         expect(last_response.status).to eq(404)
-        expect(last_response.headers["Content-Type"]).to eq("application/json")
+        expect(last_response.headers["content-type"]).to eq("application/json")
         expect(JSON.parse(last_response.body)).to eq({"error" => "not_found"})
       end
     end
