@@ -117,9 +117,7 @@ module Lepus
       def error_queue_args
         return unless @error_queue_opts
 
-        name = @error_queue_opts[:name]
-        name ||= "#{queue_name}.error"
-        [name, @error_queue_opts.reject { |k, v| k == :name }]
+        [error_queue_name, @error_queue_opts.reject { |k, v| k == :name }]
       end
 
       def binds_args
@@ -147,8 +145,6 @@ module Lepus
         threads
       end
 
-      protected
-
       def queue_name
         @queue_opts[:name] || raise(InvalidConsumerConfigError, "Queue name is required")
       end
@@ -158,6 +154,14 @@ module Lepus
         name ||= "#{queue_name}.retry"
         name
       end
+
+      def error_queue_name
+        name = @error_queue_opts[:name]
+        name ||= "#{queue_name}.error"
+        name
+      end
+
+      protected
 
       # Normalizes a declaration config (for exchanges and queues) into a configuration Hash.
       #

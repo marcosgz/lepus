@@ -29,6 +29,7 @@ module Lepus
           cluster_id: nil
         }
         @payload = nil
+        @channel = nil
       end
 
       # Set the message payload
@@ -156,44 +157,20 @@ module Lepus
         self
       end
 
-      # Build the Lepus::Message with mock Bunny objects
+      # Set the channel (for middlewares that need it)
+      def with_channel(channel)
+        @channel = channel
+        self
+      end
+
+      # Build the Lepus::Message using internal data classes
       def build
         raise ArgumentError, "Payload is required" if @payload.nil?
 
-        delivery_info = create_delivery_info
-        metadata = create_metadata
+        delivery_info = Lepus::Message::DeliveryInfo.new(**@delivery_info_attrs)
+        metadata = Lepus::Message::Metadata.new(**@metadata_attrs)
 
-        Lepus::Message.new(delivery_info, metadata, @payload)
-      end
-
-      private
-
-      def create_delivery_info
-        delivery_info_attrs = @delivery_info_attrs.dup
-        delivery_info = Object.new
-
-        delivery_info_attrs.each do |attr, value|
-          delivery_info.define_singleton_method(attr) { value }
-        end
-
-        # Add to_h method for compatibility
-        delivery_info.define_singleton_method(:to_h) { delivery_info_attrs }
-
-        delivery_info
-      end
-
-      def create_metadata
-        metadata_attrs = @metadata_attrs.dup
-        metadata = Object.new
-
-        metadata_attrs.each do |attr, value|
-          metadata.define_singleton_method(attr) { value }
-        end
-
-        # Add to_h method for compatibility
-        metadata.define_singleton_method(:to_h) { metadata_attrs }
-
-        metadata
+        Lepus::Message.new(delivery_info, metadata, @payload, channel: @channel)
       end
     end
   end

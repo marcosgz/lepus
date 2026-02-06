@@ -60,11 +60,28 @@ module Lepus
         @publisher ||= Publisher.new(definition.exchange_name, **definition.exchange_options)
       end
 
+      # Returns the middleware chain for this producer.
+      # @return [Lepus::Producers::MiddlewareChain]
+      def middleware_chain
+        @middleware_chain ||= Producers::MiddlewareChain.new
+      end
+
+      # Registers a middleware to this producer's chain.
+      #
+      # @param middleware [Symbol, String, Class<Lepus::Middleware>] The middleware to register.
+      # @param opts [Hash] Options passed to the middleware constructor.
+      # @return [Lepus::Producers::MiddlewareChain]
+      def use(middleware, opts = {})
+        middleware_chain.use(middleware, opts)
+      end
+
       # Publishes a message using this producer's configuration.
-      # @param message [String, Hash] The message to publish.
+      # Executes the middleware chain (global + per-producer) before publishing.
+      #
+      # @param payload [String, Hash] The message payload to publish.
       # @param options [Hash] Additional publish options (routing_key, headers, etc.).
       # @return [void]
-      def publish(message, **options)
+      def publish(payload, **options)
         if definition.nil?
           raise InvalidProducerConfigError, <<~ERROR
             The #{name} producer is not configured.
@@ -75,7 +92,46 @@ module Lepus
         return unless Producers.enabled?(self)
 
         publish_opts = definition.publish_options.merge(options)
-        publisher.publish(message, **publish_opts)
+        message = build_message(payload, publish_opts)
+        combined_chain = MiddlewareChain.combine(
+          Lepus.config.producer_middleware_chain,
+          middleware_chain
+        )
+
+        combined_chain.execute(message) do |msg|
+          publisher.publish(msg.payload, **msg.to_publish_options)
+        end
+      end
+
+      private
+
+      def build_message(payload, options)
+        opts = options.dup
+        routing_key = opts.delete(:routing_key)
+        headers = opts.delete(:headers)
+
+        delivery_info = Message::DeliveryInfo.new(
+          exchange: definition.exchange_name,
+          routing_key: routing_key
+        )
+
+        metadata = Message::Metadata.new(
+          headers: headers,
+          content_type: opts.delete(:content_type),
+          content_encoding: opts.delete(:content_encoding),
+          correlation_id: opts.delete(:correlation_id),
+          reply_to: opts.delete(:reply_to),
+          expiration: opts.delete(:expiration),
+          message_id: opts.delete(:message_id),
+          timestamp: opts.delete(:timestamp),
+          type: opts.delete(:type),
+          app_id: opts.delete(:app_id),
+          priority: opts.delete(:priority),
+          delivery_mode: opts.delete(:delivery_mode)
+        )
+
+        # Remaining options (persistent, mandatory, etc.) are passed as publish_options
+        Message.new(delivery_info, metadata, payload, publish_options: opts)
       end
     end
 

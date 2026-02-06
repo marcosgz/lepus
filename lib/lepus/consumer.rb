@@ -19,7 +19,6 @@ module Lepus
       def inherited(subclass)
         super
         subclass.abstract_class = false
-        subclass.instance_variable_set(:@middlewares, middlewares.dup)
       end
 
       def config
@@ -30,29 +29,19 @@ module Lepus
         @config = Consumers::Config.new(queue: name, exchange: name)
       end
 
-      # List of registered middlewares. Register new middlewares with {.use}.
-      # @return [Array<Lepus::Middleware>]
-      def middlewares
-        @middlewares ||= []
+      # Returns the middleware chain for this consumer.
+      # @return [Lepus::Consumers::MiddlewareChain]
+      def middleware_chain
+        @middleware_chain ||= Consumers::MiddlewareChain.new
       end
 
-      # Registers a new middleware by instantiating +middleware+ and passing it +opts+.
+      # Registers a middleware to this consumer's chain.
       #
-      # @param [Symbol, Class<Lepus::Middleware>] middleware The middleware class to instantiate and register.
-      # @param [Hash] opts The options for instantiating the middleware.
+      # @param middleware [Symbol, String, Class<Lepus::Middleware>] The middleware to register.
+      # @param opts [Hash] Options passed to the middleware constructor.
+      # @return [Lepus::Consumers::MiddlewareChain]
       def use(middleware, opts = {})
-        if middleware.is_a?(Symbol) || middleware.is_a?(String)
-          begin
-            require_relative "middlewares/#{middleware}"
-            class_name = Primitive::String.new(middleware.to_s).classify
-            class_name = "JSON" if class_name == "Json"
-            middleware = Lepus::Middlewares.const_get(class_name)
-          rescue LoadError, NameError
-            raise ArgumentError, "Middleware #{middleware} not found"
-          end
-        end
-
-        middlewares << middleware.new(**opts)
+        middleware_chain.use(middleware, opts)
       end
 
       # Configures the consumer, setting queue, exchange and other options to be used by
@@ -98,21 +87,24 @@ module Lepus
     # @param [String] payload The payload of the received message.
     # @raise [InvalidConsumerReturnError] if you return something other than +:ack+, +:reject+ or +:requeue+ from {#perform}.
     def process_delivery(delivery_info, metadata, payload)
-      message = Message.new(delivery_info, metadata, payload)
+      message = Message.coerce(delivery_info, metadata, payload)
       message.consumer_class = self.class
-      self
-        .class
-        .middlewares
-        .reverse
-        .reduce(work_proc) do |next_middleware, middleware|
-          nest_middleware(middleware, next_middleware)
+
+      combined_chain = MiddlewareChain.combine(
+        Lepus.config.consumer_middleware_chain,
+        self.class.middleware_chain
+      )
+
+      combined_chain.execute(message) do |msg|
+        perform(msg).tap do |result|
+          verify_result(result)
         end
-        .call(message)
+      end
     rescue Lepus::InvalidConsumerReturnError
       raise
-    rescue Exception => _ex # rubocop:disable Lint/RescueException
-      # In testing, allow specs to observe errors instead of swallowing them
-      if defined?(Lepus::Testing) && Lepus::Testing.respond_to?(:consumer_raise_errors?) && Lepus::Testing.consumer_raise_errors?
+    rescue Exception # rubocop:disable Lint/RescueException
+      # In testing mode, re-raise exceptions if consumer_raise_errors? is enabled
+      if defined?(Lepus::Testing) && Lepus::Testing.consumer_raise_errors?
         raise
       end
 
@@ -179,20 +171,6 @@ module Lepus
         Lepus::Publisher.new(target_exchange, **opts).channel_publish(channel, message, **opts)
       else
         Lepus::Publisher.new(target_exchange, **opts).publish(message, **opts)
-      end
-    end
-
-    def work_proc
-      ->(message) do
-        perform(message).tap do |result|
-          verify_result(result)
-        end
-      end
-    end
-
-    def nest_middleware(middleware, next_middleware)
-      ->(message) do
-        middleware.call(message, next_middleware)
       end
     end
 

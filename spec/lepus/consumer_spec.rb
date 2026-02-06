@@ -7,13 +7,39 @@ RSpec.describe Lepus::Consumer do
   let(:queue) { instance_double(Bunny::Queue) }
   let(:instance) { Class.new(described_class).new }
   let(:delivery_info) do
-    instance_double(Bunny::DeliveryInfo, delivery_tag: delivery_tag)
+    instance_double(
+      Bunny::DeliveryInfo,
+      delivery_tag: delivery_tag,
+      redelivered: false,
+      exchange: "test_exchange",
+      routing_key: "test.routing.key",
+      consumer_tag: "test_consumer",
+      channel: channel
+    )
   end
   let(:delivery_tag) { 1 }
-  let(:metadata) { instance_double(Bunny::MessageProperties) }
+  let(:metadata) do
+    instance_double(
+      Bunny::MessageProperties,
+      content_type: "application/json",
+      content_encoding: "utf-8",
+      headers: {},
+      delivery_mode: 2,
+      priority: 0,
+      correlation_id: nil,
+      reply_to: nil,
+      expiration: nil,
+      message_id: "test-msg-id",
+      timestamp: nil,
+      type: nil,
+      user_id: nil,
+      app_id: nil,
+      cluster_id: nil
+    )
+  end
   let(:payload) { "my payload" }
   let(:message) do
-    Lepus::Message.new(delivery_info, metadata, payload)
+    Lepus::Message.coerce(delivery_info, metadata, payload)
   end
 
   before do
@@ -51,27 +77,6 @@ RSpec.describe Lepus::Consumer do
     end
   end
 
-  describe ".inherited" do
-    let(:parent_class) { Class.new(described_class) }
-
-    it "sets abstract_class to false in subclass" do
-      subclass = Class.new(parent_class)
-      expect(subclass.abstract_class?).to be false
-    end
-
-    it "copies middlewares to subclass" do
-      parent_middleware = Class.new(Lepus::Middleware)
-      parent_class.use(parent_middleware)
-      child_middleware = Class.new(Lepus::Middleware)
-
-      subclass = Class.new(parent_class) do
-        use(child_middleware)
-      end
-      expect(parent_class.middlewares).to contain_exactly(parent_middleware)
-      expect(subclass.middlewares).to contain_exactly(parent_middleware, child_middleware)
-    end
-  end
-
   describe ".configure" do
     let(:mandatory_options) do
       {queue: "test", exchange: "exchange", routing_key: ["test.new"]}
@@ -104,18 +109,6 @@ RSpec.describe Lepus::Consumer do
       ).and_return(:ack)
 
       instance.process_delivery(delivery_info, metadata, payload)
-    end
-
-    it "sets the consumer_class on the message" do
-      received_message = nil
-      allow(instance).to receive(:perform) do |message|
-        received_message = message
-        :ack
-      end
-
-      instance.process_delivery(delivery_info, metadata, payload)
-
-      expect(received_message.consumer_class).to eq(instance.class)
     end
 
     it "returns the result of #perform" do

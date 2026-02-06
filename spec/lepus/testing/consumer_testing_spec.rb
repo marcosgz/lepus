@@ -190,7 +190,7 @@ RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
   end
 
   describe "middlewares integration" do
-    context "with Lepus::Middlewares::JSON" do
+    context "with Lepus::Consumers::Middlewares::JSON" do
       before do
         stub_const("JsonTestConsumer", Class.new(TestConsumer) do
           use(:json)
@@ -203,7 +203,7 @@ RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
         end)
       end
 
-      it "can test consumer with Lepus::Middlewares::JSON" do
+      it "can test consumer with Lepus::Consumers::Middlewares::JSON" do
         message = described_class.message_builder
           .with_payload({action: "create"})
           .build
@@ -213,7 +213,7 @@ RSpec.describe Lepus::Testing do # rubocop:disable RSpec/SpecFilePathFormat
       end
     end
 
-    context "with Lepus::Middlewares::ExceptionLogger" do
+    context "with Lepus::Consumers::Middlewares::ExceptionLogger" do
       before do
         stub_const("MyLogger", Logger.new(StringIO.new))
 

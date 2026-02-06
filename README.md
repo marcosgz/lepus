@@ -201,6 +201,81 @@ end
 # Publishing is automatically restored to disabled state
 ```
 
+### Producer Middlewares
+
+Producers support middlewares that can modify the message payload, headers, routing key, and other publish options before messages are sent to RabbitMQ. Middlewares are executed in the order they are registered.
+
+#### Built-in Middlewares
+
+* `:json`: Serializes Hash payloads to JSON and sets `content_type` to `application/json`.
+* `:header`: Adds default headers to messages (static values or dynamic procs).
+* `:correlation_id`: Auto-generates a `correlation_id` (UUID) if not already set.
+* `:instrumentation`: Emits instrumentation events via `Lepus.instrument` for monitoring.
+
+#### Per-Producer Middlewares
+
+Use the `use` method to add middlewares to a specific producer:
+
+```ruby
+class OrderEventsProducer < Lepus::Producer
+  configure(exchange: "order_events")
+
+  use :json
+  use :correlation_id
+  use :header, defaults: {
+    "app" => "my-service",
+    "published_at" => -> { Time.now.iso8601 }
+  }
+end
+
+# Messages will be serialized to JSON, have a correlation_id,
+# and include the default headers
+OrderEventsProducer.publish({ order_id: 123, status: "created" })
+```
+
+#### Global Producer Middlewares
+
+You can configure middlewares that apply to all producers:
+
+```ruby
+Lepus.configure do |config|
+  config.producer_middlewares do |chain|
+    chain.use :instrumentation
+    chain.use :correlation_id
+  end
+end
+```
+
+Global middlewares are executed before per-producer middlewares.
+
+#### Custom Producer Middlewares
+
+Create custom middlewares by extending `Lepus::Middleware` (same interface as consumer middlewares):
+
+```ruby
+class TimestampMiddleware < Lepus::Middleware
+  def call(message, app)
+    # Add a timestamp header
+    current_headers = message.metadata.headers || {}
+    new_headers = current_headers.merge("published_at" => Time.now.iso8601)
+
+    new_metadata = Lepus::Message::Metadata.new(
+      **message.metadata.to_h,
+      headers: new_headers
+    )
+
+    # Pass the modified message to the next middleware
+    app.call(message.mutate(metadata: new_metadata))
+  end
+end
+
+class MyProducer < Lepus::Producer
+  configure(exchange: "my_exchange")
+
+  use TimestampMiddleware
+end
+```
+
 ### Configuration > Consumer Worker
 
 You can configure the consumer process using the `worker` method. The default worker is named `:default`, but you can define more workers with different names for different consumers.
@@ -349,6 +424,21 @@ end
 ```
 
 > Important: If you are not using an external error-reporting middleware like Honeybadger or Airbrake, make sure to add `:exception_logger` to all consumers. The worker execution flow rescues exceptions to keep the process alive; without a logging middleware, exceptions may be swallowed and go unnoticed. `:exception_logger` ensures the error message is written to your logs.
+
+#### Global Consumer Middlewares
+
+You can configure middlewares that apply to all consumers:
+
+```ruby
+Lepus.configure do |config|
+  config.consumer_middlewares do |chain|
+    chain.use :exception_logger
+    chain.use :json, symbolize_keys: true
+  end
+end
+```
+
+Global middlewares are executed before per-consumer middlewares. This is useful for common cross-cutting concerns like logging or JSON parsing that you want applied consistently across all consumers.
 
 You can also create your own middlewares, just create subclasses of `Lepus::Middleware` and implement the `call` method:
 

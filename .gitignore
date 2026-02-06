@@ -12,3 +12,4 @@
 *.gem
 /app/consumers/
 /web/test/
+/*.md
