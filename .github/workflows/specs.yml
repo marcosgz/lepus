@@ -20,17 +20,6 @@ jobs:
     name: ${{ matrix.ruby-version }}-${{ matrix.gemfile }}
     env:
       BUNDLE_GEMFILE: ${{ matrix.gemfile }}
-    services:
-      rabbitmq:
-        image: rabbitmq:3-management
-        options: >-
-          --health-cmd "rabbitmq-diagnostics ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5672:5672
-          - 15672:15672
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -41,8 +30,6 @@ jobs:
         run: bundle install --jobs 4 --retry 3
       - name: Run tests
         run: bundle exec rspec
-        env:
-          RABBITMQ_URL: amqp://localhost:5672
 
   ruby-3-0:
     runs-on: ubuntu-latest
@@ -59,17 +46,6 @@ jobs:
     name: ${{ matrix.ruby-version }}-${{ matrix.gemfile }}
     env:
       BUNDLE_GEMFILE: ${{ matrix.gemfile }}
-    services:
-      rabbitmq:
-        image: rabbitmq:3-management
-        options: >-
-          --health-cmd "rabbitmq-diagnostics ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5672:5672
-          - 15672:15672
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -80,8 +56,6 @@ jobs:
         run: bundle install --jobs 4 --retry 3
       - name: Run tests
         run: bundle exec rspec
-        env:
-          RABBITMQ_URL: amqp://localhost:5672
 
   ruby-3-2:
     runs-on: ubuntu-latest
@@ -99,6 +73,22 @@ jobs:
     name: ${{ matrix.ruby-version }}-${{ matrix.gemfile }}
     env:
       BUNDLE_GEMFILE: ${{ matrix.gemfile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          bundler-cache: true
+      - name: Install dependencies
+        run: bundle install --jobs 4 --retry 3
+      - name: Run tests
+        run: bundle exec rspec
+
+  integration:
+    runs-on: ubuntu-latest
+    name: integration-tests
+    env:
+      BUNDLE_GEMFILE: gemfiles/Gemfile.rails-8.0
     services:
       rabbitmq:
         image: rabbitmq:3-management
@@ -114,11 +104,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: ${{ matrix.ruby-version }}
+          ruby-version: "3.4"
           bundler-cache: true
       - name: Install dependencies
         run: bundle install --jobs 4 --retry 3
-      - name: Run tests
-        run: bundle exec rspec
+      - name: Run integration tests
+        run: bundle exec rspec --tag integration
         env:
           RABBITMQ_URL: amqp://localhost:5672
