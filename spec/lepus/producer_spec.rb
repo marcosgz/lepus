@@ -371,4 +371,159 @@ RSpec.describe Lepus::Producer do
       end
     end
   end
+
+  describe "middleware integration" do
+    let(:mock_connection) { instance_double(Bunny::Session) }
+    let(:mock_channel) { instance_double(Bunny::Channel) }
+    let(:mock_exchange) { instance_double(Bunny::Exchange) }
+
+    before do
+      Lepus::Producers::Hooks.reset!
+
+      allow(Lepus.config.producer_config).to receive(:with_connection).and_yield(mock_connection)
+      allow(mock_connection).to receive(:with_channel).and_yield(mock_channel)
+      allow(mock_channel).to receive(:exchange).and_return(mock_exchange)
+      allow(mock_exchange).to receive(:publish)
+    end
+
+    after do
+      Lepus::Producers::Hooks.reset!
+      # Reset global middleware chain
+      Lepus.config.instance_variable_set(:@producer_middleware_chain, nil)
+    end
+
+    describe ".middleware_chain" do
+      it "returns a MiddlewareChain instance" do
+        expect(producer_class.middleware_chain).to be_a(Lepus::Producers::MiddlewareChain)
+      end
+
+      it "memoizes the chain" do
+        chain1 = producer_class.middleware_chain
+        chain2 = producer_class.middleware_chain
+        expect(chain1).to be(chain2)
+      end
+    end
+
+    describe ".use" do
+      it "adds middleware to the chain" do
+        middleware = Class.new(Lepus::Middleware) do
+          def call(message, app)
+            app.call(message)
+          end
+        end
+
+        producer_class.use(middleware)
+
+        expect(producer_class.middleware_chain.middlewares.size).to eq(1)
+      end
+
+      it "returns the middleware chain for chaining" do
+        middleware = Class.new(Lepus::Middleware) do
+          def call(message, app)
+            app.call(message)
+          end
+        end
+
+        result = producer_class.use(middleware)
+
+        expect(result).to be(producer_class.middleware_chain)
+      end
+    end
+
+    describe ".publish with middlewares" do
+      let(:producer_with_middleware) do
+        Class.new(described_class) do
+          configure exchange: "middleware_test"
+        end
+      end
+
+      before do
+        stub_const("ProducerWithMiddleware", producer_with_middleware)
+        Lepus::Producers.enable!(producer_with_middleware)
+      end
+
+      it "executes per-producer middlewares" do
+        middleware_called = false
+
+        middleware = Class.new(Lepus::Middleware) do
+          define_method(:call) do |message, app|
+            middleware_called = true
+            app.call(message)
+          end
+        end
+
+        producer_with_middleware.use(middleware)
+        producer_with_middleware.publish("test")
+
+        expect(middleware_called).to be true
+      end
+
+      it "allows middleware to modify the payload" do
+        require "lepus/producers/middlewares/json"
+
+        modifier = Class.new(Lepus::Middleware) do
+          def call(message, app)
+            app.call(message.mutate(payload: "modified"))
+          end
+        end
+
+        producer_with_middleware.use(modifier)
+        producer_with_middleware.publish("original")
+
+        expect(mock_exchange).to have_received(:publish).with(
+          "modified",
+          hash_including(content_type: "text/plain")
+        )
+      end
+
+      it "allows middleware to add headers" do
+        require "lepus/producers/middlewares/headers"
+
+        producer_with_middleware.use(:headers, defaults: {"x-custom" => "value"})
+        producer_with_middleware.publish("test")
+
+        expect(mock_exchange).to have_received(:publish).with(
+          "test",
+          hash_including(headers: {"x-custom" => "value"})
+        )
+      end
+
+      it "executes global middlewares before per-producer middlewares" do
+        order = []
+
+        global_middleware = Class.new(Lepus::Middleware) do
+          define_method(:call) do |message, app|
+            order << :global
+            app.call(message)
+          end
+        end
+
+        local_middleware = Class.new(Lepus::Middleware) do
+          define_method(:call) do |message, app|
+            order << :local
+            app.call(message)
+          end
+        end
+
+        Lepus.config.producer_middlewares { |chain| chain.use(global_middleware) }
+        producer_with_middleware.use(local_middleware)
+        producer_with_middleware.publish("test")
+
+        expect(order).to eq([:global, :local])
+      end
+
+      it "middleware can short-circuit publishing" do
+        blocker = Class.new(Lepus::Middleware) do
+          def call(message, app)
+            :blocked
+          end
+        end
+
+        producer_with_middleware.use(blocker)
+        producer_with_middleware.publish("test")
+
+        expect(mock_exchange).not_to have_received(:publish)
+      end
+    end
+  end
 end

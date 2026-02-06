@@ -187,4 +187,112 @@ RSpec.describe Lepus::Configuration do
       expect(Lepus.logger).to be(logger)
     end
   end
+
+  describe "#producer_middleware_chain" do
+    it "returns a MiddlewareChain instance" do
+      expect(configuration.producer_middleware_chain).to be_a(Lepus::Producers::MiddlewareChain)
+    end
+
+    it "returns the same instance on subsequent calls" do
+      chain1 = configuration.producer_middleware_chain
+      chain2 = configuration.producer_middleware_chain
+      expect(chain1).to be(chain2)
+    end
+
+    it "starts with an empty chain" do
+      expect(configuration.producer_middleware_chain.empty?).to be true
+    end
+  end
+
+  describe "#producer_middlewares" do
+    after do
+      configuration.instance_variable_set(:@producer_middleware_chain, nil)
+    end
+
+    it "yields the middleware chain to a block" do
+      yielded = nil
+      configuration.producer_middlewares do |chain|
+        yielded = chain
+      end
+
+      expect(yielded).to be(configuration.producer_middleware_chain)
+    end
+
+    it "returns the middleware chain" do
+      result = configuration.producer_middlewares {}
+      expect(result).to be(configuration.producer_middleware_chain)
+    end
+
+    it "allows adding middlewares via the block" do
+      middleware = Class.new(Lepus::Middleware) do
+        def call(message, app)
+          app.call(message)
+        end
+      end
+
+      configuration.producer_middlewares do |chain|
+        chain.use(middleware)
+      end
+
+      expect(configuration.producer_middleware_chain.size).to eq(1)
+    end
+
+    it "works without a block" do
+      expect(configuration.producer_middlewares).to be(configuration.producer_middleware_chain)
+    end
+  end
+
+  describe "#consumer_middleware_chain" do
+    it "returns a MiddlewareChain instance" do
+      expect(configuration.consumer_middleware_chain).to be_a(Lepus::Consumers::MiddlewareChain)
+    end
+
+    it "returns the same instance on subsequent calls" do
+      chain1 = configuration.consumer_middleware_chain
+      chain2 = configuration.consumer_middleware_chain
+      expect(chain1).to be(chain2)
+    end
+
+    it "starts with an empty chain" do
+      expect(configuration.consumer_middleware_chain.empty?).to be true
+    end
+  end
+
+  describe "#consumer_middlewares" do
+    after do
+      configuration.instance_variable_set(:@consumer_middleware_chain, nil)
+    end
+
+    it "yields the middleware chain to a block" do
+      yielded = nil
+      configuration.consumer_middlewares do |chain|
+        yielded = chain
+      end
+
+      expect(yielded).to be(configuration.consumer_middleware_chain)
+    end
+
+    it "returns the middleware chain" do
+      result = configuration.consumer_middlewares {}
+      expect(result).to be(configuration.consumer_middleware_chain)
+    end
+
+    it "allows adding middlewares via the block" do
+      middleware = Class.new(Lepus::Middleware) do
+        def call(message, app)
+          app.call(message)
+        end
+      end
+
+      configuration.consumer_middlewares do |chain|
+        chain.use(middleware)
+      end
+
+      expect(configuration.consumer_middleware_chain.size).to eq(1)
+    end
+
+    it "works without a block" do
+      expect(configuration.consumer_middlewares).to be(configuration.consumer_middleware_chain)
+    end
+  end
 end

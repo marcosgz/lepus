@@ -96,6 +96,34 @@ module Lepus
       @producer_config ||= Lepus::Producers::Config.new
     end
 
+    # @return [Lepus::Producers::MiddlewareChain] the global producer middleware chain
+    def producer_middleware_chain
+      @producer_middleware_chain ||= Lepus::Producers::MiddlewareChain.new
+    end
+
+    # Configure global producer middlewares.
+    # @yield [chain] Block to configure the middleware chain.
+    # @yieldparam chain [Lepus::Producers::MiddlewareChain] The middleware chain.
+    # @return [Lepus::Producers::MiddlewareChain]
+    def producer_middlewares
+      yield(producer_middleware_chain) if block_given?
+      producer_middleware_chain
+    end
+
+    # @return [Lepus::Consumers::MiddlewareChain] the global consumer middleware chain
+    def consumer_middleware_chain
+      @consumer_middleware_chain ||= Lepus::Consumers::MiddlewareChain.new
+    end
+
+    # Configure global consumer middlewares.
+    # @yield [chain] Block to configure the middleware chain.
+    # @yieldparam chain [Lepus::Consumers::MiddlewareChain] The middleware chain.
+    # @return [Lepus::Consumers::MiddlewareChain]
+    def consumer_middlewares
+      yield(consumer_middleware_chain) if block_given?
+      consumer_middleware_chain
+    end
+
     # @param value [Logger] the logger to set
     # @return [void]
     def logger=(value)
