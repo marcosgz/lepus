@@ -39,3 +39,7 @@ RSpec/AnyInstance:
 
 RSpec/SubjectStub:
   Enabled: false
+
+RSpec/DescribeClass:
+  Exclude:
+    - "spec/integration/**/*"

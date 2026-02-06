@@ -33,7 +33,7 @@ RSpec.configure do |config|
   config.include IntegrationHelper, integration: true
 
   # Clear processed messages before each integration test
-  config.before(:each, integration: true) do
+  config.before(:each, :integration) do
     IntegrationHelper::ProcessedMessages.instance.clear!
     IntegrationHelper::FileBasedMessageTracker.clear!
   end

@@ -24,16 +24,18 @@ RSpec.describe "Worker Process Integration", :integration do
       end
     end
 
+    let(:worker_state) { {handle: nil} }
+
     before { cleanup_rabbitmq_for(forked_consumer) }
 
     after do
-      stop_worker_fork(@handle) if @handle
+      stop_worker_fork(worker_state[:handle]) if worker_state[:handle]
       cleanup_rabbitmq_for(forked_consumer)
       IntegrationHelper::FileBasedMessageTracker.clear!
     end
 
     it "processes messages in a forked worker process" do
-      @handle = start_worker_as_fork(forked_consumer)
+      worker_state[:handle] = start_worker_as_fork(forked_consumer)
 
       publisher = Lepus::Publisher.new("test_forked_worker")
       publisher.publish({action: "test"}, routing_key: "test.event")
@@ -46,7 +48,7 @@ RSpec.describe "Worker Process Integration", :integration do
     end
 
     it "processes multiple messages in forked worker" do
-      @handle = start_worker_as_fork(forked_consumer)
+      worker_state[:handle] = start_worker_as_fork(forked_consumer)
 
       publisher = Lepus::Publisher.new("test_forked_worker")
       publisher.publish({event: 1}, routing_key: "test.first")
@@ -60,7 +62,7 @@ RSpec.describe "Worker Process Integration", :integration do
     end
 
     it "handles worker shutdown gracefully" do
-      @handle = start_worker_as_fork(forked_consumer)
+      worker_state[:handle] = start_worker_as_fork(forked_consumer)
 
       # Publish a message
       publisher = Lepus::Publisher.new("test_forked_worker")
@@ -69,8 +71,8 @@ RSpec.describe "Worker Process Integration", :integration do
       expect(IntegrationHelper::FileBasedMessageTracker.wait_for(1, timeout: 10)).to be true
 
       # Stop the worker
-      stop_worker_fork(@handle)
-      @handle = nil
+      stop_worker_fork(worker_state[:handle])
+      worker_state[:handle] = nil
 
       messages = IntegrationHelper::FileBasedMessageTracker.read_all
       expect(messages.size).to eq(1)

@@ -112,14 +112,30 @@ module IntegrationHelper
     config = consumer_class.config
     with_rabbitmq_connection do |conn|
       ch = conn.create_channel
-      ch.queue_delete(config.queue_name) rescue Bunny::NotFound
+      begin
+        ch.queue_delete(config.queue_name)
+      rescue
+        Bunny::NotFound
+      end
       if config.retry_queue_args
-        ch.queue_delete(config.retry_queue_name) rescue Bunny::NotFound
+        begin
+          ch.queue_delete(config.retry_queue_name)
+        rescue
+          Bunny::NotFound
+        end
       end
       if config.error_queue_args
-        ch.queue_delete(config.error_queue_name) rescue Bunny::NotFound
+        begin
+          ch.queue_delete(config.error_queue_name)
+        rescue
+          Bunny::NotFound
+        end
       end
-      ch.exchange_delete(config.exchange_name) rescue Bunny::NotFound
+      begin
+        ch.exchange_delete(config.exchange_name)
+      rescue
+        Bunny::NotFound
+      end
     end
   end
 
@@ -216,8 +232,16 @@ module IntegrationHelper
     rescue Errno::ESRCH, Errno::ECHILD
       # Process already gone
     rescue Timeout::Error
-      Process.kill(:KILL, @pid) rescue nil
-      Process.waitpid(@pid) rescue nil
+      begin
+        Process.kill(:KILL, @pid)
+      rescue
+        nil
+      end
+      begin
+        Process.waitpid(@pid)
+      rescue
+        nil
+      end
     end
   end
 
