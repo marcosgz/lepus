@@ -7,7 +7,7 @@ module Lepus
     class DeliveryInfo
       KNOWN_ATTRIBUTES = %i[delivery_tag redelivered exchange routing_key consumer_tag].freeze
 
-      attr_reader *KNOWN_ATTRIBUTES
+      attr_reader(*KNOWN_ATTRIBUTES)
 
       def self.from_bunny(bunny_delivery_info)
         new(

@@ -6,7 +6,6 @@ module Lepus
     # Middlewares can modify the message (payload, headers, routing_key, etc.)
     # before it is published to RabbitMQ.
     class MiddlewareChain < Lepus::MiddlewareChain
-
       private
 
       def load_middleware(name, opts)

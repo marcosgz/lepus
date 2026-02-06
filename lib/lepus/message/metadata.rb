@@ -11,7 +11,7 @@ module Lepus
         type user_id app_id cluster_id
       ].freeze
 
-      attr_reader *KNOWN_ATTRIBUTES
+      attr_reader(*KNOWN_ATTRIBUTES)
 
       def self.from_bunny(bunny_metadata)
         new(

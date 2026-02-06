@@ -164,22 +164,21 @@ RSpec.describe Lepus::Consumers::Middlewares::MaxRetry do
   describe "error queue fallback" do
     let(:max_retries) { 1 }
     let(:middleware) { described_class.new(retries: max_retries) }
+    let(:consumer_class) do
+      Class.new(Lepus::Consumer) do
+        configure(
+          queue: "my_queue",
+          exchange: "my_exchange",
+          error_queue: "my_queue.error"
+        )
+      end
+    end
+
+    before do
+      message.consumer_class = consumer_class
+    end
 
     context "when error_queue is not provided but consumer has error_queue configured" do
-      let(:consumer_class) do
-        Class.new(Lepus::Consumer) do
-          configure(
-            queue: "my_queue",
-            exchange: "my_exchange",
-            error_queue: "my_queue.error"
-          )
-        end
-      end
-
-      before do
-        message.consumer_class = consumer_class
-      end
-
       it "uses the consumer's configured error queue name" do
         expect(Bunny::Exchange).to receive(:default).with(channel).and_return(default_exchange)
         expect(default_exchange).to receive(:publish).with(
@@ -189,49 +188,49 @@ RSpec.describe Lepus::Consumers::Middlewares::MaxRetry do
 
         expect(middleware.call(message, downstream)).to eq(:ack)
       end
+    end
 
-      context "when error_queue is configured as a hash with name" do
-        let(:consumer_class) do
-          Class.new(Lepus::Consumer) do
-            configure(
-              queue: "my_queue",
-              exchange: "my_exchange",
-              error_queue: {name: "custom_error_queue"}
-            )
-          end
-        end
-
-        it "uses the configured error queue name from hash" do
-          expect(Bunny::Exchange).to receive(:default).with(channel).and_return(default_exchange)
-          expect(default_exchange).to receive(:publish).with(
-            payload,
-            routing_key: "custom_error_queue"
+    context "when error_queue is configured as a hash with name" do
+      let(:consumer_class) do
+        Class.new(Lepus::Consumer) do
+          configure(
+            queue: "my_queue",
+            exchange: "my_exchange",
+            error_queue: {name: "custom_error_queue"}
           )
-
-          expect(middleware.call(message, downstream)).to eq(:ack)
         end
       end
 
-      context "when error_queue is configured as true (default name)" do
-        let(:consumer_class) do
-          Class.new(Lepus::Consumer) do
-            configure(
-              queue: "my_queue",
-              exchange: "my_exchange",
-              error_queue: true
-            )
-          end
-        end
+      it "uses the configured error queue name from hash" do
+        expect(Bunny::Exchange).to receive(:default).with(channel).and_return(default_exchange)
+        expect(default_exchange).to receive(:publish).with(
+          payload,
+          routing_key: "custom_error_queue"
+        )
 
-        it "uses the default error queue name (queue_name.error)" do
-          expect(Bunny::Exchange).to receive(:default).with(channel).and_return(default_exchange)
-          expect(default_exchange).to receive(:publish).with(
-            payload,
-            routing_key: "my_queue.error"
+        expect(middleware.call(message, downstream)).to eq(:ack)
+      end
+    end
+
+    context "when error_queue is configured as true (default name)" do
+      let(:consumer_class) do
+        Class.new(Lepus::Consumer) do
+          configure(
+            queue: "my_queue",
+            exchange: "my_exchange",
+            error_queue: true
           )
-
-          expect(middleware.call(message, downstream)).to eq(:ack)
         end
+      end
+
+      it "uses the default error queue name (queue_name.error)" do
+        expect(Bunny::Exchange).to receive(:default).with(channel).and_return(default_exchange)
+        expect(default_exchange).to receive(:publish).with(
+          payload,
+          routing_key: "my_queue.error"
+        )
+
+        expect(middleware.call(message, downstream)).to eq(:ack)
       end
     end
 
@@ -272,31 +271,32 @@ RSpec.describe Lepus::Consumers::Middlewares::MaxRetry do
 
         expect(middleware.call(message, downstream)).to eq(:ack)
       end
+    end
 
-      context "even when consumer has error_queue configured" do
-        let(:consumer_class) do
-          Class.new(Lepus::Consumer) do
-            configure(
-              queue: "my_queue",
-              exchange: "my_exchange",
-              error_queue: "consumer_error_queue"
-            )
-          end
-        end
-
-        before do
-          message.consumer_class = consumer_class
-        end
-
-        it "prefers the explicitly provided error queue name" do
-          expect(Bunny::Exchange).to receive(:default).with(channel).and_return(default_exchange)
-          expect(default_exchange).to receive(:publish).with(
-            payload,
-            routing_key: "explicit_error_queue"
+    context "when error_queue is explicitly provided even when consumer has error_queue configured" do
+      let(:consumer_class) do
+        Class.new(Lepus::Consumer) do
+          configure(
+            queue: "my_queue",
+            exchange: "my_exchange",
+            error_queue: "consumer_error_queue"
           )
-
-          expect(middleware.call(message, downstream)).to eq(:ack)
         end
+      end
+      let(:middleware) { described_class.new(retries: max_retries, error_queue: "explicit_error_queue") }
+
+      before do
+        message.consumer_class = consumer_class
+      end
+
+      it "prefers the explicitly provided error queue name" do
+        expect(Bunny::Exchange).to receive(:default).with(channel).and_return(default_exchange)
+        expect(default_exchange).to receive(:publish).with(
+          payload,
+          routing_key: "explicit_error_queue"
+        )
+
+        expect(middleware.call(message, downstream)).to eq(:ack)
       end
     end
   end
