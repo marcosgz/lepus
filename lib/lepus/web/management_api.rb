@@ -14,9 +14,10 @@ module Lepus
       attr_reader :base_url, :username, :password, :vhost
 
       def initialize(base_url: nil, username: nil, password: nil, vhost: "/")
-        @base_url = base_url || derive_management_url
-        @username = username || "guest"
-        @password = password || "guest"
+        uri = parse_rabbitmq_uri
+        @base_url = base_url || derive_management_url(uri)
+        @username = username || uri&.user || "guest"
+        @password = password || uri&.password || "guest"
         @vhost = vhost
       end
 
@@ -55,12 +56,17 @@ module Lepus
 
       private
 
-      def derive_management_url
-        rabbitmq_url = Lepus.config.rabbitmq_url
-        uri = URI.parse(rabbitmq_url)
-        "http://#{uri.host}:#{DEFAULT_PORT}"
+      def parse_rabbitmq_uri
+        URI.parse(Lepus.config.rabbitmq_url)
       rescue
-        "http://localhost:#{DEFAULT_PORT}"
+        nil
+      end
+
+      def derive_management_url(uri = nil)
+        uri ||= parse_rabbitmq_uri
+        return "http://localhost:#{DEFAULT_PORT}" unless uri
+
+        "http://#{uri.host}:#{DEFAULT_PORT}"
       end
 
       def encode_vhost

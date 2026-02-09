@@ -49,10 +49,10 @@ module Lepus
     # @return [String, nil] the RabbitMQ Management API URL.
     attr_accessor :management_api_url
 
-    # @return [String] the username for RabbitMQ Management API. Default is "guest".
+    # @return [String, nil] the username for RabbitMQ Management API. Derived from rabbitmq_url if nil.
     attr_accessor :management_api_username
 
-    # @return [String] the password for RabbitMQ Management API. Default is "guest".
+    # @return [String, nil] the password for RabbitMQ Management API. Derived from rabbitmq_url if nil.
     attr_accessor :management_api_password
 
     def initialize
@@ -67,8 +67,8 @@ module Lepus
       @process_registry_backend = :file
       @application_name = nil
       @management_api_url = nil
-      @management_api_username = "guest"
-      @management_api_password = "guest"
+      @management_api_username = nil
+      @management_api_password = nil
     end
 
     # Builds the process registry backend based on configuration.
