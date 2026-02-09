@@ -6,8 +6,45 @@ require "pathname"
 
 module Lepus
   module Web
+    class << self
+      attr_accessor :aggregator
+      attr_accessor :management_api
+    end
+
     def self.assets_path
       @assets_path ||= Pathname.new(File.expand_path("../../", __dir__)).join("web")
+    end
+
+    def self.start_aggregator
+      return if aggregator&.running?
+
+      self.aggregator = Aggregator.new
+      aggregator.start
+    end
+
+    def self.stop_aggregator
+      aggregator&.stop
+      self.aggregator = nil
+    end
+
+    def self.start_management_api
+      self.management_api = Lepus.config.build_management_api
+    end
+
+    def self.stop_management_api
+      self.management_api = nil
+    end
+
+    # Start all web services (aggregator and management API)
+    def self.start
+      start_aggregator
+      start_management_api
+    end
+
+    # Stop all web services
+    def self.stop
+      stop_aggregator
+      stop_management_api
     end
 
     def self.mime_for(path)

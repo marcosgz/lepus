@@ -3,23 +3,69 @@
 module Lepus
   module Web
     class API
+      def initialize(aggregator: nil, management_api: nil)
+        @aggregator = aggregator
+        @management_api = management_api
+      end
+
       def call(env)
         req = Rack::Request.new(env)
         case req.path_info
         when "/health"
           Web::RespondWith.json(template: :health)
         when "/processes"
-          demo_processes
+          processes_data
         when "/queues"
-          demo_queues
+          queues_data
         when "/connections"
-          demo_connections
+          connections_data
         else
           Web::RespondWith.json(template: :not_found)
         end
       end
 
       private
+
+      def aggregator
+        @aggregator || Web.aggregator
+      end
+
+      def management_api
+        @management_api || Web.management_api
+      end
+
+      def processes_data
+        if aggregator&.running?
+          payload = aggregator.all_processes
+          Web::RespondWith.json(template: :ok, body: payload)
+        else
+          demo_processes
+        end
+      end
+
+      def queues_data
+        if management_api
+          payload = management_api.queues
+          Web::RespondWith.json(template: :ok, body: payload)
+        else
+          demo_queues
+        end
+      rescue => e
+        Lepus.logger.warn("[Web::API] Failed to fetch queues: #{e.message}")
+        demo_queues
+      end
+
+      def connections_data
+        if management_api
+          payload = management_api.connections
+          Web::RespondWith.json(template: :ok, body: payload)
+        else
+          demo_connections
+        end
+      rescue => e
+        Lepus.logger.warn("[Web::API] Failed to fetch connections: #{e.message}")
+        demo_connections
+      end
 
       def demo_processes
         now = (Time.now.to_f * 1000).to_i

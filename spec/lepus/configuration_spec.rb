@@ -295,4 +295,91 @@ RSpec.describe Lepus::Configuration do
       expect(configuration.consumer_middlewares).to be(configuration.consumer_middleware_chain)
     end
   end
+
+  describe "#process_registry_backend" do
+    it "defaults to :file" do
+      expect(configuration.process_registry_backend).to eq(:file)
+    end
+
+    it "can be set to :rabbitmq" do
+      configuration.process_registry_backend = :rabbitmq
+      expect(configuration.process_registry_backend).to eq(:rabbitmq)
+    end
+  end
+
+  describe "#application_name" do
+    it "defaults to nil" do
+      expect(configuration.application_name).to be_nil
+    end
+
+    it "can be set" do
+      configuration.application_name = "MyApp"
+      expect(configuration.application_name).to eq("MyApp")
+    end
+  end
+
+  describe "#build_process_registry_backend" do
+    it "returns FileBackend when backend is :file" do
+      configuration.process_registry_backend = :file
+      expect(configuration.build_process_registry_backend).to be_a(Lepus::ProcessRegistry::FileBackend)
+    end
+
+    it "returns RabbitmqBackend when backend is :rabbitmq" do
+      configuration.process_registry_backend = :rabbitmq
+      expect(configuration.build_process_registry_backend).to be_a(Lepus::ProcessRegistry::RabbitmqBackend)
+    end
+
+    it "defaults to FileBackend for unknown values" do
+      configuration.process_registry_backend = :unknown
+      expect(configuration.build_process_registry_backend).to be_a(Lepus::ProcessRegistry::FileBackend)
+    end
+  end
+
+  describe "#management_api_url" do
+    it "defaults to nil" do
+      expect(configuration.management_api_url).to be_nil
+    end
+
+    it "can be set" do
+      configuration.management_api_url = "http://localhost:15672"
+      expect(configuration.management_api_url).to eq("http://localhost:15672")
+    end
+  end
+
+  describe "#management_api_username" do
+    it "defaults to guest" do
+      expect(configuration.management_api_username).to eq("guest")
+    end
+
+    it "can be set" do
+      configuration.management_api_username = "admin"
+      expect(configuration.management_api_username).to eq("admin")
+    end
+  end
+
+  describe "#management_api_password" do
+    it "defaults to guest" do
+      expect(configuration.management_api_password).to eq("guest")
+    end
+
+    it "can be set" do
+      configuration.management_api_password = "secret"
+      expect(configuration.management_api_password).to eq("secret")
+    end
+  end
+
+  describe "#build_management_api" do
+    it "builds a ManagementAPI with configured values" do
+      configuration.management_api_url = "http://custom:15673"
+      configuration.management_api_username = "admin"
+      configuration.management_api_password = "secret"
+
+      api = configuration.build_management_api
+
+      expect(api).to be_a(Lepus::Web::ManagementAPI)
+      expect(api.base_url).to eq("http://custom:15673")
+      expect(api.username).to eq("admin")
+      expect(api.password).to eq("secret")
+    end
+  end
 end
