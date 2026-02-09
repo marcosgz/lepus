@@ -47,8 +47,11 @@ module Lepus
       end
 
       class Error < StandardError; end
+
       class ConnectionError < Error; end
+
       class AuthenticationError < Error; end
+
       class NotFoundError < Error; end
 
       private

@@ -123,7 +123,9 @@ module Lepus
       end
 
       def rabbitmq_available?
-        Lepus.config.rabbitmq_url.present? rescue true
+        Lepus.config.rabbitmq_url.present?
+      rescue
+        true
       end
     end
   end

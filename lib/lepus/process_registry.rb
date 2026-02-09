@@ -10,9 +10,7 @@ module Lepus
         @backend ||= Lepus.config.build_process_registry_backend
       end
 
-      def backend=(value)
-        @backend = value
-      end
+      attr_writer :backend
 
       def reset_backend!
         @backend = nil

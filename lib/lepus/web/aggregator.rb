@@ -43,7 +43,7 @@ module Lepus
         @mutex.synchronize do
           @running.make_false
           @pruning_task&.shutdown
-          @consumer&.cancel if @consumer
+          @consumer&.cancel
           @channel&.close if @channel&.open?
           @connection&.close if @connection&.open?
         end
