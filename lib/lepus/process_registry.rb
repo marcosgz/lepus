@@ -1,24 +1,29 @@
 # frozen_string_literal: true
 
-require "pathname"
-require "tmpdir"
-require "base64"
-
 module Lepus
-  # we are storing the process registry in a file using Marshal serialization
-  # but the plan is to move to a Rabbitmq or Redis based implementation in the future
-  # to let it available to outside services like the web dashboard.
-  # I'll refactor this class later when we have a better idea of the requirements.
+  # Process registry that delegates to a configurable backend.
+  # Default backend is FileBackend for local file-based storage.
+  # Use RabbitmqBackend to share process data across apps via web dashboard.
   class ProcessRegistry
     class << self
-      attr_reader :path
+      def backend
+        @backend ||= Lepus.config.build_process_registry_backend
+      end
+
+      def backend=(value)
+        @backend = value
+      end
+
+      def reset_backend!
+        @backend = nil
+      end
 
       def start
-        @path ||= Pathname.new(Dir.tmpdir).join("lepus_process_registry.store")
+        backend.start
       end
 
       def stop
-        path.delete if path&.exist?
+        backend.stop
       end
 
       def reset!
@@ -27,82 +32,40 @@ module Lepus
       end
 
       def add(process)
-        transaction do |data|
-          data[process.id] = process.to_h
-        end
+        backend.add(process)
       end
-      alias_method :update, :add
+
+      def update(process)
+        backend.update(process)
+      end
 
       def delete(process)
-        transaction do |data|
-          data.delete(process.id)
-        end
+        backend.delete(process)
       end
 
       def find(id)
-        raw = read.fetch(id) { raise(Lepus::Process::NotFoundError.new(id)) }
-        Lepus::Process.coerce(raw)
+        backend.find(id)
       end
 
       def exists?(id)
-        read.key?(id)
+        backend.exists?(id)
       end
 
       def all
-        read.keys.map { |id| find(id) }
+        backend.all
       end
 
       def count
-        return 0 unless path
-
-        read.size
+        backend.count
       end
 
       def clear
-        return unless path
-
-        write({})
+        backend.clear
       end
 
-      private
-
-      def transaction
-        data = read
-        yield data
-        write(data)
-      end
-
-      def read
-        with_lock(File::LOCK_SH) do |f|
-          if f.size.zero?
-            {}
-          else
-            encoded = f.read
-            Marshal.load(Base64.strict_decode64(encoded))
-          end
-        end
-      end
-
-      def write(data)
-        with_lock(File::LOCK_EX) do |f|
-          f.rewind
-          f.truncate(0)
-          encoded = Base64.strict_encode64(Marshal.dump(data))
-          f.write(encoded)
-          f.flush
-        end
-      end
-
-      def with_lock(lock_type)
-        unless path
-          raise "ProcessRegistry not started. Call Lepus::ProcessRegistry.start first."
-        end
-        File.open(path, File::RDWR | File::CREAT | File::BINARY, 0o644) do |f|
-          f.flock(lock_type)
-          result = yield f
-          f.flock(File::LOCK_UN)
-          result
-        end
+      # For backward compatibility with tests that check @path
+      def path
+        backend.respond_to?(:path) ? backend.path : nil
       end
     end
   end
