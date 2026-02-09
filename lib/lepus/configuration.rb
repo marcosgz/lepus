@@ -49,12 +49,6 @@ module Lepus
     # @return [String, nil] the RabbitMQ Management API URL.
     attr_accessor :management_api_url
 
-    # @return [String, nil] the username for RabbitMQ Management API. Derived from rabbitmq_url if nil.
-    attr_accessor :management_api_username
-
-    # @return [String, nil] the password for RabbitMQ Management API. Derived from rabbitmq_url if nil.
-    attr_accessor :management_api_password
-
     def initialize
       @connection_name = "Lepus (#{Lepus::VERSION})"
       @rabbitmq_url = ENV.fetch("RABBITMQ_URL", DEFAULT_RABBITMQ_URL) || DEFAULT_RABBITMQ_URL
@@ -67,8 +61,6 @@ module Lepus
       @process_registry_backend = :file
       @application_name = nil
       @management_api_url = nil
-      @management_api_username = nil
-      @management_api_password = nil
     end
 
     # Builds the process registry backend based on configuration.
@@ -85,11 +77,7 @@ module Lepus
     # Builds the Management API client based on configuration.
     # @return [Lepus::Web::ManagementAPI] the management API client
     def build_management_api
-      Web::ManagementAPI.new(
-        base_url: management_api_url,
-        username: management_api_username,
-        password: management_api_password
-      )
+      Web::ManagementAPI.new(base_url: management_api_url)
     end
 
     # @param suffix [String] the suffix to add to the connection name

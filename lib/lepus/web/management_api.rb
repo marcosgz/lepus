@@ -11,13 +11,10 @@ module Lepus
     class ManagementAPI
       DEFAULT_PORT = 15672
 
-      attr_reader :base_url, :username, :password, :vhost
+      attr_reader :base_url, :vhost
 
-      def initialize(base_url: nil, username: nil, password: nil, vhost: "/")
-        uri = parse_rabbitmq_uri
-        @base_url = base_url || derive_management_url(uri)
-        @username = username || uri&.user || "guest"
-        @password = password || uri&.password || "guest"
+      def initialize(base_url: nil, vhost: "/")
+        @base_url = base_url || derive_management_url
         @vhost = vhost
       end
 
@@ -62,11 +59,18 @@ module Lepus
         nil
       end
 
-      def derive_management_url(uri = nil)
-        uri ||= parse_rabbitmq_uri
+      def derive_management_url
+        uri = parse_rabbitmq_uri
         return "http://localhost:#{DEFAULT_PORT}" unless uri
 
         "http://#{uri.host}:#{DEFAULT_PORT}"
+      end
+
+      def credentials
+        uri = parse_rabbitmq_uri
+        return unless uri&.user
+
+        [uri.user, uri.password]
       end
 
       def encode_vhost
@@ -86,7 +90,9 @@ module Lepus
         http.read_timeout = 10
 
         request = Net::HTTP::Get.new(uri.request_uri)
-        request.basic_auth(@username, @password)
+        if (creds = credentials)
+          request.basic_auth(*creds)
+        end
         request["Accept"] = "application/json"
 
         response = http.request(request)

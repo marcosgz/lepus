@@ -7,16 +7,10 @@ RSpec.describe Lepus::Web::ManagementAPI do
   subject(:api) { described_class.new(base_url: "http://localhost:15672") }
 
   describe "#initialize" do
-    it "uses provided values" do
-      api = described_class.new(
-        base_url: "http://custom:15673",
-        username: "admin",
-        password: "secret"
-      )
+    it "uses provided base_url" do
+      api = described_class.new(base_url: "http://custom:15673")
 
       expect(api.base_url).to eq("http://custom:15673")
-      expect(api.username).to eq("admin")
-      expect(api.password).to eq("secret")
     end
 
     it "derives management URL from rabbitmq_url" do

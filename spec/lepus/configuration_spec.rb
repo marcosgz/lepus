@@ -346,40 +346,14 @@ RSpec.describe Lepus::Configuration do
     end
   end
 
-  describe "#management_api_username" do
-    it "defaults to nil (derived from rabbitmq_url)" do
-      expect(configuration.management_api_username).to be_nil
-    end
-
-    it "can be set" do
-      configuration.management_api_username = "admin"
-      expect(configuration.management_api_username).to eq("admin")
-    end
-  end
-
-  describe "#management_api_password" do
-    it "defaults to nil (derived from rabbitmq_url)" do
-      expect(configuration.management_api_password).to be_nil
-    end
-
-    it "can be set" do
-      configuration.management_api_password = "secret"
-      expect(configuration.management_api_password).to eq("secret")
-    end
-  end
-
   describe "#build_management_api" do
     it "builds a ManagementAPI with configured values" do
       configuration.management_api_url = "http://custom:15673"
-      configuration.management_api_username = "admin"
-      configuration.management_api_password = "secret"
 
       api = configuration.build_management_api
 
       expect(api).to be_a(Lepus::Web::ManagementAPI)
       expect(api.base_url).to eq("http://custom:15673")
-      expect(api.username).to eq("admin")
-      expect(api.password).to eq("secret")
     end
   end
 end
