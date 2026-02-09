@@ -347,8 +347,8 @@ RSpec.describe Lepus::Configuration do
   end
 
   describe "#management_api_username" do
-    it "defaults to guest" do
-      expect(configuration.management_api_username).to eq("guest")
+    it "defaults to nil (derived from rabbitmq_url)" do
+      expect(configuration.management_api_username).to be_nil
     end
 
     it "can be set" do
@@ -358,8 +358,8 @@ RSpec.describe Lepus::Configuration do
   end
 
   describe "#management_api_password" do
-    it "defaults to guest" do
-      expect(configuration.management_api_password).to eq("guest")
+    it "defaults to nil (derived from rabbitmq_url)" do
+      expect(configuration.management_api_password).to be_nil
     end
 
     it "can be set" do
