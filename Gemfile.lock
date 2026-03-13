@@ -21,9 +21,13 @@ GEM
       sorted_set (~> 1, >= 1.0.2)
     coderay (1.1.3)
     concurrent-ruby (1.3.5)
+    connection_pool (3.0.2)
     crack (1.0.0)
       bigdecimal
       rexml
+    de-dupe (0.0.2)
+      redis
+      zeitwerk
     diff-lcs (1.5.1)
     docile (1.4.1)
     dotenv (2.8.1)
@@ -44,6 +48,10 @@ GEM
     racc (1.8.1)
     rainbow (3.1.1)
     rbtree (0.4.6)
+    redis (5.4.1)
+      redis-client (>= 0.22.0)
+    redis-client (0.27.0)
+      connection_pool
     regexp_parser (2.9.2)
     rexml (3.3.9)
     rspec (3.13.0)
@@ -113,6 +121,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  de-dupe
   dotenv
   lepus!
   pry

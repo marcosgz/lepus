@@ -455,6 +455,77 @@ class MyMiddleware < Lepus::Middleware
 end
 ```
 
+### Unique Middleware (Experimental)
+
+> **Note:** This feature is experimental and may change in future versions.
+
+The unique middleware prevents duplicate messages from being published using Redis-based distributed locking via the [de-dupe](https://github.com/marcosgz/de-dupe) gem. It works as a pair: the **producer middleware acquires a lock** before publishing, and the **consumer middleware releases the lock** after successful processing (`:ack`).
+
+Multiple producers can share the same lock namespace. For example, `StoryCreatedProducer` and `StoryUpdatedProducer` can both use `lock_key: "story"` to prevent duplicate processing of the same story.
+
+#### Setup
+
+Add the `de-dupe` gem to your Gemfile:
+
+```ruby
+gem 'de-dupe'
+```
+
+Configure DeDupe with Redis, then require the middleware:
+
+```ruby
+# In an initializer or application setup:
+DeDupe.configure do |config|
+  config.redis = Redis.new(url: ENV["REDIS_URL"])
+end
+
+require "lepus/unique"
+```
+
+The `require "lepus/unique"` call will raise an error if `de-dupe` is not installed or DeDupe is not configured with Redis.
+
+#### Producer Usage
+
+```ruby
+class StoryCreatedProducer < Lepus::Producer
+  configure(exchange: "story_created")
+  use :json
+  use :unique, lock_key: "story", lock_id: ->(msg) { msg.payload[:story_id].to_s }
+end
+
+class StoryUpdatedProducer < Lepus::Producer
+  configure(exchange: "story_updated")
+  use :json
+  use :unique, lock_key: "story", lock_id: ->(msg) { msg.payload[:story_id].to_s }
+end
+```
+
+Options:
+- `lock_key` (required): Shared lock namespace (e.g., `"story"`).
+- `lock_id` (required): A `Proc` that extracts a unique identifier from the message. If it returns `nil`, deduplication is skipped.
+- `ttl` (optional): Lock TTL in seconds. Defaults to the DeDupe global configuration.
+
+When a duplicate is detected (lock already held), the publish is **silently skipped**.
+
+#### Consumer Usage
+
+Register the `:unique` middleware on your consumer. It reads lock information from message headers set by the producer:
+
+```ruby
+class StoryConsumer < Lepus::Consumer
+  configure(queue: "stories", exchange: "story_created")
+  use :json, symbolize_keys: true
+  use :unique
+
+  def perform(message)
+    process_story(message.payload)
+    ack!
+  end
+end
+```
+
+The lock is **only released when the consumer returns `:ack`**. On `:reject`, `:requeue`, or `:nack`, the lock remains held so that retries are still deduplicated.
+
 ## Starting the Consumer Process
 
 To start the consumer, can use the `lepus` CLI:

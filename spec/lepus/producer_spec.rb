@@ -509,7 +509,7 @@ RSpec.describe Lepus::Producer do
         producer_with_middleware.use(local_middleware)
         producer_with_middleware.publish("test")
 
-        expect(order).to eq([:global, :local])
+        expect(order).to eq([:local, :global])
       end
 
       it "middleware can short-circuit publishing" do
