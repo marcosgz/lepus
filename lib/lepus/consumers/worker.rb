@@ -8,6 +8,7 @@ module Lepus
       include Processes::Runnable
 
       extend Forwardable
+
       def_delegators :definer, :name, :consumers
 
       attr_reader :definer
