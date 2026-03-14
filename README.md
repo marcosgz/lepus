@@ -490,7 +490,7 @@ The `require "lepus/unique"` call will raise an error if `de-dupe` is not instal
 class StoryCreatedProducer < Lepus::Producer
   configure(exchange: "story_created")
   use :json
-  use :unique, lock_key: "story", lock_id: ->(msg) { msg.payload[:story_id].to_s }
+  use :unique, lock_key: "story", lock_id: ->(msg) { msg.payload[:story_id].to_s }, ttl: 3600
 end
 
 class StoryUpdatedProducer < Lepus::Producer
@@ -503,13 +503,13 @@ end
 Options:
 - `lock_key` (required): Shared lock namespace (e.g., `"story"`).
 - `lock_id` (required): A `Proc` that extracts a unique identifier from the message. If it returns `nil`, deduplication is skipped.
-- `ttl` (optional): Lock TTL in seconds. Defaults to the DeDupe global configuration.
+- `ttl` (optional): Lock TTL in seconds. Defaults to the DeDupe global configuration. The TTL is passed to the consumer via message headers (`x-dedupe-lock-ttl`), so the consumer uses the same TTL when releasing the lock.
 
 When a duplicate is detected (lock already held), the publish is **silently skipped**.
 
 #### Consumer Usage
 
-Register the `:unique` middleware on your consumer. It reads lock information from message headers set by the producer:
+Register the `:unique` middleware on your consumer. It reads lock information from message headers set by the producer (`x-dedupe-lock-key`, `x-dedupe-lock-id`, and optionally `x-dedupe-lock-ttl`):
 
 ```ruby
 class StoryConsumer < Lepus::Consumer

@@ -160,6 +160,18 @@ RSpec.describe Lepus::Producers::Middlewares::Unique do
 
         expect(lock_instance.ttl).to eq(3600)
       end
+
+      it "adds x-dedupe-lock-ttl header" do
+        message = build_message
+        result_headers = nil
+
+        middleware.call(message, proc { |msg|
+          result_headers = msg.metadata.headers
+          :ok
+        })
+
+        expect(result_headers).to include("x-dedupe-lock-ttl" => 3600)
+      end
     end
 
     it "preserves existing headers" do

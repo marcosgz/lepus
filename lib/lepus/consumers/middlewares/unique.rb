@@ -23,6 +23,7 @@ module Lepus
       class Unique < Lepus::Middleware
         HEADER_LOCK_KEY = "x-dedupe-lock-key"
         HEADER_LOCK_ID = "x-dedupe-lock-id"
+        HEADER_LOCK_TTL = "x-dedupe-lock-ttl"
 
         def initialize(**)
           super
@@ -48,7 +49,9 @@ module Lepus
           lock_id = headers[HEADER_LOCK_ID]
           return unless lock_key && lock_id
 
-          lock = DeDupe::Lock.new(lock_key: lock_key, lock_id: lock_id)
+          lock_opts = {}
+          lock_opts[:ttl] = headers[HEADER_LOCK_TTL] if headers[HEADER_LOCK_TTL]
+          lock = DeDupe::Lock.new(lock_key: lock_key, lock_id: lock_id, **lock_opts)
           lock.release
         end
       end

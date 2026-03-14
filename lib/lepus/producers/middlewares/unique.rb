@@ -18,6 +18,7 @@ module Lepus
       class Unique < Lepus::Middleware
         HEADER_LOCK_KEY = "x-dedupe-lock-key"
         HEADER_LOCK_ID = "x-dedupe-lock-id"
+        HEADER_LOCK_TTL = "x-dedupe-lock-ttl"
 
         # @param lock_key [String] Shared lock namespace (e.g., "story").
         # @param lock_id [Proc] Callable that extracts a unique ID from the message.
@@ -50,6 +51,7 @@ module Lepus
             HEADER_LOCK_KEY => @lock_key,
             HEADER_LOCK_ID => lock_id.to_s
           )
+          new_headers[HEADER_LOCK_TTL] = @ttl if @ttl
 
           new_metadata = update_metadata(message.metadata, headers: new_headers)
           message.mutate(metadata: new_metadata)

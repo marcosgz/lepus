@@ -7,11 +7,12 @@ RSpec.describe Lepus::Consumers::Middlewares::Unique do
   describe "#call" do
     let(:lock_class) do
       stub_const("DeDupe::Lock", Class.new do
-        attr_reader :lock_key, :lock_id
+        attr_reader :lock_key, :lock_id, :ttl
 
         def initialize(lock_key:, lock_id:, **opts)
           @lock_key = lock_key
           @lock_id = lock_id
+          @ttl = opts[:ttl]
         end
 
         def release
@@ -31,11 +32,13 @@ RSpec.describe Lepus::Consumers::Middlewares::Unique do
       Lepus::Message.new(delivery_info, metadata, "test payload")
     end
 
-    def dedupe_headers(lock_key: "story", lock_id: "123")
-      {
+    def dedupe_headers(lock_key: "story", lock_id: "123", ttl: nil)
+      headers = {
         "x-dedupe-lock-key" => lock_key,
         "x-dedupe-lock-id" => lock_id
       }
+      headers["x-dedupe-lock-ttl"] = ttl if ttl
+      headers
     end
 
     before { lock_class }
@@ -150,6 +153,20 @@ RSpec.describe Lepus::Consumers::Middlewares::Unique do
       })
 
       expect(downstream_message).to eq(message)
+    end
+
+    context "when ttl header is present" do
+      it "passes ttl to DeDupe::Lock on release" do
+        message = build_message(headers: dedupe_headers(ttl: 3600))
+
+        expect(lock_class).to receive(:new).with(
+          lock_key: "story",
+          lock_id: "123",
+          ttl: 3600
+        ).and_call_original
+
+        middleware.call(message, proc { |_| :ack })
+      end
     end
   end
 end
