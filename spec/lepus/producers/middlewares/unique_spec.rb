@@ -50,7 +50,10 @@ RSpec.describe Lepus::Producers::Middlewares::Unique do
     let(:lock_id_proc) { ->(msg) { msg.payload[:story_id]&.to_s } }
     let(:middleware_opts) { {} }
 
-    def build_message(payload = {story_id: 123}, routing_key: "story.created", headers: nil)
+    def build_message(payload = nil, opts = {})
+      payload ||= {story_id: 123}
+      routing_key = opts.fetch(:routing_key, "story.created")
+      headers = opts[:headers]
       delivery_info = Lepus::Message::DeliveryInfo.new(
         exchange: "test_exchange",
         routing_key: routing_key
@@ -160,7 +163,7 @@ RSpec.describe Lepus::Producers::Middlewares::Unique do
     end
 
     it "preserves existing headers" do
-      message = build_message(headers: {"x-custom" => "value"})
+      message = build_message(nil, headers: {"x-custom" => "value"})
       result_headers = nil
 
       middleware.call(message, proc { |msg|
@@ -198,7 +201,8 @@ RSpec.describe Lepus::Producers::Middlewares::Unique do
     end
 
     it "creates lock with correct lock_key and lock_id" do
-      message = build_message({story_id: 456})
+      payload = {story_id: 456}
+      message = build_message(payload)
 
       expect(lock_class).to receive(:new).with(
         lock_key: "story",
