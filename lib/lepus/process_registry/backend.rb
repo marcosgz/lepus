@@ -17,8 +17,8 @@ module Lepus
         raise NotImplementedError, "#{self.class}#add must be implemented"
       end
 
-      def update(process)
-        add(process)
+      def update(process, metrics: {})
+        add(process, metrics: metrics)
       end
 
       def delete(process)

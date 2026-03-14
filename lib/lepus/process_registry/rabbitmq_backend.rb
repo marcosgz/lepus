@@ -31,9 +31,9 @@ module Lepus
         close_channel
       end
 
-      def add(process)
+      def add(process, metrics: {})
         @fallback.add(process)
-        publish_heartbeat(process)
+        publish_heartbeat(process, metrics: metrics)
       end
 
       def delete(process)

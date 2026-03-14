@@ -27,6 +27,17 @@ module Lepus
         data.map { |q| normalize_queue(q) }
       end
 
+      # Fetch all exchanges for the configured vhost
+      # @return [Array<Hash>] array of exchange data
+      def exchanges
+        data = get("/api/exchanges/#{encode_vhost}")
+        return [] unless data.is_a?(Array)
+
+        data
+          .reject { |e| e["name"].to_s.empty? || e["name"].to_s.start_with?("amq.") }
+          .map { |e| normalize_exchange(e) }
+      end
+
       # Fetch all connections
       # @return [Array<Hash>] array of connection data
       def connections
@@ -131,12 +142,35 @@ module Lepus
         return {} unless stats
 
         {
+          publish: stats["publish"] || 0,
+          publish_rate: stats.dig("publish_details", "rate") || 0.0,
           deliver_get: stats["deliver_get"] || 0,
           deliver_get_rate: stats.dig("deliver_get_details", "rate") || 0.0,
           ack: stats["ack"] || 0,
           ack_rate: stats.dig("ack_details", "rate") || 0.0,
           redeliver: stats["redeliver"] || 0,
           redeliver_rate: stats.dig("redeliver_details", "rate") || 0.0
+        }
+      end
+
+      def normalize_exchange(e)
+        {
+          name: e["name"],
+          type: e["type"],
+          durable: e["durable"],
+          auto_delete: e["auto_delete"],
+          message_stats: normalize_exchange_stats(e["message_stats"])
+        }
+      end
+
+      def normalize_exchange_stats(stats)
+        return {} unless stats
+
+        {
+          publish_in: stats["publish_in"] || 0,
+          publish_in_rate: stats.dig("publish_in_details", "rate") || 0.0,
+          publish_out: stats["publish_out"] || 0,
+          publish_out_rate: stats.dig("publish_out_details", "rate") || 0.0
         }
       end
 

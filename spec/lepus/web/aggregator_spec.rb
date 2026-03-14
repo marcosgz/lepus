@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "lepus/web"
 
 RSpec.describe Lepus::Web::Aggregator do
   subject(:aggregator) { described_class.new(stale_threshold: 60) }
@@ -50,15 +51,29 @@ RSpec.describe Lepus::Web::Aggregator do
       expect(aggregator.all_processes).to eq([])
     end
 
-    it "returns processes after heartbeat" do
+    it "returns processes after heartbeat with flattened metrics" do
       aggregator.send(:process_heartbeat, {
         process: {id: "test-1", name: "worker1"},
-        metrics: {rss_memory: 100}
+        metrics: {rss_memory: 100_000, connections: 2, consumers: [{class_name: "TestConsumer"}]}
       })
 
       processes = aggregator.all_processes
       expect(processes.size).to eq(1)
       expect(processes.first[:id]).to eq("test-1")
+      expect(processes.first[:rss_memory]).to eq(100_000)
+      expect(processes.first[:connections]).to eq(2)
+      expect(processes.first[:consumers]).to eq([{class_name: "TestConsumer"}])
+    end
+
+    it "defaults metrics to zero/empty when not provided" do
+      aggregator.send(:process_heartbeat, {
+        process: {id: "test-2", name: "worker2"}
+      })
+
+      process = aggregator.all_processes.first
+      expect(process[:rss_memory]).to eq(0)
+      expect(process[:connections]).to eq(0)
+      expect(process[:consumers]).to eq([])
     end
   end
 

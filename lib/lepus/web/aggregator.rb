@@ -114,8 +114,16 @@ module Lepus
         process_data = data[:process]
         return unless process_data && process_data[:id]
 
+        metrics = data[:metrics] || {}
+
+        flat_process = process_data.merge(
+          rss_memory: metrics[:rss_memory] || 0,
+          connections: metrics[:connections] || 0,
+          consumers: metrics[:consumers] || []
+        )
+
         @processes[process_data[:id]] = {
-          process: process_data.merge(metrics: data[:metrics] || {}),
+          process: flat_process,
           received_at: Time.now
         }
       end

@@ -74,12 +74,12 @@ module Lepus
       Processes::MEMORY_GRABBER.call(pid)
     end
 
-    def heartbeat
+    def heartbeat(metrics: {})
       now = Time.now
       Lepus.instrument :heartbeat_process, process: self, rss_memory: 0, last_heartbeat_at: now do |payload|
         ProcessRegistry.find(id) # ensure process is still registered
 
-        update_attributes(last_heartbeat_at: now)
+        update_attributes(last_heartbeat_at: now, metrics: metrics)
         payload[:rss_memory] = rss_memory
       rescue Exception => error # rubocop:disable Lint/RescueException
         payload[:error] = error
@@ -87,9 +87,9 @@ module Lepus
       end
     end
 
-    def update_attributes(new_attributes)
+    def update_attributes(metrics: {}, **new_attributes)
       @attributes = @attributes.merge(new_attributes)
-      ProcessRegistry.update(self)
+      ProcessRegistry.update(self, metrics: metrics)
     end
 
     def destroy!

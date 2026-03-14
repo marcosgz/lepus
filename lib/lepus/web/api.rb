@@ -19,6 +19,8 @@ module Lepus
           queues_data
         when "/connections"
           connections_data
+        when "/exchanges"
+          exchanges_data
         else
           Web::RespondWith.json(template: :not_found)
         end
@@ -39,20 +41,21 @@ module Lepus
           payload = aggregator.all_processes
           Web::RespondWith.json(template: :ok, body: payload)
         else
-          demo_processes
+          Web::RespondWith.json(template: :ok, body: [])
         end
       end
 
       def queues_data
         if management_api
-          payload = management_api.queues
+          raw_queues = management_api.queues
+          payload = annotate_queues_with_apps(raw_queues)
           Web::RespondWith.json(template: :ok, body: payload)
         else
-          demo_queues
+          Web::RespondWith.json(template: :ok, body: [])
         end
       rescue => e
         Lepus.logger.warn("[Web::API] Failed to fetch queues: #{e.message}")
-        demo_queues
+        Web::RespondWith.json(template: :ok, body: [])
       end
 
       def connections_data
@@ -60,141 +63,69 @@ module Lepus
           payload = management_api.connections
           Web::RespondWith.json(template: :ok, body: payload)
         else
-          demo_connections
+          Web::RespondWith.json(template: :ok, body: [])
         end
       rescue => e
         Lepus.logger.warn("[Web::API] Failed to fetch connections: #{e.message}")
-        demo_connections
+        Web::RespondWith.json(template: :ok, body: [])
       end
 
-      def demo_processes
-        now = (Time.now.to_f * 1000).to_i
-        payload = [
-          {
-            id: 1,
-            name: "Supervisor A",
-            pid: 1001,
-            hostname: Socket.gethostname,
-            kind: "supervisor",
-            last_heartbeat_at: now,
-            rss_memory: 120_000_000,
-            heap_memory: 85_000_000,
-            application: "OrdersApp"
-          },
-          {
-            id: 2,
-            name: "Worker A1",
-            pid: 1002,
-            hostname: Socket.gethostname,
-            kind: "worker",
-            supervisor_id: 1,
-            last_heartbeat_at: now,
-            rss_memory: 80_000_000,
-            heap_memory: 55_000_000,
-            connections: 2,
-            consumers: [
-              {
-                class_name: "OrdersConsumer",
-                exchange: "orders.exchange",
-                queue: "orders.main",
-                route: "order.created",
-                threads: 3,
-                processed: 1250,
-                rejected: 12,
-                errored: 3
-              },
-              {
-                class_name: "NotificationsConsumer",
-                exchange: "notifications.exchange",
-                queue: "notifications.main",
-                route: nil,
-                threads: 2,
-                processed: 890,
-                rejected: 5,
-                errored: 1
-              }
-            ]
-          },
-          {
-            id: 3,
-            name: "Worker A2",
-            pid: 1003,
-            hostname: Socket.gethostname,
-            kind: "worker",
-            supervisor_id: 1,
-            last_heartbeat_at: now - 65_000,
-            rss_memory: 90_000_000,
-            heap_memory: 62_000_000,
-            connections: 1,
-            consumers: [
-              {
-                class_name: "RetryConsumer",
-                exchange: "orders.exchange",
-                queue: "orders.retry",
-                route: "order.retry",
-                threads: 1,
-                processed: 45,
-                rejected: 2,
-                errored: 0
-              }
-            ]
-          },
-          {
-            id: 4,
-            name: "Supervisor B",
-            pid: 1004,
-            hostname: Socket.gethostname,
-            kind: "supervisor",
-            last_heartbeat_at: now,
-            rss_memory: 110_000_000,
-            heap_memory: 78_000_000,
-            application: "InvoicesApp"
-          },
-          {
-            id: 5,
-            name: "Worker B1",
-            pid: 1005,
-            hostname: Socket.gethostname,
-            kind: "worker",
-            supervisor_id: 4,
-            last_heartbeat_at: now,
-            rss_memory: 75_000_000,
-            heap_memory: 52_000_000,
-            connections: 1,
-            consumers: [
-              {
-                class_name: "InvoicesConsumer",
-                exchange: "invoices.exchange",
-                queue: "invoices.main",
-                route: "invoice.generated",
-                threads: 2,
-                processed: 340,
-                rejected: 8,
-                errored: 2
-              }
-            ]
-          }
-        ]
-        Web::RespondWith.json(template: :ok, body: payload)
+      def exchanges_data
+        if management_api
+          raw_exchanges = management_api.exchanges
+          payload = filter_exchanges(raw_exchanges)
+          Web::RespondWith.json(template: :ok, body: payload)
+        else
+          Web::RespondWith.json(template: :ok, body: [])
+        end
+      rescue => e
+        Lepus.logger.warn("[Web::API] Failed to fetch exchanges: #{e.message}")
+        Web::RespondWith.json(template: :ok, body: [])
       end
 
-      def demo_queues
-        payload = [
-          {name: "orders.main", type: "classic", messages: 42, messages_ready: 21, messages_unacknowledged: 2, consumers: 3, memory: 8 * 1024 * 1024},
-          {name: "orders.retry", type: "classic", messages: 5, messages_ready: 5, messages_unacknowledged: 0, consumers: 0, memory: 1 * 1024 * 1024},
-          {name: "orders.error", type: "classic", messages: 2, messages_ready: 2, messages_unacknowledged: 0, consumers: 0, memory: 512 * 1024},
-          {name: "invoices", type: "quorum", messages: 12, messages_ready: 12, messages_unacknowledged: 0, consumers: 2, memory: 2 * 1024 * 1024}
-        ]
-        Web::RespondWith.json(template: :ok, body: payload)
+      def annotate_queues_with_apps(queues)
+        return queues unless aggregator&.running?
+
+        queue_app_map = build_queue_app_map
+        return queues if queue_app_map.empty?
+
+        queues.map do |queue|
+          app = queue_app_map[queue[:name]]
+          app ? queue.merge(application: app) : queue
+        end
       end
 
-      def demo_connections
-        payload = [
-          {name: "conn-1", state: "running", user: "guest", vhost: "/", channels: 2},
-          {name: "conn-2", state: "idle", user: "guest", vhost: "/", channels: 1},
-          {name: "conn-3", state: "running", user: "admin", vhost: "/", channels: 3}
-        ]
-        Web::RespondWith.json(template: :ok, body: payload)
+      def filter_exchanges(exchanges)
+        return exchanges if Lepus.config.web_show_all_exchanges
+        return exchanges unless aggregator&.running?
+
+        known_exchanges = build_known_exchange_names
+        return exchanges if known_exchanges.empty?
+
+        exchanges.select { |e| known_exchanges.include?(e[:name]) }
+      end
+
+      def build_queue_app_map
+        map = {}
+        aggregator.all_processes.each do |process|
+          app_name = process[:application]
+          next unless app_name
+
+          (process[:consumers] || []).each do |consumer|
+            map[consumer[:queue]] = app_name if consumer[:queue]
+          end
+        end
+        map
+      end
+
+      def build_known_exchange_names
+        names = Set.new
+        aggregator.all_processes.each do |process|
+          (process[:consumers] || []).each do |consumer|
+            names << consumer[:exchange] if consumer[:exchange]
+          end
+        end
+        names
       end
     end
   end

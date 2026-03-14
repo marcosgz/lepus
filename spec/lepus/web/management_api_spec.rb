@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "lepus/web"
 require "webmock/rspec"
 
 RSpec.describe Lepus::Web::ManagementAPI do
@@ -114,6 +115,74 @@ RSpec.describe Lepus::Web::ManagementAPI do
         .to_return(status: 200, body: "[]")
 
       expect(api.connections).to eq([])
+    end
+  end
+
+  describe "#exchanges" do
+    it "fetches and normalizes exchange data" do
+      stub_request(:get, "http://localhost:15672/api/exchanges/%2F")
+        .to_return(
+          status: 200,
+          body: JSON.generate([
+            {"name" => "", "type" => "direct", "durable" => true, "auto_delete" => false},
+            {"name" => "amq.direct", "type" => "direct", "durable" => true, "auto_delete" => false},
+            {"name" => "orders", "type" => "topic", "durable" => true, "auto_delete" => false,
+             "message_stats" => {
+               "publish_in" => 500,
+               "publish_in_details" => {"rate" => 5.2},
+               "publish_out" => 480,
+               "publish_out_details" => {"rate" => 4.8}
+             }}
+          ]),
+          headers: {"Content-Type" => "application/json"}
+        )
+
+      exchanges = api.exchanges
+
+      expect(exchanges.size).to eq(1)
+      expect(exchanges.first[:name]).to eq("orders")
+      expect(exchanges.first[:type]).to eq("topic")
+      expect(exchanges.first[:message_stats][:publish_in]).to eq(500)
+      expect(exchanges.first[:message_stats][:publish_in_rate]).to eq(5.2)
+    end
+
+    it "returns empty array on empty response" do
+      stub_request(:get, "http://localhost:15672/api/exchanges/%2F")
+        .to_return(status: 200, body: "[]")
+
+      expect(api.exchanges).to eq([])
+    end
+  end
+
+  describe "message_stats normalization" do
+    it "includes publish rate" do
+      stub_request(:get, "http://localhost:15672/api/queues/%2F")
+        .to_return(
+          status: 200,
+          body: JSON.generate([
+            {
+              "name" => "test",
+              "message_stats" => {
+                "publish" => 200,
+                "publish_details" => {"rate" => 3.5},
+                "deliver_get" => 190,
+                "deliver_get_details" => {"rate" => 3.0},
+                "ack" => 188,
+                "ack_details" => {"rate" => 2.9},
+                "redeliver" => 2,
+                "redeliver_details" => {"rate" => 0.1}
+              }
+            }
+          ])
+        )
+
+      queues = api.queues
+      stats = queues.first[:message_stats]
+
+      expect(stats[:publish]).to eq(200)
+      expect(stats[:publish_rate]).to eq(3.5)
+      expect(stats[:deliver_get]).to eq(190)
+      expect(stats[:deliver_get_rate]).to eq(3.0)
     end
   end
 
