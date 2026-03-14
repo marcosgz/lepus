@@ -168,5 +168,123 @@ RSpec.describe Lepus::Consumers::Middlewares::Unique do
         middleware.call(message, proc { |_| :ack })
       end
     end
+
+    context "with custom release_on" do
+      it "releases on :reject when configured" do
+        mw = described_class.new(release_on: [:reject])
+        message = build_message(headers: dedupe_headers)
+
+        expect_any_instance_of(lock_class).to receive(:release)
+
+        mw.call(message, proc { |_| :reject })
+      end
+
+      it "does NOT release on :ack when only :reject is configured" do
+        mw = described_class.new(release_on: [:reject])
+        message = build_message(headers: dedupe_headers)
+
+        expect(lock_class).not_to receive(:new)
+
+        mw.call(message, proc { |_| :ack })
+      end
+
+      it "releases on :ack when both :ack and :reject are configured" do
+        mw = described_class.new(release_on: [:ack, :reject])
+        message = build_message(headers: dedupe_headers)
+
+        expect_any_instance_of(lock_class).to receive(:release)
+
+        mw.call(message, proc { |_| :ack })
+      end
+
+      it "releases on :reject when both :ack and :reject are configured" do
+        mw = described_class.new(release_on: [:ack, :reject])
+        message = build_message(headers: dedupe_headers)
+
+        expect_any_instance_of(lock_class).to receive(:release)
+
+        mw.call(message, proc { |_| :reject })
+      end
+
+      it "does NOT release on unconfigured results" do
+        mw = described_class.new(release_on: [:ack, :reject])
+        message = build_message(headers: dedupe_headers)
+
+        expect(lock_class).not_to receive(:new)
+
+        mw.call(message, proc { |_| :requeue })
+      end
+    end
+
+    context "with release_on: [:error]" do
+      let(:middleware) { described_class.new(release_on: [:error]) }
+
+      it "releases the lock when downstream raises" do
+        message = build_message(headers: dedupe_headers)
+
+        expect_any_instance_of(lock_class).to receive(:release)
+
+        expect {
+          middleware.call(message, proc { |_| raise "boom" })
+        }.to raise_error(RuntimeError, "boom")
+      end
+
+      it "does NOT release on :ack when only :error is configured" do
+        message = build_message(headers: dedupe_headers)
+
+        expect(lock_class).not_to receive(:new)
+
+        middleware.call(message, proc { |_| :ack })
+      end
+    end
+
+    context "with release_on: [:ack, :error]" do
+      let(:middleware) { described_class.new(release_on: [:ack, :error]) }
+
+      it "releases on :ack" do
+        message = build_message(headers: dedupe_headers)
+
+        expect_any_instance_of(lock_class).to receive(:release)
+
+        middleware.call(message, proc { |_| :ack })
+      end
+
+      it "releases on error" do
+        message = build_message(headers: dedupe_headers)
+
+        expect_any_instance_of(lock_class).to receive(:release)
+
+        expect {
+          middleware.call(message, proc { |_| raise "boom" })
+        }.to raise_error(RuntimeError, "boom")
+      end
+
+      it "re-raises the error after releasing" do
+        message = build_message(headers: dedupe_headers)
+
+        expect {
+          middleware.call(message, proc { |_| raise ArgumentError, "bad input" })
+        }.to raise_error(ArgumentError, "bad input")
+      end
+
+      it "does NOT release on :reject" do
+        message = build_message(headers: dedupe_headers)
+
+        expect(lock_class).not_to receive(:new)
+
+        middleware.call(message, proc { |_| :reject })
+      end
+    end
+
+    context "with release_on as a single symbol" do
+      it "wraps it in an array" do
+        mw = described_class.new(release_on: :reject)
+        message = build_message(headers: dedupe_headers)
+
+        expect_any_instance_of(lock_class).to receive(:release)
+
+        mw.call(message, proc { |_| :reject })
+      end
+    end
   end
 end

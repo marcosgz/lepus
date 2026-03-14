@@ -513,18 +513,38 @@ Register the `:unique` middleware on your consumer. It reads lock information fr
 
 ```ruby
 class StoryConsumer < Lepus::Consumer
-  configure(queue: "stories", exchange: "story_created")
+  configure(
+    queue: "stories",
+    exchange: "story_created",
+    routing_key: %w[story.created story.updated]
+  )
   use :json, symbolize_keys: true
   use :unique
 
   def perform(message)
-    process_story(message.payload)
+    story_id = message.payload[:story_id]
+    Story.find(story_id).process!
+
     ack!
+  rescue ActiveRecord::RecordNotFound
+    reject!
   end
 end
 ```
 
-The lock is **only released when the consumer returns `:ack`**. On `:reject`, `:requeue`, or `:nack`, the lock remains held so that retries are still deduplicated.
+By default, the lock is **only released when the consumer returns `:ack`**. On `:reject`, `:requeue`, or `:nack`, the lock remains held so that retries are still deduplicated.
+
+You can customize this behavior with the `release_on` option:
+
+```ruby
+# Release on ack or reject (e.g., message is permanently handled either way)
+use :unique, release_on: [:ack, :reject]
+
+# Release on error too (e.g., dead-letter scenarios where you don't want the lock held)
+use :unique, release_on: [:ack, :error]
+```
+
+Valid values for `release_on`: `:ack`, `:reject`, `:requeue`, `:nack`, `:error`. When `:error` is included, the lock is released if the downstream raises an exception, and the exception is re-raised after release.
 
 ## Starting the Consumer Process
 
