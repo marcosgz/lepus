@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
     RabbitMQ consumers/producer for ruby applications
   SUMMARY
   spec.description = <<~DESCRIPTION
-    RabbitMQ consumers/producer for ruby applicationsd
+    RabbitMQ consumers/producer for ruby applications
   DESCRIPTION
 
   spec.homepage = "https://github.com/marcosgz/lepus"
