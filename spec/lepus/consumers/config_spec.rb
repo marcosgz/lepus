@@ -326,8 +326,18 @@ RSpec.describe Lepus::Consumers::Config do
   end
 
   describe "#binds_args" do
-    it "returns an array with an empty hash" do
-      expect(config.binds_args).to eq([{}])
+    context "when no routing key is set on a topic exchange (default)" do
+      it "defaults to '#' to catch all messages" do
+        expect(config.binds_args).to eq([{routing_key: "#"}])
+      end
+    end
+
+    context "when no routing key is set on a non-topic exchange" do
+      let(:options) { {exchange: {name: "test", type: :direct}} }
+
+      it "returns an array with an empty hash" do
+        expect(config.binds_args).to eq([{}])
+      end
     end
 
     context "when binds is set with a single routing key" do
