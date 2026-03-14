@@ -26,7 +26,7 @@ module Lepus
         path.delete if path&.exist?
       end
 
-      def add(process)
+      def add(process, metrics: {})
         transaction do |data|
           data[process.id] = process.to_h
         end

@@ -22,7 +22,9 @@ module Lepus
       def process_delivery(delivery_info, metadata, payload)
         consumer
           .process_delivery(delivery_info, metadata, payload)
-          .tap { |result| process_result(result, delivery_info.delivery_tag) }
+          .tap do |result|
+            process_result(result, delivery_info.delivery_tag)
+          end
       end
 
       private

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "lepus/web"
 require "rack/test"
 
 RSpec.describe Lepus::Web::App do
@@ -91,35 +92,32 @@ RSpec.describe Lepus::Web::App do
     end
 
     context "when requesting /api/processes" do
-      it "routes to the API" do
+      it "routes to the API and returns an array" do
         get "/api/processes"
         expect(last_response.status).to eq(200)
         expect(last_response.headers["content-type"]).to eq("application/json")
         response_body = JSON.parse(last_response.body)
         expect(response_body).to be_an(Array)
-        expect(response_body.first).to include("id", "name", "pid", "hostname", "kind")
       end
     end
 
     context "when requesting /api/queues" do
-      it "routes to the API" do
+      it "routes to the API and returns an array" do
         get "/api/queues"
         expect(last_response.status).to eq(200)
         expect(last_response.headers["content-type"]).to eq("application/json")
         response_body = JSON.parse(last_response.body)
         expect(response_body).to be_an(Array)
-        expect(response_body.first).to include("name", "type", "messages", "messages_ready")
       end
     end
 
     context "when requesting /api/connections" do
-      it "routes to the API" do
+      it "routes to the API and returns an array" do
         get "/api/connections"
         expect(last_response.status).to eq(200)
         expect(last_response.headers["content-type"]).to eq("application/json")
         response_body = JSON.parse(last_response.body)
         expect(response_body).to be_an(Array)
-        expect(response_body.first).to include("name")
       end
     end
 

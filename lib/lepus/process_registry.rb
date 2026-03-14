@@ -33,8 +33,8 @@ module Lepus
         backend.add(process)
       end
 
-      def update(process)
-        backend.update(process)
+      def update(process, metrics: {})
+        backend.update(process, metrics: metrics)
       end
 
       def delete(process)

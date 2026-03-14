@@ -59,7 +59,7 @@ module Lepus
       end
 
       def safe_rss_memory
-        @process.rss_memory
+        @process.rss_memory * 1024 # Convert kB to bytes (MEMORY_GRABBER returns kB)
       rescue
         0
       end

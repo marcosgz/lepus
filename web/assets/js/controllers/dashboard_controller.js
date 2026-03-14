@@ -60,50 +60,21 @@
     }
 
     async fetchLepusProcesses() {
-      try {
-        const r = await fetch('/api/processes');
-        if (!r.ok) throw new Error('bad');
-        return await r.json();
-      } catch (_) {
-        // demo fallback
-        const now = Date.now();
-        return [
-          { id: 1, name: 'Supervisor A', pid: 1001, hostname: 'host-a', kind: 'supervisor', last_heartbeat_at: now, rss_memory: 120_000_000 },
-          { id: 2, name: 'Worker A1', pid: 1002, hostname: 'host-a', kind: 'worker', supervisor_id: 1, last_heartbeat_at: now, rss_memory: 80_000_000 },
-          { id: 3, name: 'Worker A2', pid: 1003, hostname: 'host-a', kind: 'worker', supervisor_id: 1, last_heartbeat_at: now - 65_000, rss_memory: 90_000_000 },
-        ];
-      }
+      const r = await fetch('/api/processes');
+      if (!r.ok) throw new Error(`processes: ${r.status}`);
+      return await r.json();
     }
 
     async fetchRabbitQueues() {
-      try {
-        const r = await fetch('/api/queues');
-        if (!r.ok) throw new Error('bad');
-        return await r.json();
-      } catch (_) {
-        // demo fallback
-        return [
-          { name: 'orders', type: 'classic', messages: 42, messages_ready: 21, messages_unacknowledged: 2, consumers: 3, memory: 1024*1024*8 },
-          { name: 'orders.retry', type: 'classic', messages: 5, messages_ready: 5, messages_unacknowledged: 0, consumers: 0, memory: 1024*1024*1 },
-          { name: 'orders.error', type: 'classic', messages: 2, messages_ready: 2, messages_unacknowledged: 0, consumers: 0, memory: 1024*512 },
-          { name: 'invoices', type: 'quorum', messages: 12, messages_ready: 12, messages_unacknowledged: 0, consumers: 2, memory: 1024*1024*2 }
-        ];
-      }
+      const r = await fetch('/api/queues');
+      if (!r.ok) throw new Error(`queues: ${r.status}`);
+      return await r.json();
     }
 
     async fetchRabbitConnections() {
-      try {
-        const r = await fetch('/api/connections');
-        if (!r.ok) throw new Error('bad');
-        return await r.json();
-      } catch (_) {
-        // demo fallback
-        return [
-          {name: 'conn-1', state: 'running'},
-          {name: 'conn-2', state: 'idle'},
-          {name: 'conn-3', state: 'running'}
-        ];
-      }
+      const r = await fetch('/api/connections');
+      if (!r.ok) throw new Error(`connections: ${r.status}`);
+      return await r.json();
     }
 
     renderStats(processes, queues, connections) {
@@ -111,7 +82,6 @@
       const queueCount = queues.filter(q => !q.name.endsWith('.retry') && !q.name.endsWith('.error')).length;
       const totalMessages = queues.reduce((sum, q) => sum + (q.messages || 0), 0);
       const memory = processes.reduce((sum, p) => sum + (p.rss_memory || 0), 0);
-      console.log('renderStats', { processes, queues, connections });
 
       // Process details
       const supervisors = processes.filter(p => p.kind === 'supervisor').length;
@@ -132,10 +102,8 @@
       this.messageDetailTarget.textContent = `${readyMessages.toLocaleString()} ready, ${unackedMessages.toLocaleString()} unacked`;
 
       // Memory details
-      const rssMemory = memory;
-      const heapMemory = processes.reduce((sum, p) => sum + (p.heap_memory || Math.round(p.rss_memory * 0.7)), 0);
       this.memoryUsageTarget.textContent = (memory / (1024*1024)).toFixed(1) + ' MB';
-      this.memoryDetailTarget.textContent = `RSS ${(rssMemory / (1024*1024)).toFixed(1)} MB, Heap ${(heapMemory / (1024*1024)).toFixed(1)} MB`;
+      this.memoryDetailTarget.textContent = `RSS ${(memory / (1024*1024)).toFixed(1)} MB`;
 
       // Connection details
       const activeConnections = connections.filter(c => c.state === 'running' || !c.state).length;
@@ -143,14 +111,18 @@
       this.connectionCountTarget.textContent = connections.length;
       this.connectionDetailTarget.textContent = `${activeConnections} active, ${idleConnections} idle`;
 
-      // Rate details
-      const publish = Math.max(0, Math.round(totalMessages * 0.1));
-      const consume = Math.max(0, Math.round(totalMessages * 0.08));
-      const peakPublish = Math.round(publish * 1.5);
-      const peakConsume = Math.round(consume * 1.3);
-      this.publishRateTarget.textContent = publish;
-      this.consumeRateTarget.textContent = consume;
-      this.rateDetailTarget.textContent = `Peak: ${peakPublish}/${peakConsume} msg/s`;
+      // Rate details - use real data from queue message_stats
+      const publishRate = queues.reduce((sum, q) => {
+        const stats = q.message_stats || {};
+        return sum + (stats.publish_rate || 0);
+      }, 0);
+      const consumeRate = queues.reduce((sum, q) => {
+        const stats = q.message_stats || {};
+        return sum + (stats.deliver_get_rate || 0);
+      }, 0);
+      this.publishRateTarget.textContent = publishRate.toFixed(1);
+      this.consumeRateTarget.textContent = consumeRate.toFixed(1);
+      this.rateDetailTarget.textContent = `Pub ${publishRate.toFixed(1)} / Con ${consumeRate.toFixed(1)} msg/s`;
     }
 
     renderProcesses(processes) {
@@ -411,16 +383,15 @@
 
     updateCharts(queues) {
       const nowLabel = new Date().toLocaleTimeString();
-      const total = queues.reduce((sum, q) => sum + (q.messages || 0), 0);
-      const pub = Math.max(0, Math.round(total * 0.1 + Math.random() * 5));
-      const con = Math.max(0, Math.round(total * 0.08 + Math.random() * 5));
+      const pub = queues.reduce((sum, q) => sum + ((q.message_stats || {}).publish_rate || 0), 0);
+      const con = queues.reduce((sum, q) => sum + ((q.message_stats || {}).deliver_get_rate || 0), 0);
 
       const maxPoints = 20;
       const labels = this.rateChart.data.labels;
       if (labels.length >= maxPoints) { labels.shift(); this.rateChart.data.datasets.forEach(d => d.data.shift()); }
       labels.push(nowLabel);
-      this.rateChart.data.datasets[0].data.push(pub);
-      this.rateChart.data.datasets[1].data.push(con);
+      this.rateChart.data.datasets[0].data.push(parseFloat(pub.toFixed(2)));
+      this.rateChart.data.datasets[1].data.push(parseFloat(con.toFixed(2)));
       this.rateChart.update('none');
 
       const main = queues.filter(q => !q.name.endsWith('.retry') && !q.name.endsWith('.error'));
