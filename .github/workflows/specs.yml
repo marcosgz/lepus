@@ -100,6 +100,15 @@ jobs:
         ports:
           - 5672:5672
           - 15672:15672
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -112,3 +121,4 @@ jobs:
         run: bundle exec rspec --tag integration
         env:
           RABBITMQ_URL: amqp://localhost:5672
+          REDIS_URL: redis://localhost:6379

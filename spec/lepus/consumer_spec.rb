@@ -272,10 +272,10 @@ RSpec.describe Lepus::Consumer do
       expect(second_middleware).to receive(:new).and_return(
         second_middleware_instance
       ).ordered
-      expect(middleware_instance).to receive(:call) do |m, app|
+      expect(second_middleware_instance).to receive(:call) do |m, app|
         app.call(m)
       end.ordered
-      expect(second_middleware_instance).to receive(:call) do |m, app|
+      expect(middleware_instance).to receive(:call) do |m, app|
         app.call(m)
       end.ordered
 

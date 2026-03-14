@@ -97,7 +97,7 @@ RSpec.describe Lepus::MiddlewareChain do
 
       chain.execute(build_message) { |_| order << :final }
 
-      expect(order).to eq([1, 2, :final])
+      expect(order).to eq([2, 1, :final])
     end
 
     it "allows middlewares to modify the message" do
@@ -193,7 +193,7 @@ RSpec.describe Lepus::MiddlewareChain do
       combined = described_class.combine(chain1, chain2)
       combined.execute(build_message) { |_| order << :final }
 
-      expect(order).to eq([:global, :local, :final])
+      expect(order).to eq([:local, :global, :final])
     end
   end
 

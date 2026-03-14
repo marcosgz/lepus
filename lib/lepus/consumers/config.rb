@@ -128,6 +128,8 @@ module Lepus
           routing_keys.map { |key| opts.merge(routing_key: key) }
         elsif (routing_key = @bind_opts[:routing_key])
           [opts.merge(routing_key: routing_key)]
+        elsif @exchange_opts[:type] == :topic
+          [opts.merge(routing_key: "#")]
         else
           [opts]
         end

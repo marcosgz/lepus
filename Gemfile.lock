@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    lepus (0.0.1.rc1)
+    lepus (0.0.1.rc2)
       bunny
       concurrent-ruby
       multi_json
@@ -13,17 +13,21 @@ GEM
   specs:
     addressable (2.8.7)
       public_suffix (>= 2.0.2, < 7.0)
-    amq-protocol (2.3.4)
+    amq-protocol (2.5.1)
     ast (2.4.2)
     bigdecimal (3.1.8)
     bunny (2.24.0)
       amq-protocol (~> 2.3)
       sorted_set (~> 1, >= 1.0.2)
     coderay (1.1.3)
-    concurrent-ruby (1.3.5)
+    concurrent-ruby (1.3.6)
+    connection_pool (2.5.5)
     crack (1.0.0)
       bigdecimal
       rexml
+    de-dupe (0.0.2)
+      redis
+      zeitwerk
     diff-lcs (1.5.1)
     docile (1.4.1)
     dotenv (2.8.1)
@@ -44,6 +48,10 @@ GEM
     racc (1.8.1)
     rainbow (3.1.1)
     rbtree (0.4.6)
+    redis (5.4.1)
+      redis-client (>= 0.22.0)
+    redis-client (0.27.0)
+      connection_pool
     regexp_parser (2.9.2)
     rexml (3.3.9)
     rspec (3.13.0)
@@ -78,16 +86,14 @@ GEM
     rubocop-rspec (3.2.0)
       rubocop (~> 1.61)
     ruby-progressbar (1.13.0)
-    set (1.0.4)
     simplecov (0.22.0)
       docile (~> 1.1)
       simplecov-html (~> 0.11)
       simplecov_json_formatter (~> 0.1)
     simplecov-html (0.13.2)
     simplecov_json_formatter (0.1.4)
-    sorted_set (1.0.3)
+    sorted_set (1.1.0)
       rbtree
-      set (~> 1.0)
     standard (1.37.0)
       language_server-protocol (~> 3.17.0.2)
       lint_roller (~> 1.0)
@@ -100,7 +106,7 @@ GEM
     standard-performance (1.4.0)
       lint_roller (~> 1.1)
       rubocop-performance (~> 1.21.0)
-    thor (1.4.0)
+    thor (1.5.0)
     unicode-display_width (2.6.0)
     webmock (3.24.0)
       addressable (>= 2.8.0)
@@ -113,6 +119,8 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  connection_pool (< 3)
+  de-dupe
   dotenv
   lepus!
   pry

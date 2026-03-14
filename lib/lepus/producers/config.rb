@@ -7,6 +7,7 @@ module Lepus
     # Configuration class for producer settings
     class Config
       extend Forwardable
+
       DEFAULT_POOL_SIZE = 1
       DEFAULT_POOL_TIMEOUT = 5.0
 

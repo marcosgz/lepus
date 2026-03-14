@@ -30,7 +30,7 @@ module Lepus
     # @yield [message] Block called as the final action with the processed message.
     # @return [Object] The result of the final action.
     def execute(message, &final_action)
-      chain = @middlewares.reverse.reduce(final_action) do |next_middleware, middleware|
+      chain = @middlewares.reduce(final_action) do |next_middleware, middleware|
         ->(msg) { middleware.call(msg, next_middleware) }
       end
       chain.call(message)
