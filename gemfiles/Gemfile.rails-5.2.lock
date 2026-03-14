@@ -98,7 +98,6 @@ GEM
     marcel (1.0.4)
     method_source (1.1.0)
     mini_mime (1.1.5)
-    mini_portile2 (2.8.9)
     minitest (5.25.5)
     multi_json (1.15.0)
     net-imap (0.4.22)
@@ -111,9 +110,6 @@ GEM
     net-smtp (0.5.1)
       net-protocol
     nio4r (2.7.4)
-    nokogiri (1.15.7)
-      mini_portile2 (~> 2.8.2)
-      racc (~> 1.4)
     nokogiri (1.15.7-x86_64-linux)
       racc (~> 1.4)
     parallel (1.27.0)
@@ -245,10 +241,10 @@ GEM
     zeitwerk (2.6.18)
 
 PLATFORMS
-  ruby
   x86_64-linux
 
 DEPENDENCIES
+  connection_pool (< 3)
   de-dupe
   dotenv
   lepus!

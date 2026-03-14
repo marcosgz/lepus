@@ -262,6 +262,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  connection_pool (< 3)
   de-dupe
   dotenv
   lepus!
