@@ -39,7 +39,7 @@ module Lepus
           end
 
           result
-        rescue => e
+        rescue
           release_lock(message) if @release_on.include?(:error)
           raise
         end
