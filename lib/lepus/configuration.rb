@@ -40,6 +40,15 @@ module Lepus
     # @return [Integer] the threshold in seconds to consider a process alive. Default is 5 minutes.
     attr_accessor :process_alive_threshold
 
+    # @return [Symbol] the process registry backend to use (:file or :rabbitmq). Default is :file.
+    attr_accessor :process_registry_backend
+
+    # @return [String, nil] the application name shown in the web dashboard.
+    attr_accessor :application_name
+
+    # @return [String, nil] the RabbitMQ Management API URL.
+    attr_accessor :management_api_url
+
     def initialize
       @connection_name = "Lepus (#{Lepus::VERSION})"
       @rabbitmq_url = ENV.fetch("RABBITMQ_URL", DEFAULT_RABBITMQ_URL) || DEFAULT_RABBITMQ_URL
@@ -49,6 +58,26 @@ module Lepus
       @consumers_directory = DEFAULT_CONSUMERS_DIRECTORY
       @process_heartbeat_interval = 60
       @process_alive_threshold = 5 * 60
+      @process_registry_backend = :file
+      @application_name = nil
+      @management_api_url = nil
+    end
+
+    # Builds the process registry backend based on configuration.
+    # @return [Lepus::ProcessRegistry::Backend] the configured backend
+    def build_process_registry_backend
+      case process_registry_backend
+      when :rabbitmq
+        ProcessRegistry::RabbitmqBackend.new
+      else
+        ProcessRegistry::FileBackend.new
+      end
+    end
+
+    # Builds the Management API client based on configuration.
+    # @return [Lepus::Web::ManagementAPI] the management API client
+    def build_management_api
+      Web::ManagementAPI.new(base_url: management_api_url)
     end
 
     # @param suffix [String] the suffix to add to the connection name

@@ -110,12 +110,7 @@ module Lepus
                 main_queue.bind(exchange, **opts)
               end
 
-              consumer_handler = Lepus::Consumers::Handler.new(
-                consumer_class,
-                channel,
-                main_queue,
-                "#{consumer_class.name}-#{n + 1}"
-              )
+              consumer_handler = build_handler(consumer_class, channel, main_queue, "#{consumer_class.name}-#{n + 1}")
 
               consumer_handler.on_delivery do |delivery_info, metadata, payload|
                 consumer_handler.process_delivery(delivery_info, metadata, payload)
@@ -124,6 +119,12 @@ module Lepus
             end
           end
         end
+      end
+
+      # Factory method for creating consumer handlers.
+      # Overridden by Lepus::Web to attach stats tracking.
+      def build_handler(consumer_class, channel, queue, tag)
+        Lepus::Consumers::Handler.new(consumer_class, channel, queue, tag)
       end
 
       def connection_pool

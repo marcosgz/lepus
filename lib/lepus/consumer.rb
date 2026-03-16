@@ -103,12 +103,19 @@ module Lepus
     rescue Lepus::InvalidConsumerReturnError
       raise
     rescue Exception # rubocop:disable Lint/RescueException
+      on_delivery_error
       # In testing mode, re-raise exceptions if consumer_raise_errors? is enabled
       if defined?(Lepus::Testing) && Lepus::Testing.consumer_raise_errors?
         raise
       end
 
       reject!
+    end
+
+    # Returns whether the last delivery resulted in an error.
+    # Always false in core; overridden by Lepus::Web when loaded.
+    def last_delivery_errored?
+      false
     end
 
     protected
@@ -172,6 +179,11 @@ module Lepus
       else
         Lepus::Publisher.new(target_exchange, **opts).publish(message, **opts)
       end
+    end
+
+    # Hook called when a delivery raises an exception.
+    # No-op in core; overridden by Lepus::Web to track error state.
+    def on_delivery_error
     end
 
     def verify_result(result)

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lepus Dashboard</title>
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%236ea8fe'/%3E%3Ctext x='16' y='22' font-family='system-ui, -apple-system, sans-serif' font-size='18' font-weight='700' text-anchor='middle' fill='white'%3EL%3C/text%3E%3C/svg%3E" />
+  </head>
+  <body data-controller="theme connection dashboard">
+    <!-- Offline notification banner -->
+    <div id="offline-banner" class="offline-banner" style="display: none;">
+      <div class="offline-content">
+        <span class="offline-icon">⚠️</span>
+        <span class="offline-message">You're offline. Some features may not work properly.</span>
+        <button id="dismiss-offline" class="offline-dismiss">×</button>
+      </div>
+    </div>
+
+    <header class="navbar">
+      <div class="brand">
+        <span class="logo-badge">L</span>
+        <span class="title">Lepus</span>
+      </div>
+      <div class="nav-controls">
+        <div class="refresh-control">
+          <label for="refreshRange">Refresh:</label>
+          <input id="refreshRange" type="range" min="5" max="60" step="5" value="15" data-dashboard-target="refreshRange" data-action="input->dashboard#updateRefresh" />
+          <span class="refresh-value"><span data-dashboard-target="refreshLabel">15</span>s</span>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <div class="connection-status" data-connection-target="indicator" title="Connection status">
+          <span class="status-dot"></span>
+          <span class="status-text" data-connection-target="text">Connected</span>
+        </div>
+        <button class="btn" data-action="theme#toggle" aria-label="Toggle theme" title="Toggle theme">
+          <span data-theme-target="icon">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- Offline content placeholder -->
+      <div id="offline-content" class="offline-content-placeholder" style="display: none;">
+        <div class="offline-card">
+          <div class="offline-icon-large">📡</div>
+          <h2>You're Offline</h2>
+          <p>The Lepus dashboard requires an internet connection to function properly.</p>
+          <p>Some features may be limited while offline:</p>
+          <ul class="offline-limitations">
+            <li>Real-time data updates won't work</li>
+            <li>External dependencies may not load</li>
+            <li>Charts may show fallback content</li>
+          </ul>
+          <div class="offline-actions">
+            <button onclick="window.location.reload()" class="btn btn-primary">Retry Connection</button>
+            <button onclick="document.getElementById('offline-content').style.display='none'" class="btn btn-secondary">Continue Offline</button>
+          </div>
+        </div>
+      </div>
+
+      <section class="grid stats-grid">
+        <div class="card stat-card">
+          <div class="stat-label">Processes</div>
+          <div class="stat-value" data-dashboard-target="processCount">0</div>
+          <div class="stat-detail" data-dashboard-target="processDetail">Supervisors 0, Workers 0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Active queues</div>
+          <div class="stat-value" data-dashboard-target="queueCount">0</div>
+          <div class="stat-detail" data-dashboard-target="queueDetail">0 running, 0 paused</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Messages</div>
+          <div class="stat-value" data-dashboard-target="totalMessages">0</div>
+          <div class="stat-detail" data-dashboard-target="messageDetail">0 ready, 0 unacked</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Memory usage</div>
+          <div class="stat-value" data-dashboard-target="memoryUsage">0 MB</div>
+          <div class="stat-detail" data-dashboard-target="memoryDetail">RSS 0 MB, Heap 0 MB</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Connections</div>
+          <div class="stat-value" data-dashboard-target="connectionCount">0</div>
+          <div class="stat-detail" data-dashboard-target="connectionDetail">0 active, 0 idle</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Message rates</div>
+          <div class="stat-value"><span data-dashboard-target="publishRate">0</span>/<span data-dashboard-target="consumeRate">0</span> msg/s</div>
+          <div class="stat-detail" data-dashboard-target="rateDetail">Peak: 0/0 msg/s</div>
+        </div>
+      </section>
+
+      <section class="grid chart-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>Message Rates</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="rateChart" height="240"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>Queue Distribution</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="queueChart" height="240"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid processes-grid" data-dashboard-target="processesRoot">
+        <!-- Process hierarchy cards rendered here -->
+      </section>
+
+      <section class="grid queues-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>Queues</h3>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table" data-controller="queue">
+                <thead>
+                  <tr>
+                    <th>Queue</th>
+                    <th>Type</th>
+                    <th>Ready</th>
+                    <th>Unacked</th>
+                    <th>Total</th>
+                    <th>Consumers</th>
+                    <th>Memory</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody data-dashboard-target="queuesRoot">
+                  <!-- Queue rows populated here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Load offline support modules -->
+    <script src="/assets/js/offline-manager.js"></script>
+    <script src="/assets/js/service-worker-manager.js"></script>
+
+    <!-- Initialize offline support -->
+    <script>
+      // Initialize offline support and dependencies
+      (async function() {
+        const offlineManager = new OfflineManager();
+        const serviceWorkerManager = new ServiceWorkerManager();
+
+        // Register service worker first
+        await serviceWorkerManager.register();
+
+        // Initialize offline manager and load dependencies
+        await offlineManager.initialize();
+      })();
+    </script>
+  </body>
+  </html>
+
+
