@@ -205,9 +205,27 @@ module Lepus
       end
     end
 
-    # Make the Web module directly mountable as a Rack application
+    # Make the Web module directly mountable as a Rack application.
+    #
+    # Mounting via `mount Lepus::Web => "/lepus"` in routes.rb does not call
+    # `Lepus::Web.start` — Rails just stashes a reference to this module and
+    # dispatches requests to `.call`. So we lazily start the aggregator and
+    # management API on first request and memoize the Rack app. This only
+    # runs in processes that actually serve HTTP for the dashboard; the
+    # supervisor loads `routes.rb` during boot but never dispatches requests,
+    # so it never pays this cost.
     def self.call(env)
-      App.build.call(env)
+      ensure_started
+      (@rack_app ||= App.build).call(env)
+    end
+
+    def self.ensure_started
+      return if @rack_app && aggregator&.running?
+
+      @boot_mutex ||= Mutex.new
+      @boot_mutex.synchronize do
+        start unless aggregator&.running?
+      end
     end
   end
 end
