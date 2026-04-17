@@ -16,6 +16,7 @@ module Lepus
 
       def initialize(fallback: nil)
         @fallback = fallback || FileBackend.new
+        @connection = nil
         @channel = nil
         @exchange = nil
         @mutex = Mutex.new
@@ -73,8 +74,8 @@ module Lepus
         @mutex.synchronize do
           return if @channel&.open?
 
-          connection = Lepus.config.create_connection(suffix: "(registry)")
-          @channel = connection.create_channel
+          @connection = Lepus.config.create_connection(suffix: "(registry)")
+          @channel = @connection.create_channel
           @exchange = @channel.fanout(
             HEARTBEAT_EXCHANGE,
             durable: false,
@@ -83,19 +84,33 @@ module Lepus
         end
       rescue => e
         Lepus.logger.warn("[ProcessRegistry] Failed to setup RabbitMQ channel: #{e.message}")
+        @connection = nil
         @channel = nil
         @exchange = nil
       end
 
+      # Tear down the dedicated registry connection. We close the channel and
+      # the underlying `Bunny::Session` independently and swallow errors on
+      # each — `channel.close` can hang or raise if the broker is mid-recovery
+      # (we've seen CHANNEL_ERRORs during forked supervisor shutdown), but the
+      # session still owns a reader thread that must be closed or the process
+      # won't exit. We always attempt the session close even if the channel
+      # close failed.
       def close_channel
         @mutex.synchronize do
-          @channel&.close if @channel&.open?
+          safe_close(@channel, "channel") if @channel&.open?
+          safe_close(@connection, "connection") if @connection&.open?
         end
-      rescue => e
-        Lepus.logger.warn("[ProcessRegistry] Failed to close RabbitMQ channel: #{e.message}")
       ensure
+        @connection = nil
         @channel = nil
         @exchange = nil
+      end
+
+      def safe_close(obj, label)
+        obj.close
+      rescue => e
+        Lepus.logger.warn("[ProcessRegistry] Failed to close RabbitMQ #{label}: #{e.message}")
       end
 
       def publish_heartbeat(process, metrics: {})

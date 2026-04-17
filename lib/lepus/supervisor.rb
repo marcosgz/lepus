@@ -81,8 +81,6 @@ module Lepus
     end
 
     def boot
-      ProcessRegistry.start
-
       Lepus.instrument(:start_process, process: self) do
         if require_file
           Kernel.require(require_file)
@@ -95,6 +93,13 @@ module Lepus
             # Rails not found
           end
         end
+
+        # Start the registry *after* the host app is loaded. Mounting
+        # `Lepus::Web` in `routes.rb` (or any late `require "lepus/web"`) flips
+        # the default backend to :rabbitmq; starting the registry earlier
+        # would lock in the FileBackend and the later flip would point the
+        # registry at a backend that was never started.
+        ProcessRegistry.start
 
         setup_consumers
         check_bunny_connection

@@ -123,16 +123,18 @@ module Lepus
     Lepus::Consumers::Worker.prepend(WorkerExtensions)
 
     # If `Lepus.config` was already memoized before `lepus/web` was required
-    # (e.g. loaded from `routes.rb` after an initializer touched the config),
-    # flip the backend now so the lazily-built `ProcessRegistry.backend` picks
-    # up the shared RabbitMQ-backed store. We only flip when it's still the
-    # out-of-the-box `:file` default to avoid stomping on an explicit choice.
+    # (the common case — initializers run before `routes.rb`), flip the flag
+    # now so the lazily-built `ProcessRegistry.backend` picks up the shared
+    # RabbitMQ-backed store. We only flip when it's still the out-of-the-box
+    # `:file` default to avoid stomping on an explicit choice.
+    #
+    # We deliberately do **not** reset an already-memoized backend: the
+    # supervisor boots the registry after `config/environment` loads, so no
+    # backend exists yet at this point during normal boot. Resetting would
+    # leave a fresh unstarted backend behind and the next `.add` would raise.
     if Lepus.instance_variable_defined?(:@config)
       existing = Lepus.instance_variable_get(:@config)
-      if existing && existing.process_registry_backend == :file
-        existing.process_registry_backend = :rabbitmq
-        Lepus::ProcessRegistry.reset_backend!
-      end
+      existing.process_registry_backend = :rabbitmq if existing && existing.process_registry_backend == :file
     end
 
     class << self
