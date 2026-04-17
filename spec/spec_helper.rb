@@ -9,6 +9,16 @@ require "simplecov"
 
 SimpleCov.start
 
+# Silence prometheus_exporter's network errors during tests. The client is
+# still available to any spec that needs to stub it explicitly.
+begin
+  require "prometheus_exporter"
+  require "prometheus_exporter/client"
+  PrometheusExporter::Client.default.instance_variable_set(:@logger, Logger.new(File::NULL))
+rescue LoadError
+  # prometheus_exporter is optional; not installed is fine.
+end
+
 Dir[File.expand_path("support/**/*.rb", __dir__)].sort.each { |f| require f }
 
 RSpec.configure do |config|

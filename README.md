@@ -663,6 +663,60 @@ Rails.application.routes.draw do
 end
 ```
 
+## Prometheus metrics (optional)
+
+Lepus ships an optional integration with
+[`prometheus_exporter`](https://github.com/discourse/prometheus_exporter). It is
+not a required dependency and is not auto-loaded — add the gem to your `Gemfile`
+and require `lepus/prometheus` explicitly from the Lepus process you want to
+instrument.
+
+```ruby
+# Gemfile
+gem "prometheus_exporter"
+```
+
+```ruby
+# e.g. config/initializers/lepus.rb, or at the top of your consumer boot script
+require "lepus/prometheus"
+
+# Optional: poll the RabbitMQ Management API for queue-level gauges
+# from a single process (typically the supervisor).
+Lepus::Prometheus.watch_queues(interval: 30)
+```
+
+Requiring `lepus/prometheus` installs the necessary hooks into
+`Lepus::Consumers::Handler` (delivery counters and latency) and
+`Lepus::Consumers::Worker` (process RSS gauge), and subscribes to
+`publish.lepus` notifications (publish counters). Metrics are sent over TCP to
+the `PrometheusExporter::Client.default` client.
+
+On the exporter side, load the bundled type collector so the server knows how
+to turn Lepus payloads into Prometheus metrics:
+
+```bash
+bundle exec prometheus_exporter -a lepus/prometheus/collector
+```
+
+Point Prometheus at the exporter (default port `9394`) and import
+[`examples/grafana-dashboard.json`](examples/grafana-dashboard.json) into
+Grafana. The dashboard covers every metric exposed by the collector.
+
+### Exposed metrics
+
+| Metric                                    | Type      | Labels                            | Source                                     |
+|-------------------------------------------|-----------|-----------------------------------|--------------------------------------------|
+| `lepus_messages_processed_total`          | counter   | `consumer`, `queue`, `result`     | `Handler#process_delivery`                 |
+| `lepus_delivery_duration_seconds`         | histogram | `consumer`, `queue`               | `Handler#process_delivery`                 |
+| `lepus_messages_published_total`          | counter   | `exchange`, `routing_key`         | `publish.lepus` notification               |
+| `lepus_publish_duration_seconds`          | histogram | `exchange`, `routing_key`         | `publish.lepus` notification               |
+| `lepus_process_rss_memory_bytes`          | gauge     | `kind`, `name`, `pid`             | `Worker#heartbeat`                         |
+| `lepus_queue_messages`                    | gauge     | `name`                            | `watch_queues` via management API          |
+| `lepus_queue_messages_ready`              | gauge     | `name`                            | `watch_queues` via management API          |
+| `lepus_queue_messages_unacknowledged`     | gauge     | `name`                            | `watch_queues` via management API          |
+| `lepus_queue_consumers`                   | gauge     | `name`                            | `watch_queues` via management API          |
+| `lepus_queue_memory_bytes`                | gauge     | `name`                            | `watch_queues` via management API          |
+
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
