@@ -9,6 +9,7 @@ const STATIC_ASSETS = [
   './',
   'assets/css/styles.css',
   'assets/js/app.js',
+  'assets/js/bootstrap.js',
   'assets/js/offline-manager.js',
   'assets/js/service-worker-manager.js',
   'assets/js/controllers/theme_controller.js',

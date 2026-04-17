@@ -55,8 +55,8 @@
             <li>Charts may show fallback content</li>
           </ul>
           <div class="offline-actions">
-            <button onclick="window.location.reload()" class="btn btn-primary">Retry Connection</button>
-            <button onclick="document.getElementById('offline-content').style.display='none'" class="btn btn-secondary">Continue Offline</button>
+            <button data-offline-action="reload" class="btn btn-primary">Retry Connection</button>
+            <button data-offline-action="dismiss" class="btn btn-secondary">Continue Offline</button>
           </div>
         </div>
       </div>
@@ -148,24 +148,11 @@
 
     </main>
 
-    <!-- Load offline support modules -->
+    <!-- Load offline support modules. Bootstrap is a separate file so it runs
+         under strict Content Security Policies that forbid inline scripts. -->
     <script src="assets/js/offline-manager.js"></script>
     <script src="assets/js/service-worker-manager.js"></script>
-
-    <!-- Initialize offline support -->
-    <script>
-      // Initialize offline support and dependencies
-      (async function() {
-        const offlineManager = new OfflineManager();
-        const serviceWorkerManager = new ServiceWorkerManager();
-
-        // Register service worker first
-        await serviceWorkerManager.register();
-
-        // Initialize offline manager and load dependencies
-        await offlineManager.initialize();
-      })();
-    </script>
+    <script src="assets/js/bootstrap.js"></script>
   </body>
   </html>
 
