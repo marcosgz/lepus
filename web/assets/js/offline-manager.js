@@ -175,7 +175,8 @@ class OfflineManager {
     });
   }
 
-  // Load local scripts
+  // Load local scripts serially. Controllers reference `StimulusApp`
+  // defined by app.js, so they must not execute before app.js.
   loadLocalScripts() {
     const scripts = [
       'assets/js/app.js',
@@ -185,27 +186,18 @@ class OfflineManager {
       'assets/js/controllers/queue_controller.js'
     ];
 
-    return new Promise((resolve) => {
-      let loadedCount = 0;
-      scripts.forEach(src => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = () => {
-          loadedCount++;
-          if (loadedCount === scripts.length) {
-            resolve();
-          }
-        };
-        script.onerror = () => {
-          console.warn('Failed to load local script:', src);
-          loadedCount++;
-          if (loadedCount === scripts.length) {
-            resolve();
-          }
-        };
-        document.head.appendChild(script);
-      });
+    const loadOne = (src) => new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => resolve();
+      script.onerror = () => {
+        console.warn('Failed to load local script:', src);
+        resolve();
+      };
+      document.head.appendChild(script);
     });
+
+    return scripts.reduce((chain, src) => chain.then(() => loadOne(src)), Promise.resolve());
   }
 
   // Initialize the application

@@ -4,7 +4,10 @@ class ServiceWorkerManager {
     this.registration = null;
   }
 
-  // Register service worker
+  // Register service worker. The SW is purely an offline-cache enhancement,
+  // so we never await `.ready` — if the SW install fails (e.g. one cached
+  // asset 401s behind auth) we would otherwise hang the whole dashboard
+  // bootstrap waiting for a worker that will never activate.
   async register() {
     if (!('serviceWorker' in navigator)) {
       console.warn('Service Worker not supported');
@@ -13,9 +16,8 @@ class ServiceWorkerManager {
 
     try {
       this.registration = await navigator.serviceWorker.register('sw.js');
-      console.log('Service Worker registered successfully:', this.registration.scope);
+      console.log('Service Worker registered:', this.registration.scope);
 
-      // Check for updates
       this.registration.addEventListener('updatefound', () => {
         const newWorker = this.registration.installing;
         newWorker.addEventListener('statechange', () => {
@@ -26,9 +28,6 @@ class ServiceWorkerManager {
         });
       });
 
-      // Wait for service worker to be ready
-      await navigator.serviceWorker.ready;
-      console.log('Service Worker ready');
       return true;
     } catch (error) {
       console.warn('Service Worker registration failed:', error);
