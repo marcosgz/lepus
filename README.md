@@ -628,6 +628,34 @@ end
 
 This will make the dashboard available at `http://your-app.com/lepus` in your Rails application.
 
+#### Process registry backend
+
+Lepus tracks running supervisors and workers in a **process registry**. Two
+backends are available:
+
+- `:file` (default for a core `require "lepus"`) — stores process data in a
+  local file under `/tmp`. Fast and dependency-free, but the file is only
+  visible to processes that share the same filesystem.
+- `:rabbitmq` — stores the same data in a dedicated RabbitMQ queue, so every
+  process connected to the same broker sees the same registry.
+
+**Requiring `lepus/web` automatically switches the default to `:rabbitmq`.**
+This is because the dashboard is almost always run in a separate process (and
+often a separate container) from the workers, and the `:file` backend cannot
+bridge that gap — you'd see an empty dashboard even with workers running. The
+dashboard still needs the RabbitMQ Management API for queue/connection data,
+but the registry is what lets it discover your workers.
+
+If you really want the file backend even with the dashboard loaded, set it
+explicitly after your `require`:
+
+```ruby
+# config/initializers/lepus.rb
+Lepus.configure do |config|
+  config.process_registry_backend = :file
+end
+```
+
 `Lepus::Web` is a plain Rack app, so authentication is applied by wrapping it
 in standard Rack middleware or by gating the mount with a real auth helper.
 Rails routing `constraints:` is **not** an authentication mechanism — a falsy

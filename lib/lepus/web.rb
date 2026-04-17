@@ -14,6 +14,12 @@ module Lepus
       def initialize(*)
         super
         @web_show_all_exchanges = false
+        # The FileBackend writes to a local path, which breaks when workers
+        # and the dashboard run in separate containers/hosts. Requiring
+        # `lepus/web` implies you want cross-process visibility, so default
+        # to the shared RabbitMQ-backed registry. Users can still override
+        # with `config.process_registry_backend = :file` in their initializer.
+        @process_registry_backend = :rabbitmq
       end
     end
 
@@ -115,6 +121,19 @@ module Lepus
     Lepus::Consumer.prepend(ConsumerExtensions)
     Lepus::Consumers::Handler.prepend(HandlerExtensions)
     Lepus::Consumers::Worker.prepend(WorkerExtensions)
+
+    # If `Lepus.config` was already memoized before `lepus/web` was required
+    # (e.g. loaded from `routes.rb` after an initializer touched the config),
+    # flip the backend now so the lazily-built `ProcessRegistry.backend` picks
+    # up the shared RabbitMQ-backed store. We only flip when it's still the
+    # out-of-the-box `:file` default to avoid stomping on an explicit choice.
+    if Lepus.instance_variable_defined?(:@config)
+      existing = Lepus.instance_variable_get(:@config)
+      if existing && existing.process_registry_backend == :file
+        existing.process_registry_backend = :rabbitmq
+        Lepus::ProcessRegistry.reset_backend!
+      end
+    end
 
     class << self
       attr_accessor :aggregator

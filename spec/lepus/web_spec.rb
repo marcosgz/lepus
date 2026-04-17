@@ -20,6 +20,17 @@ RSpec.describe Lepus::Web do
       config.web_show_all_exchanges = true
       expect(config.web_show_all_exchanges).to be(true)
     end
+
+    it "defaults process_registry_backend to :rabbitmq" do
+      config = Lepus::Configuration.new
+      expect(config.process_registry_backend).to eq(:rabbitmq)
+    end
+
+    it "still allows overriding process_registry_backend to :file" do
+      config = Lepus::Configuration.new
+      config.process_registry_backend = :file
+      expect(config.process_registry_backend).to eq(:file)
+    end
   end
 
   describe "ConsumerExtensions" do
