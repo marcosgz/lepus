@@ -4,6 +4,7 @@
 
 require "spec_helper"
 begin
+  require "active_support"
   require "active_support/notifications"
   HAS_ACTIVE_SUPPORT = true
 rescue LoadError
