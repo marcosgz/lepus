@@ -178,11 +178,11 @@ class OfflineManager {
   // Load local scripts
   loadLocalScripts() {
     const scripts = [
-      '/assets/js/app.js',
-      '/assets/js/controllers/theme_controller.js',
-      '/assets/js/controllers/connection_controller.js',
-      '/assets/js/controllers/dashboard_controller.js',
-      '/assets/js/controllers/queue_controller.js'
+      'assets/js/app.js',
+      'assets/js/controllers/theme_controller.js',
+      'assets/js/controllers/connection_controller.js',
+      'assets/js/controllers/dashboard_controller.js',
+      'assets/js/controllers/queue_controller.js'
     ];
 
     return new Promise((resolve) => {

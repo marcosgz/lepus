@@ -12,7 +12,7 @@ class ServiceWorkerManager {
     }
 
     try {
-      this.registration = await navigator.serviceWorker.register('/sw.js');
+      this.registration = await navigator.serviceWorker.register('sw.js');
       console.log('Service Worker registered successfully:', this.registration.scope);
 
       // Check for updates

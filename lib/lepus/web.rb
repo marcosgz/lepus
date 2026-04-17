@@ -157,6 +157,18 @@ module Lepus
       stop_management_api
     end
 
+    def self.render_index(env)
+      base = base_path(env)
+      html = File.read(assets_path.join("index.html"))
+      html.gsub("__BASE_PATH__", base)
+    end
+
+    def self.base_path(env)
+      script_name = env["SCRIPT_NAME"].to_s
+      script_name = script_name.chomp("/")
+      "#{script_name}/"
+    end
+
     def self.mime_for(path)
       case File.extname(path)
       when ".html" then "text/html"

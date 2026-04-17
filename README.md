@@ -628,25 +628,38 @@ end
 
 This will make the dashboard available at `http://your-app.com/lepus` in your Rails application.
 
-You can also mount it with additional configuration:
+`Lepus::Web` is a plain Rack app, so authentication is applied by wrapping it
+in standard Rack middleware or by gating the mount with a real auth helper.
+Rails routing `constraints:` is **not** an authentication mechanism — a falsy
+constraint returns 404 and never prompts for credentials.
+
+HTTP Basic Auth (wrap the Rack app):
+
+```ruby
+# config/routes.rb
+require "rack/auth/basic"
+
+lepus_web = Rack::Builder.new do
+  use Rack::Auth::Basic, "Lepus Dashboard" do |username, password|
+    ActiveSupport::SecurityUtils.secure_compare(username, ENV.fetch("LEPUS_USER")) &
+      ActiveSupport::SecurityUtils.secure_compare(password, ENV.fetch("LEPUS_PASSWORD"))
+  end
+  run Lepus::Web
+end
+
+Rails.application.routes.draw do
+  mount lepus_web => "/lepus"
+end
+```
+
+Devise (only admins can see the dashboard):
 
 ```ruby
 # config/routes.rb
 Rails.application.routes.draw do
-  # Your existing routes...
-
-  # Mount with custom path and constraints
-  mount Lepus::Web => "/admin/lepus", constraints: ->(request) {
-    # Add authentication or other constraints here
-    request.env["warden"].authenticated? if defined?(Warden)
-  }
-
-  # OR Mount with basic authentication using constraints
-  mount Lepus::Web => "/admin/lepus", constraints: ->(request) {
-    # Basic auth check
-    username, password = ActionController::HttpAuthentication::Basic.decode_credentials(request)
-    username == "admin" && password == "secret"
-  }
+  authenticate :user, ->(u) { u.admin? } do
+    mount Lepus::Web => "/lepus"
+  end
 end
 ```
 

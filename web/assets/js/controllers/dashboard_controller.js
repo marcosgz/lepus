@@ -60,19 +60,19 @@
     }
 
     async fetchLepusProcesses() {
-      const r = await fetch('/api/processes');
+      const r = await fetch('api/processes');
       if (!r.ok) throw new Error(`processes: ${r.status}`);
       return await r.json();
     }
 
     async fetchRabbitQueues() {
-      const r = await fetch('/api/queues');
+      const r = await fetch('api/queues');
       if (!r.ok) throw new Error(`queues: ${r.status}`);
       return await r.json();
     }
 
     async fetchRabbitConnections() {
-      const r = await fetch('/api/connections');
+      const r = await fetch('api/connections');
       if (!r.ok) throw new Error(`connections: ${r.status}`);
       return await r.json();
     }

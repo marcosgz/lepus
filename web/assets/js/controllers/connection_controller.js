@@ -20,7 +20,7 @@
       }
 
       try {
-        const res = await fetch('/api/health');
+        const res = await fetch('api/health');
         if (res.ok) {
           this.indicatorTarget.classList.remove('disconnected');
           this.textTarget.textContent = 'Connected';

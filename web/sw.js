@@ -2,16 +2,19 @@
 // Provides offline caching for static assets
 
 const CACHE_NAME = 'lepus-dashboard-v1';
+
+// Paths are relative to the service worker script URL, so they resolve
+// correctly whether the dashboard is mounted at `/` or a sub-path like `/lepus`.
 const STATIC_ASSETS = [
-  '/',
-  '/assets/css/styles.css',
-  '/assets/js/app.js',
-  '/assets/js/offline-manager.js',
-  '/assets/js/service-worker-manager.js',
-  '/assets/js/controllers/theme_controller.js',
-  '/assets/js/controllers/connection_controller.js',
-  '/assets/js/controllers/dashboard_controller.js',
-  '/assets/js/controllers/queue_controller.js'
+  './',
+  'assets/css/styles.css',
+  'assets/js/app.js',
+  'assets/js/offline-manager.js',
+  'assets/js/service-worker-manager.js',
+  'assets/js/controllers/theme_controller.js',
+  'assets/js/controllers/connection_controller.js',
+  'assets/js/controllers/dashboard_controller.js',
+  'assets/js/controllers/queue_controller.js'
 ];
 
 // Install event - cache static assets
@@ -88,11 +91,16 @@ self.addEventListener('fetch', (event) => {
 
             caches.open(CACHE_NAME)
               .then((cache) => {
-                // Only cache static assets, not API responses
+                // Only cache static assets under our scope, not API responses.
+                // `self.registration.scope` is the absolute URL the worker controls
+                // (e.g. "https://host/lepus/"), so it transparently covers any mount path.
+                const scope = new URL(self.registration.scope);
                 const url = new URL(event.request.url);
-                if (url.pathname.startsWith('/assets/') ||
-                    url.pathname === '/' ||
-                    url.pathname === '/index.html') {
+                const scopePath = scope.pathname;
+                const path = url.pathname;
+                const isUnderScope = path.startsWith(scopePath);
+                const relative = isUnderScope ? path.slice(scopePath.length) : path;
+                if (isUnderScope && (relative === '' || relative === 'index.html' || relative.startsWith('assets/'))) {
                   console.log('Service Worker: Caching response', event.request.url);
                   cache.put(event.request, responseToCache);
                 }
@@ -103,9 +111,9 @@ self.addEventListener('fetch', (event) => {
           .catch((error) => {
             console.log('Service Worker: Network fetch failed', event.request.url, error);
 
-            // For navigation requests, return the cached index.html
+            // For navigation requests, return the cached index (scope root)
             if (event.request.mode === 'navigate') {
-              return caches.match('/');
+              return caches.match('./');
             }
 
             // For other requests, return a generic offline response

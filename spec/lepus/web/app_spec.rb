@@ -33,6 +33,18 @@ RSpec.describe Lepus::Web::App do
         expect(last_response.headers["content-type"]).to eq("text/html")
         expect(last_response.body).to include("<!DOCTYPE html>")
       end
+
+      it "emits a <base> tag pointing at the mount root" do
+        get "/"
+        expect(last_response.body).to include(%(<base href="/" />))
+      end
+
+      it "rewrites hardcoded absolute asset paths to relative ones" do
+        get "/"
+        expect(last_response.body).not_to match(%r{href="/assets/})
+        expect(last_response.body).not_to match(%r{src="/assets/})
+        expect(last_response.body).to include(%(href="assets/css/styles.css"))
+      end
     end
 
     context "when requesting /index.html" do
@@ -128,6 +140,26 @@ RSpec.describe Lepus::Web::App do
         expect(last_response.headers["content-type"]).to eq("application/json")
         expect(JSON.parse(last_response.body)).to eq({"error" => "not_found"})
       end
+    end
+  end
+
+  describe "when mounted under a sub-path" do
+    it "emits a <base> tag matching the mount prefix" do
+      get "/", {}, "SCRIPT_NAME" => "/lepus"
+      expect(last_response.status).to eq(200)
+      expect(last_response.body).to include(%(<base href="/lepus/" />))
+    end
+
+    it "keeps absolute asset paths out of the rendered HTML" do
+      get "/", {}, "SCRIPT_NAME" => "/lepus"
+      expect(last_response.body).not_to match(%r{href="/assets/})
+      expect(last_response.body).not_to match(%r{src="/assets/})
+    end
+
+    it "routes API requests through the mounted prefix" do
+      get "/api/health", {}, "SCRIPT_NAME" => "/lepus"
+      expect(last_response.status).to eq(200)
+      expect(JSON.parse(last_response.body)).to eq({"status" => "ok"})
     end
   end
 end
