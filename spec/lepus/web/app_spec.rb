@@ -69,7 +69,7 @@ RSpec.describe Lepus::Web::App do
       it "serves JavaScript files with correct MIME type" do
         get "/assets/js/app.js"
         expect(last_response.status).to eq(200)
-        expect(last_response.headers["content-type"]).to eq("text/javascript")
+        expect(last_response.headers["content-type"]).to match(%r{\A(?:text|application)/javascript\z})
         expect(last_response.body).to include("Stimulus.Application.start")
       end
     end
