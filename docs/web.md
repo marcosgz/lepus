@@ -1,5 +1,7 @@
 # Web Dashboard
 
+![Lepus web dashboard](images/lepus-web.png)
+
 Lepus ships a Rack-based monitoring UI showing consumer status, throughput, and recent activity.
 
 ## Running it standalone
