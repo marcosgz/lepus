@@ -1,7 +1,12 @@
 # Lepus
 
+![Lepus web dashboard](https://github.com/user-attachments/assets/a640fc43-2f53-4aa7-aede-f1464f3e6e03)
 
 Lepus is a lightweight but powerful Ruby library to help you to consume and produce messages to [RabbitMQ](https://www.rabbitmq.com/) using the [Bunny](https://github.com/ruby-amqp/bunny) gem. It's similar to the Sidekiq, Faktory, ActiveJob, SolidQueue, and other libraries, but using RabbitMQ as the message broker.
+
+## Documentation
+
+Full guides, consumer/producer recipes, middleware reference, and the web dashboard walkthrough are published at **[gems.marcosz.com.br/lepus](https://gems.marcosz.com.br/lepus/)** — part of the [marcosgz Ruby gem catalogue](https://gems.marcosz.com.br).
 
 ## Installation
 
@@ -575,6 +580,8 @@ plugin :lepus
 ## Web UI Dashboard
 
 Lepus includes a built-in web dashboard that provides a real-time view of your message processing infrastructure. The dashboard allows you to monitor processes, queues, connections, and consumer performance.
+
+![Lepus web dashboard — overview of supervisors, workers, and recent activity](https://github.com/user-attachments/assets/a640fc43-2f53-4aa7-aede-f1464f3e6e03)
 
 ### Starting the Web Dashboard
 
