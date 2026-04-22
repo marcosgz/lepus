@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    lepus (0.0.1.rc2)
+    lepus (0.1.0)
       bunny
       concurrent-ruby
       multi_json
