@@ -84,8 +84,8 @@
       const memory = processes.reduce((sum, p) => sum + (p.rss_memory || 0), 0);
 
       // Process details
-      const supervisors = processes.filter(p => p.kind === 'supervisor').length;
-      const workers = processes.filter(p => p.kind === 'worker').length;
+      const supervisors = processes.filter(p => String(p.kind).toLowerCase() === 'supervisor').length;
+      const workers = processes.filter(p => String(p.kind).toLowerCase() === 'worker').length;
       this.processCountTarget.textContent = processCount;
       this.processDetailTarget.textContent = `Supervisors ${supervisors}, Workers ${workers}`;
 
@@ -131,7 +131,7 @@
 
       // First, group supervisors by application
       processes.forEach(p => {
-        if (p.kind === 'supervisor') {
+        if (String(p.kind).toLowerCase() === 'supervisor') {
           const app = p.application || 'DefaultApp';
           if (!byApplication.has(app)) {
             byApplication.set(app, { application: app, supervisors: [] });
@@ -142,7 +142,7 @@
 
       // Then, group workers by supervisor
       processes.forEach(p => {
-        if (p.kind === 'worker' && p.supervisor_id) {
+        if (String(p.kind).toLowerCase() === 'worker' && p.supervisor_id) {
           for (const appData of byApplication.values()) {
             const supervisor = appData.supervisors.find(s => s.id === p.supervisor_id);
             if (supervisor) {
