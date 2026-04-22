@@ -89,17 +89,16 @@ module Lepus
         @exchange = nil
       end
 
-      # Tear down the dedicated registry connection. We close the channel and
-      # the underlying `Bunny::Session` independently and swallow errors on
-      # each — `channel.close` can hang or raise if the broker is mid-recovery
-      # (we've seen CHANNEL_ERRORs during forked supervisor shutdown), but the
-      # session still owns a reader thread that must be closed or the process
-      # won't exit. We always attempt the session close even if the channel
-      # close failed.
+      # Tear down the dedicated registry connection. Closing the session cascades
+      # to all its channels, so we skip an explicit channel.close — doing both
+      # races the broker: the separate channel.close triggers a CHANNEL_ERROR
+      # that wakes Bunny's auto-recovery thread, and the subsequent session.close
+      # then blocks 15s waiting for a broker ack that never comes (seen during
+      # forked supervisor shutdown). We also pass `await_response: false` so a
+      # half-open connection can't keep the process alive past SIGTERM.
       def close_channel
         @mutex.synchronize do
-          safe_close(@channel, "channel") if @channel&.open?
-          safe_close(@connection, "connection") if @connection&.open?
+          safe_close_connection if @connection&.open?
         end
       ensure
         @connection = nil
@@ -107,10 +106,10 @@ module Lepus
         @exchange = nil
       end
 
-      def safe_close(obj, label)
-        obj.close
+      def safe_close_connection
+        @connection.close(false)
       rescue => e
-        Lepus.logger.warn("[ProcessRegistry] Failed to close RabbitMQ #{label}: #{e.message}")
+        Lepus.logger.warn("[ProcessRegistry] Failed to close RabbitMQ connection: #{e.message}")
       end
 
       def publish_heartbeat(process, metrics: {})
