@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "timeout"
 
 module Lepus
   class ProcessRegistry
@@ -89,16 +90,17 @@ module Lepus
         @exchange = nil
       end
 
-      # Tear down the dedicated registry connection. Closing the session cascades
-      # to all its channels, so we skip an explicit channel.close — doing both
-      # races the broker: the separate channel.close triggers a CHANNEL_ERROR
-      # that wakes Bunny's auto-recovery thread, and the subsequent session.close
-      # then blocks 15s waiting for a broker ack that never comes (seen during
-      # forked supervisor shutdown). We also pass `await_response: false` so a
-      # half-open connection can't keep the process alive past SIGTERM.
+      # Tear down the dedicated registry connection on supervisor shutdown.
+      # Bunny's graceful close waits up to 15s per channel for a broker
+      # `close-ok` continuation; during forked supervisor shutdown the broker
+      # sometimes never replies and SIGTERM handling blows past its 10s budget,
+      # timing out the integration specs. We bound the graceful attempt at 2s
+      # and fall back to closing the socket directly so the process can exit.
+      CLOSE_TIMEOUT = 2
+
       def close_channel
         @mutex.synchronize do
-          safe_close_connection if @connection&.open?
+          force_close_connection if @connection
         end
       ensure
         @connection = nil
@@ -106,10 +108,15 @@ module Lepus
         @exchange = nil
       end
 
-      def safe_close_connection
-        @connection.close(false)
+      def force_close_connection
+        Timeout.timeout(CLOSE_TIMEOUT) { @connection.close(false) } if @connection.open?
       rescue => e
         Lepus.logger.warn("[ProcessRegistry] Failed to close RabbitMQ connection: #{e.message}")
+        begin
+          @connection.instance_variable_get(:@transport)&.close
+        rescue
+          nil
+        end
       end
 
       def publish_heartbeat(process, metrics: {})
