@@ -27,7 +27,7 @@ module Lepus
       # break the caller; non-transport bugs surface as debug logs.
       def emit(metric, **data)
         client.send_json(type: "lepus", metric: metric.to_s, **data)
-      rescue StandardError => e
+      rescue => e
         Lepus.logger.debug { "[Lepus::Prometheus] emit(#{metric}) failed: #{e.class}: #{e.message}" }
         nil
       end
