@@ -5,7 +5,8 @@
 #   prometheus_exporter -a lepus/prometheus/collector
 #
 # It intentionally avoids requiring the rest of the Lepus gem so it can
-# run standalone inside the exporter process.
+# run standalone inside the exporter process. When Lepus is loaded in the
+# same process, latency buckets fall back to Lepus.config.prometheus_buckets.
 
 require "prometheus_exporter"
 require "prometheus_exporter/server"
@@ -32,7 +33,10 @@ module Lepus
         when "delivery" then collect_delivery(obj)
         when "publish" then collect_publish(obj)
         when "process" then collect_process(obj)
+        when "process_info" then collect_process_info(obj)
         when "queue" then collect_queue(obj)
+        when "queue_poll" then collect_queue_poll(obj)
+        when "queue_poll_error" then collect_queue_poll_error(obj)
         end
       end
 
@@ -42,18 +46,19 @@ module Lepus
         labels = {
           consumer: obj["consumer"],
           queue: obj["queue"],
-          result: obj["result"]
+          result: obj["result"],
+          error: obj["error"].to_s
         }
         counter(
           "lepus_messages_processed_total",
-          "Total messages delivered to Lepus consumers, labeled by result."
+          "Total messages delivered to Lepus consumers, labeled by result and error class."
         ).observe(1, labels)
 
         duration = obj["duration"].to_f
         histogram(
           "lepus_delivery_duration_seconds",
           "Time spent processing a single Lepus message.",
-          DEFAULT_BUCKETS
+          buckets
         ).observe(duration, consumer: obj["consumer"], queue: obj["queue"])
       end
 
@@ -67,20 +72,29 @@ module Lepus
         histogram(
           "lepus_publish_duration_seconds",
           "Time spent publishing a single Lepus message.",
-          DEFAULT_BUCKETS
+          buckets
         ).observe(duration, exchange: obj["exchange"], routing_key: obj["routing_key"])
       end
 
       def collect_process(obj)
-        labels = {
-          kind: obj["kind"],
-          name: obj["name"],
-          pid: obj["pid"].to_s
-        }
+        labels = {kind: obj["kind"], name: obj["name"]}
         gauge(
           "lepus_process_rss_memory_bytes",
           "Resident-set memory of a Lepus process."
         ).observe(obj["rss_memory"].to_f, labels)
+      end
+
+      def collect_process_info(obj)
+        labels = {
+          kind: obj["kind"],
+          name: obj["name"],
+          pid: obj["pid"].to_s,
+          hostname: obj["hostname"].to_s
+        }
+        gauge(
+          "lepus_process_info",
+          "Info gauge for a Lepus process (always 1); use for joining pid/hostname labels."
+        ).observe(1, labels)
       end
 
       def collect_queue(obj)
@@ -97,6 +111,20 @@ module Lepus
           .observe(obj["memory"].to_f, labels)
       end
 
+      def collect_queue_poll(obj)
+        gauge(
+          "lepus_queue_poll_last_success_timestamp_seconds",
+          "Unix timestamp of the last successful RabbitMQ management API poll."
+        ).observe(obj["timestamp"].to_f, {})
+      end
+
+      def collect_queue_poll_error(obj)
+        counter(
+          "lepus_queue_poll_errors_total",
+          "Total errors encountered while polling the RabbitMQ management API, labeled by error class."
+        ).observe(1, error: obj["error"].to_s)
+      end
+
       def counter(name, help)
         @metrics[name] ||= ::PrometheusExporter::Metric::Counter.new(name, help)
       end
@@ -107,6 +135,14 @@ module Lepus
 
       def histogram(name, help, buckets)
         @metrics[name] ||= ::PrometheusExporter::Metric::Histogram.new(name, help, buckets: buckets)
+      end
+
+      def buckets
+        if defined?(::Lepus) && ::Lepus.respond_to?(:config) && ::Lepus.config.respond_to?(:prometheus_buckets)
+          ::Lepus.config.prometheus_buckets
+        else
+          DEFAULT_BUCKETS
+        end
       end
     end
   end

@@ -76,7 +76,7 @@ Endpoints include (subject to change):
 
 ## Prometheus metrics
 
-When `prometheus_exporter` is in your Gemfile and the appropriate middleware is in the chain, Lepus emits counters and histograms for message processing. Point Prometheus at the standard exporter endpoint.
+See [prometheus.md](prometheus.md) for the metric list, label cardinality notes, and how to wire the collector server inside a Lepus supervisor process.
 
 ## Operating in production
 

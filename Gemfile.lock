@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     lepus (0.1.0)
+      base64
       bunny
       concurrent-ruby
       multi_json
@@ -15,6 +16,7 @@ GEM
       public_suffix (>= 2.0.2, < 7.0)
     amq-protocol (2.5.1)
     ast (2.4.2)
+    base64 (0.3.0)
     bigdecimal (3.1.8)
     bunny (2.24.0)
       amq-protocol (~> 2.3)

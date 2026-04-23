@@ -36,6 +36,7 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{^exec/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "base64", ">= 0.0.0"
   spec.add_dependency "bunny", ">= 0.0.0"
   spec.add_dependency "thor", ">= 0.0.0"
   spec.add_dependency "zeitwerk", ">= 0.0.0"

@@ -1,26 +1,33 @@
 # frozen_string_literal: true
 
+require "socket"
+
 module Lepus
   module Prometheus
     # Hooks that run inside each Lepus process and forward metrics to the
     # prometheus_exporter server via Lepus::Prometheus.emit.
     module Instrumentation
-      # Tracks per-delivery outcomes and latency.
+      # Tracks per-delivery outcomes and latency. Always emits a metric, even
+      # when the underlying consumer raises, so error rates are observable.
       module HandlerExtensions
         def process_delivery(delivery_info, metadata, payload)
           start = ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
-          result = super
-          elapsed = ::Process.clock_gettime(::Process::CLOCK_MONOTONIC) - start
+          result = nil
+          error_class = nil
           begin
+            result = super
+          rescue => e
+            error_class = e.class.name
+            raise
+          ensure
             Lepus::Prometheus.emit(
               :delivery,
               consumer: @consumer_class.name,
               queue: queue_name_for_metric,
-              result: result.to_s,
-              duration: elapsed
+              result: error_class ? "error" : result.to_s,
+              error: error_class.to_s,
+              duration: ::Process.clock_gettime(::Process::CLOCK_MONOTONIC) - start
             )
-          rescue
-            nil
           end
           result
         end
@@ -35,7 +42,9 @@ module Lepus
         end
       end
 
-      # Emits process-level gauges on each heartbeat tick.
+      # Emits process-level gauges on each heartbeat tick. rss_memory is keyed
+      # on (kind, name) only to avoid leaking a new series per pid; pid and
+      # hostname stay available on the `lepus_process_info` info gauge.
       module WorkerExtensions
         def heartbeat
           super
@@ -44,8 +53,14 @@ module Lepus
             :process,
             kind: kind.to_s,
             name: name,
-            pid: pid,
             rss_memory: safe_rss_memory_bytes
+          )
+          Lepus::Prometheus.emit(
+            :process_info,
+            kind: kind.to_s,
+            name: name,
+            pid: pid.to_s,
+            hostname: safe_hostname
           )
         end
 
@@ -55,6 +70,12 @@ module Lepus
           Lepus::Processes::MEMORY_GRABBER.call(pid) * 1024
         rescue
           0
+        end
+
+        def safe_hostname
+          Socket.gethostname
+        rescue
+          ""
         end
       end
 
@@ -106,7 +127,9 @@ module Lepus
                 memory: q[:memory].to_i
               )
             end
+            Lepus::Prometheus.emit(:queue_poll, timestamp: Time.now.to_f)
           rescue => e
+            Lepus::Prometheus.emit(:queue_poll_error, error: e.class.name)
             Lepus.logger.warn("[Lepus::Prometheus] queue poll failed: #{e.message}")
           end
         end

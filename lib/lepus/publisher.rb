@@ -42,7 +42,9 @@ module Lepus
 
       payload, opts = prepare_message(message, **options)
       exchange = channel.exchange(exchange_name, exchange_options)
-      exchange.publish(payload, opts)
+      Lepus.instrument(:publish, exchange: exchange_name, routing_key: opts[:routing_key]) do
+        exchange.publish(payload, opts)
+      end
     end
 
     private

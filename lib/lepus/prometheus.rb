@@ -24,10 +24,11 @@ module Lepus
 
       # Emit an opaque metric payload to the exporter server.
       # Silently swallows transport errors so instrumentation cannot
-      # break the caller.
+      # break the caller; non-transport bugs surface as debug logs.
       def emit(metric, **data)
         client.send_json(type: "lepus", metric: metric.to_s, **data)
-      rescue
+      rescue StandardError => e
+        Lepus.logger.debug { "[Lepus::Prometheus] emit(#{metric}) failed: #{e.class}: #{e.message}" }
         nil
       end
 

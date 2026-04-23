@@ -49,6 +49,12 @@ module Lepus
     # @return [String, nil] the RabbitMQ Management API URL.
     attr_accessor :management_api_url
 
+    # @return [Array<Numeric>] histogram buckets (in seconds) used by the
+    #   prometheus_exporter collector for delivery and publish latency.
+    attr_accessor :prometheus_buckets
+
+    DEFAULT_PROMETHEUS_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10].freeze
+
     def initialize
       @connection_name = "Lepus (#{Lepus::VERSION})"
       @rabbitmq_url = ENV.fetch("RABBITMQ_URL", DEFAULT_RABBITMQ_URL) || DEFAULT_RABBITMQ_URL
@@ -61,6 +67,7 @@ module Lepus
       @process_registry_backend = :file
       @application_name = nil
       @management_api_url = nil
+      @prometheus_buckets = DEFAULT_PROMETHEUS_BUCKETS
     end
 
     # Builds the process registry backend based on configuration.

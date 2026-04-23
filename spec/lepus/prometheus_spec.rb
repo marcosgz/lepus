@@ -107,6 +107,31 @@ RSpec.describe Lepus::Prometheus::Instrumentation::QueuePoller do
       memory: 1024
     )
   end
+
+  it "records a queue_poll timestamp after a successful poll" do
+    described_class.start(interval: 0.05, api: api)
+    sleep 0.1
+    described_class.stop
+
+    poll = fake_client.sent.find { |p| p[:metric] == "queue_poll" }
+    expect(poll).not_to be_nil
+    expect(poll[:timestamp]).to be_a(Float).and(be > 0)
+  end
+
+  it "records a queue_poll_error counter when the API raises" do
+    broken_api = Class.new do
+      def queues
+        raise "boom"
+      end
+    end.new
+
+    described_class.start(interval: 0.05, api: broken_api)
+    sleep 0.1
+    described_class.stop
+
+    error = fake_client.sent.find { |p| p[:metric] == "queue_poll_error" }
+    expect(error).to include(metric: "queue_poll_error", error: "RuntimeError")
+  end
 end
 
 RSpec.describe Lepus::Prometheus::Collector do
@@ -131,6 +156,7 @@ RSpec.describe Lepus::Prometheus::Collector do
         "consumer" => "OrdersConsumer",
         "queue" => "orders.q",
         "result" => "ack",
+        "error" => "",
         "duration" => 0.12
       )
 
@@ -143,6 +169,21 @@ RSpec.describe Lepus::Prometheus::Collector do
       hist = metric_named("lepus_delivery_duration_seconds")
       expect(hist).not_to be_nil
       expect(render(hist)).to include('consumer="OrdersConsumer"')
+    end
+
+    it "records an error label when the delivery raised" do
+      collector.collect(
+        "metric" => "delivery",
+        "consumer" => "OrdersConsumer",
+        "queue" => "orders.q",
+        "result" => "error",
+        "error" => "RuntimeError",
+        "duration" => 0.01
+      )
+
+      counter = render(metric_named("lepus_messages_processed_total"))
+      expect(counter).to include('result="error"')
+      expect(counter).to include('error="RuntimeError"')
     end
   end
 
@@ -164,20 +205,48 @@ RSpec.describe Lepus::Prometheus::Collector do
   end
 
   describe "process metric" do
-    it "records RSS gauge with kind/name/pid labels" do
+    it "records RSS gauge with kind/name labels only (pid moves to process_info)" do
       collector.collect(
         "metric" => "process",
         "kind" => "Worker",
         "name" => "default",
-        "pid" => 4242,
         "rss_memory" => 123_456
       )
 
       gauge = metric_named("lepus_process_rss_memory_bytes")
       expect(gauge).not_to be_nil
-      expect(render(gauge)).to include('kind="Worker"')
-      expect(render(gauge)).to include('name="default"')
-      expect(render(gauge)).to include('pid="4242"')
+      rendered = render(gauge)
+      expect(rendered).to include('kind="Worker"')
+      expect(rendered).to include('name="default"')
+      expect(rendered).not_to include("pid=")
+    end
+  end
+
+  describe "process_info metric" do
+    it "records an info gauge carrying pid and hostname labels" do
+      collector.collect(
+        "metric" => "process_info",
+        "kind" => "Worker",
+        "name" => "default",
+        "pid" => "4242",
+        "hostname" => "lepus-abc"
+      )
+
+      info = metric_named("lepus_process_info")
+      rendered = render(info)
+      expect(rendered).to include('pid="4242"')
+      expect(rendered).to include('hostname="lepus-abc"')
+    end
+  end
+
+  describe "queue_poll metrics" do
+    it "tracks last successful poll timestamp and error counter" do
+      collector.collect("metric" => "queue_poll", "timestamp" => 1_700_000_000.0)
+      collector.collect("metric" => "queue_poll_error", "error" => "Net::ReadTimeout")
+
+      expect(metric_named("lepus_queue_poll_last_success_timestamp_seconds")).not_to be_nil
+      expect(render(metric_named("lepus_queue_poll_errors_total")))
+        .to include('error="Net::ReadTimeout"')
     end
   end
 
