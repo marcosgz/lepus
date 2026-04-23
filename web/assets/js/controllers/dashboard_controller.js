@@ -175,7 +175,7 @@
     }
 
     renderSupervisor(supervisor) {
-      const healthy = (Date.now() - (supervisor.last_heartbeat_at || 0)) < 60_000;
+      const healthy = this.isHealthy(supervisor.last_heartbeat_at);
       const workers = supervisor.workers || [];
 
       return `
@@ -198,7 +198,7 @@
     }
 
     renderWorker(worker) {
-      const healthy = (Date.now() - (worker.last_heartbeat_at || 0)) < 60_000;
+      const healthy = this.isHealthy(worker.last_heartbeat_at);
       const consumers = worker.consumers || [];
 
       return `
@@ -484,6 +484,15 @@
     }
 
     escape(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+    // Heartbeats arrive as ISO 8601 strings; Date.now() - <string> is NaN, so
+    // parse first and treat an unparseable/missing value as "never seen."
+    isHealthy(timestamp, staleMs = 60_000) {
+      if (!timestamp) return false;
+      const ms = new Date(timestamp).getTime();
+      if (Number.isNaN(ms)) return false;
+      return (Date.now() - ms) < staleMs;
+    }
   });
 })();
 

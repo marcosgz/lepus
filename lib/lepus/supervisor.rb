@@ -32,6 +32,8 @@ module Lepus
       @configured_processes = {}
 
       super
+
+      @name ||= hostname
     end
 
     def start

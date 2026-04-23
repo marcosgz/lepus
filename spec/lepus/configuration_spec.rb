@@ -312,11 +312,18 @@ RSpec.describe Lepus::Configuration do
   end
 
   describe "#application_name" do
-    it "defaults to nil" do
-      expect(configuration.application_name).to be_nil
+    it "falls back to connection_name when not explicitly set" do
+      configuration.connection_name = "fallback-app"
+      expect(configuration.application_name).to eq("fallback-app")
     end
 
     it "can be set" do
+      configuration.application_name = "MyApp"
+      expect(configuration.application_name).to eq("MyApp")
+    end
+
+    it "prefers the explicit value over connection_name" do
+      configuration.connection_name = "fallback-app"
       configuration.application_name = "MyApp"
       expect(configuration.application_name).to eq("MyApp")
     end

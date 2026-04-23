@@ -44,7 +44,13 @@ module Lepus
     attr_accessor :process_registry_backend
 
     # @return [String, nil] the application name shown in the web dashboard.
-    attr_accessor :application_name
+    #   Falls back to {#connection_name} when not explicitly set so that hosts
+    #   that only configure `connection_name` still group correctly in the UI.
+    attr_writer :application_name
+
+    def application_name
+      @application_name || connection_name
+    end
 
     # @return [String, nil] the RabbitMQ Management API URL.
     attr_accessor :management_api_url
