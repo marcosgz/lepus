@@ -30,9 +30,17 @@ module Lepus
       end
 
       # Returns the middleware chain for this consumer.
+      # Inherits middlewares registered on superclasses so abstract base consumers
+      # can declare shared middlewares with `use` and have them apply to subclasses.
       # @return [Lepus::Consumers::MiddlewareChain]
       def middleware_chain
-        @middleware_chain ||= Consumers::MiddlewareChain.new
+        @middleware_chain ||= begin
+          chain = Consumers::MiddlewareChain.new
+          if superclass.respond_to?(:middleware_chain)
+            superclass.middleware_chain.middlewares.each { |m| chain.middlewares << m }
+          end
+          chain
+        end
       end
 
       # Registers a middleware to this consumer's chain.

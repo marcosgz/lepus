@@ -94,6 +94,43 @@ RSpec.describe Lepus::Consumer do
     end
   end
 
+  describe ".middleware_chain" do
+    it "inherits middlewares from the superclass" do
+      middleware_class = Class.new(Lepus::Middleware) do
+        def call(message, app)
+          app.call(message)
+        end
+      end
+
+      parent = Class.new(described_class) do
+        self.abstract_class = true
+      end
+      parent.use(middleware_class)
+
+      child = Class.new(parent)
+
+      expect(child.middleware_chain.middlewares.map(&:class)).to include(middleware_class)
+    end
+
+    it "does not mutate the superclass chain when subclasses register middlewares" do
+      middleware_class = Class.new(Lepus::Middleware) do
+        def call(message, app)
+          app.call(message)
+        end
+      end
+
+      parent = Class.new(described_class) do
+        self.abstract_class = true
+      end
+
+      child = Class.new(parent)
+      child.use(middleware_class)
+
+      expect(parent.middleware_chain.middlewares).to be_empty
+      expect(child.middleware_chain.middlewares.map(&:class)).to include(middleware_class)
+    end
+  end
+
   describe "#perform" do
     it "raises a not implemented error" do
       expect { instance.perform(message) }.to raise_error(
