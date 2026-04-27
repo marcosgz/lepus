@@ -295,4 +295,76 @@ RSpec.describe Lepus::Configuration do
       expect(configuration.consumer_middlewares).to be(configuration.consumer_middleware_chain)
     end
   end
+
+  describe "#process_registry_backend" do
+    # Note: the out-of-the-box default is :file for the raw Configuration class,
+    # but requiring `lepus/web` prepends an extension that flips it to :rabbitmq.
+    # That flipped default is covered in `spec/lepus/web_spec.rb`.
+    it "can be set to :rabbitmq" do
+      configuration.process_registry_backend = :rabbitmq
+      expect(configuration.process_registry_backend).to eq(:rabbitmq)
+    end
+
+    it "can be set to :file" do
+      configuration.process_registry_backend = :file
+      expect(configuration.process_registry_backend).to eq(:file)
+    end
+  end
+
+  describe "#application_name" do
+    it "falls back to connection_name when not explicitly set" do
+      configuration.connection_name = "fallback-app"
+      expect(configuration.application_name).to eq("fallback-app")
+    end
+
+    it "can be set" do
+      configuration.application_name = "MyApp"
+      expect(configuration.application_name).to eq("MyApp")
+    end
+
+    it "prefers the explicit value over connection_name" do
+      configuration.connection_name = "fallback-app"
+      configuration.application_name = "MyApp"
+      expect(configuration.application_name).to eq("MyApp")
+    end
+  end
+
+  describe "#build_process_registry_backend" do
+    it "returns FileBackend when backend is :file" do
+      configuration.process_registry_backend = :file
+      expect(configuration.build_process_registry_backend).to be_a(Lepus::ProcessRegistry::FileBackend)
+    end
+
+    it "returns RabbitmqBackend when backend is :rabbitmq" do
+      configuration.process_registry_backend = :rabbitmq
+      expect(configuration.build_process_registry_backend).to be_a(Lepus::ProcessRegistry::RabbitmqBackend)
+    end
+
+    it "defaults to FileBackend for unknown values" do
+      configuration.process_registry_backend = :unknown
+      expect(configuration.build_process_registry_backend).to be_a(Lepus::ProcessRegistry::FileBackend)
+    end
+  end
+
+  describe "#management_api_url" do
+    it "defaults to nil" do
+      expect(configuration.management_api_url).to be_nil
+    end
+
+    it "can be set" do
+      configuration.management_api_url = "http://localhost:15672"
+      expect(configuration.management_api_url).to eq("http://localhost:15672")
+    end
+  end
+
+  describe "#build_management_api" do
+    it "builds a ManagementAPI with configured values" do
+      configuration.management_api_url = "http://custom:15673"
+
+      api = configuration.build_management_api
+
+      expect(api).to be_a(Lepus::Web::ManagementAPI)
+      expect(api.base_url).to eq("http://custom:15673")
+    end
+  end
 end

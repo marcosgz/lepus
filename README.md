@@ -1,7 +1,12 @@
 # Lepus
 
+![Lepus web dashboard](https://github.com/user-attachments/assets/a640fc43-2f53-4aa7-aede-f1464f3e6e03)
 
 Lepus is a lightweight but powerful Ruby library to help you to consume and produce messages to [RabbitMQ](https://www.rabbitmq.com/) using the [Bunny](https://github.com/ruby-amqp/bunny) gem. It's similar to the Sidekiq, Faktory, ActiveJob, SolidQueue, and other libraries, but using RabbitMQ as the message broker.
+
+## Documentation
+
+Full guides, consumer/producer recipes, middleware reference, and the web dashboard walkthrough are published at **[gems.marcosz.com.br/lepus](https://gems.marcosz.com.br/lepus/)** — part of the [marcosgz Ruby gem catalogue](https://gems.marcosz.com.br).
 
 ## Installation
 
@@ -572,6 +577,180 @@ plugin :lepus
 
 **Note**: The Puma plugin is only available if you are using Puma 6.x or higher.
 
+## Web UI Dashboard
+
+Lepus includes a built-in web dashboard that provides a real-time view of your message processing infrastructure. The dashboard allows you to monitor processes, queues, connections, and consumer performance.
+
+![Lepus web dashboard — overview of supervisors, workers, and recent activity](https://github.com/user-attachments/assets/a640fc43-2f53-4aa7-aede-f1464f3e6e03)
+
+### Starting the Web Dashboard
+
+You can start the web dashboard using the `lepus web` command:
+
+```bash
+bundle exec lepus web
+```
+
+The dashboard will be available at `http://localhost:9292` by default. You can customize the host and port:
+
+```bash
+bundle exec lepus web --port 3000 --host 127.0.0.1
+```
+
+### Web Dashboard Features
+
+The Lepus web dashboard provides:
+
+- **Process Monitoring**: View all running supervisors and workers with their PIDs, memory usage, and heartbeat status
+- **Queue Management**: Monitor queue statistics including message counts, consumer connections, and memory usage
+- **Connection Tracking**: View active RabbitMQ connections and their states
+- **Consumer Performance**: Track processed, rejected, and errored messages per consumer
+- **Real-time Updates**: Dashboard automatically refreshes to show current system state
+
+### Integrating with Rails
+
+To integrate the Lepus web dashboard into your Rails application, you can mount it as a Rack application in your routes:
+
+```ruby
+# config/routes.rb
+Rails.application.routes.draw do
+  # Your existing routes...
+
+  # Mount Lepus web dashboard (simple way)
+  mount Lepus::Web => "/lepus"
+end
+```
+
+You can also use the more explicit syntax:
+
+```ruby
+# config/routes.rb
+Rails.application.routes.draw do
+  # Your existing routes...
+
+  # Mount Lepus web dashboard (explicit way)
+  mount Lepus::Web::App.build => "/lepus"
+end
+```
+
+This will make the dashboard available at `http://your-app.com/lepus` in your Rails application.
+
+#### Process registry backend
+
+Lepus tracks running supervisors and workers in a **process registry**. Two
+backends are available:
+
+- `:file` (default for a core `require "lepus"`) — stores process data in a
+  local file under `/tmp`. Fast and dependency-free, but the file is only
+  visible to processes that share the same filesystem.
+- `:rabbitmq` — stores the same data in a dedicated RabbitMQ queue, so every
+  process connected to the same broker sees the same registry.
+
+**Requiring `lepus/web` automatically switches the default to `:rabbitmq`.**
+This is because the dashboard is almost always run in a separate process (and
+often a separate container) from the workers, and the `:file` backend cannot
+bridge that gap — you'd see an empty dashboard even with workers running. The
+dashboard still needs the RabbitMQ Management API for queue/connection data,
+but the registry is what lets it discover your workers.
+
+If you really want the file backend even with the dashboard loaded, set it
+explicitly after your `require`:
+
+```ruby
+# config/initializers/lepus.rb
+Lepus.configure do |config|
+  config.process_registry_backend = :file
+end
+```
+
+`Lepus::Web` is a plain Rack app, so authentication is applied by wrapping it
+in standard Rack middleware or by gating the mount with a real auth helper.
+Rails routing `constraints:` is **not** an authentication mechanism — a falsy
+constraint returns 404 and never prompts for credentials.
+
+HTTP Basic Auth (wrap the Rack app):
+
+```ruby
+# config/routes.rb
+require "rack/auth/basic"
+
+lepus_web = Rack::Builder.new do
+  use Rack::Auth::Basic, "Lepus Dashboard" do |username, password|
+    ActiveSupport::SecurityUtils.secure_compare(username, ENV.fetch("LEPUS_USER")) &
+      ActiveSupport::SecurityUtils.secure_compare(password, ENV.fetch("LEPUS_PASSWORD"))
+  end
+  run Lepus::Web
+end
+
+Rails.application.routes.draw do
+  mount lepus_web => "/lepus"
+end
+```
+
+Devise (only admins can see the dashboard):
+
+```ruby
+# config/routes.rb
+Rails.application.routes.draw do
+  authenticate :user, ->(u) { u.admin? } do
+    mount Lepus::Web => "/lepus"
+  end
+end
+```
+
+## Prometheus metrics (optional)
+
+Lepus ships an optional integration with
+[`prometheus_exporter`](https://github.com/discourse/prometheus_exporter). It is
+not a required dependency and is not auto-loaded — add the gem to your `Gemfile`
+and require `lepus/prometheus` explicitly from the Lepus process you want to
+instrument.
+
+```ruby
+# Gemfile
+gem "prometheus_exporter"
+```
+
+```ruby
+# e.g. config/initializers/lepus.rb, or at the top of your consumer boot script
+require "lepus/prometheus"
+
+# Optional: poll the RabbitMQ Management API for queue-level gauges
+# from a single process (typically the supervisor).
+Lepus::Prometheus.watch_queues(interval: 30)
+```
+
+Requiring `lepus/prometheus` installs the necessary hooks into
+`Lepus::Consumers::Handler` (delivery counters and latency) and
+`Lepus::Consumers::Worker` (process RSS gauge), and subscribes to
+`publish.lepus` notifications (publish counters). Metrics are sent over TCP to
+the `PrometheusExporter::Client.default` client.
+
+On the exporter side, load the bundled type collector so the server knows how
+to turn Lepus payloads into Prometheus metrics:
+
+```bash
+bundle exec prometheus_exporter -a lepus/prometheus/collector
+```
+
+Point Prometheus at the exporter (default port `9394`) and import
+[`examples/grafana-dashboard.json`](examples/grafana-dashboard.json) into
+Grafana. The dashboard covers every metric exposed by the collector.
+
+### Exposed metrics
+
+| Metric                                    | Type      | Labels                            | Source                                     |
+|-------------------------------------------|-----------|-----------------------------------|--------------------------------------------|
+| `lepus_messages_processed_total`          | counter   | `consumer`, `queue`, `result`     | `Handler#process_delivery`                 |
+| `lepus_delivery_duration_seconds`         | histogram | `consumer`, `queue`               | `Handler#process_delivery`                 |
+| `lepus_messages_published_total`          | counter   | `exchange`, `routing_key`         | `publish.lepus` notification               |
+| `lepus_publish_duration_seconds`          | histogram | `exchange`, `routing_key`         | `publish.lepus` notification               |
+| `lepus_process_rss_memory_bytes`          | gauge     | `kind`, `name`, `pid`             | `Worker#heartbeat`                         |
+| `lepus_queue_messages`                    | gauge     | `name`                            | `watch_queues` via management API          |
+| `lepus_queue_messages_ready`              | gauge     | `name`                            | `watch_queues` via management API          |
+| `lepus_queue_messages_unacknowledged`     | gauge     | `name`                            | `watch_queues` via management API          |
+| `lepus_queue_consumers`                   | gauge     | `name`                            | `watch_queues` via management API          |
+| `lepus_queue_memory_bytes`                | gauge     | `name`                            | `watch_queues` via management API          |
 
 ## Development
 

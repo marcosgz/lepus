@@ -1,0 +1,108 @@
+# frozen_string_literal: true
+
+require "pathname"
+require "tmpdir"
+require "base64"
+
+module Lepus
+  class ProcessRegistry
+    # File-based backend for process registry storage.
+    # Stores process data in a file using Marshal serialization.
+    # This is the default backend for apps not using the web dashboard.
+    class FileBackend
+      include Backend
+
+      attr_reader :path
+
+      def initialize(path: nil)
+        @path = path
+      end
+
+      def start
+        @path ||= Pathname.new(Dir.tmpdir).join("lepus_process_registry.store")
+      end
+
+      def stop
+        path.delete if path&.exist?
+      end
+
+      def add(process, metrics: {})
+        transaction do |data|
+          data[process.id] = process.to_h
+        end
+      end
+
+      def delete(process)
+        transaction do |data|
+          data.delete(process.id)
+        end
+      end
+
+      def find(id)
+        raw = read.fetch(id) { raise(Lepus::Process::NotFoundError.new(id)) }
+        Lepus::Process.coerce(raw)
+      end
+
+      def exists?(id)
+        read.key?(id)
+      end
+
+      def all
+        read.keys.map { |id| find(id) }
+      end
+
+      def count
+        return 0 unless path
+
+        read.size
+      end
+
+      def clear
+        return unless path
+
+        write({})
+      end
+
+      private
+
+      def transaction
+        data = read
+        yield data
+        write(data)
+      end
+
+      def read
+        with_lock(File::LOCK_SH) do |f|
+          if f.size.zero?
+            {}
+          else
+            encoded = f.read
+            Marshal.load(Base64.strict_decode64(encoded))
+          end
+        end
+      end
+
+      def write(data)
+        with_lock(File::LOCK_EX) do |f|
+          f.rewind
+          f.truncate(0)
+          encoded = Base64.strict_encode64(Marshal.dump(data))
+          f.write(encoded)
+          f.flush
+        end
+      end
+
+      def with_lock(lock_type)
+        unless path
+          raise "ProcessRegistry not started. Call Lepus::ProcessRegistry.start first."
+        end
+        File.open(path, File::RDWR | File::CREAT | File::BINARY, 0o644) do |f|
+          f.flock(lock_type)
+          result = yield f
+          f.flock(File::LOCK_UN)
+          result
+        end
+      end
+    end
+  end
+end
