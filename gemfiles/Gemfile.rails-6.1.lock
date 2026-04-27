@@ -1,7 +1,7 @@
 PATH
   remote: ..
   specs:
-    lepus (0.1.0)
+    lepus (0.1.1)
       base64
       bunny
       concurrent-ruby
@@ -73,7 +73,7 @@ GEM
       zeitwerk (~> 2.3)
     addressable (2.9.0)
       public_suffix (>= 2.0.2, < 8.0)
-    amq-protocol (2.7.0)
+    amq-protocol (2.8.0)
     ast (2.4.3)
     base64 (0.3.0)
     bigdecimal (4.1.1)
