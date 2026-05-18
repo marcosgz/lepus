@@ -31,6 +31,30 @@ module Lepus
       Lepus::Supervisor.start(**opts)
     end
 
+    desc "health_check", "Exit 0 if Lepus workers are alive, 1 if unhealthy (for ECS/K8s probes)"
+    method_option :threshold, type: :numeric, default: nil,
+                              desc: "Max seconds since last heartbeat (default: process_alive_threshold)"
+    def health_check
+      require "lepus"
+
+      threshold = options[:threshold] || Lepus.config.process_alive_threshold
+      cutoff    = Time.now - threshold
+
+      Lepus::ProcessRegistry.start
+      alive = Lepus::ProcessRegistry.all.any? { |p| p.last_heartbeat_at.to_i >= cutoff.to_i }
+
+      if alive
+        puts "ok"
+        exit 0
+      else
+        warn "unhealthy: no workers with heartbeat since #{cutoff}"
+        exit 1
+      end
+    rescue => e
+      warn "health_check error: #{e.message}"
+      exit 1
+    end
+
     desc "web", "Run Lepus Web dashboard"
     method_option :port, type: :numeric, aliases: "-p", default: 9292, desc: "Port to listen on"
     method_option :host, type: :string, aliases: "-o", default: "0.0.0.0", desc: "Host to bind"
