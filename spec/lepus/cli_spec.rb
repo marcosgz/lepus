@@ -6,7 +6,7 @@ RSpec.describe Lepus::CLI do
   describe "#health_check" do
     let(:now) { Time.now }
     let(:recent_process) { instance_double(Lepus::Process, last_heartbeat_at: now) }
-    let(:stale_process)  { instance_double(Lepus::Process, last_heartbeat_at: now - 9999) }
+    let(:stale_process) { instance_double(Lepus::Process, last_heartbeat_at: now - 9999) }
 
     before do
       allow(Lepus::ProcessRegistry).to receive(:start)

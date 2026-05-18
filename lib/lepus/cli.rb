@@ -33,12 +33,12 @@ module Lepus
 
     desc "health_check", "Exit 0 if Lepus workers are alive, 1 if unhealthy (for ECS/K8s probes)"
     method_option :threshold, type: :numeric, default: nil,
-                              desc: "Max seconds since last heartbeat (default: process_alive_threshold)"
+      desc: "Max seconds since last heartbeat (default: process_alive_threshold)"
     def health_check
       require "lepus"
 
       threshold = options[:threshold] || Lepus.config.process_alive_threshold
-      cutoff    = Time.now - threshold
+      cutoff = Time.now - threshold
 
       Lepus::ProcessRegistry.start
       alive = Lepus::ProcessRegistry.all.any? { |p| p.last_heartbeat_at.to_i >= cutoff.to_i }
