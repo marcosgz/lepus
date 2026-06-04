@@ -92,7 +92,7 @@ module Lepus
 
       def heartbeat
         process.heartbeat(metrics: metrics_data)
-      rescue Process::NotFoundError
+      rescue Lepus::Process::NotFoundError
         self.process = nil
         interrupt
       end

@@ -58,7 +58,7 @@ module Lepus::Processes
 
       def heartbeat
         process.heartbeat
-      rescue Process::NotFoundError
+      rescue Lepus::Process::NotFoundError
         self.process = nil
         interrupt
       end
