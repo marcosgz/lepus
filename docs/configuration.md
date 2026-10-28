@@ -28,6 +28,19 @@ end
 | `recovery_attempts` | `10` | Max automatic reconnects; `nil` for infinite |
 | `recover_from_connection_close` | `true` | Auto-recover after a clean close |
 
+### Named connections
+
+Producers can publish to more than one broker. Register extra brokers by name; `rabbitmq_url` stays the `:default` connection and remains the only one used by consumers, the supervisor, the process registry and the web dashboard.
+
+```ruby
+Lepus.configure do |config|
+  config.rabbitmq_url = ENV.fetch('RABBITMQ_URL')
+  config.connection(:replica, url: ENV.fetch('REPLICA_RABBITMQ_URL'), recovery_attempts: 3)
+end
+```
+
+`url:` is required and must not be blank. Extra keyword arguments are Bunny session options and override the global ones for that connection only; a `connection_name:` given here is used as-is instead of the generated label. The name `:default` is reserved. Publishing through a name that was never registered raises `Lepus::InvalidConnectionError`. See [producers.md](producers.md#named-connections).
+
 ## Application metadata
 
 ```ruby
@@ -72,7 +85,7 @@ Assign consumers to a named worker via their own `configure(process: { name: :hi
 
 ## Producer pool
 
-Producers share a connection pool:
+Producers share a connection pool per named connection (see [Named connections](#named-connections)); every pool uses these settings:
 
 ```ruby
 config.producer do |p|

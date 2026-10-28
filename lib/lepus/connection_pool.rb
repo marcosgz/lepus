@@ -9,12 +9,13 @@ module Lepus
     DEFAULT_SIZE = 5
     DEFAULT_TIMEOUT = 5.0
 
-    attr_reader :pool_size, :timeout, :conn_suffix
+    attr_reader :pool_size, :timeout, :conn_suffix, :conn_name
 
-    def initialize(size: DEFAULT_SIZE, timeout: DEFAULT_TIMEOUT, suffix: nil)
+    def initialize(size: DEFAULT_SIZE, timeout: DEFAULT_TIMEOUT, suffix: nil, connection: Lepus::Configuration::DEFAULT_CONNECTION)
       @pool_size = size
       @timeout = timeout
       @conn_suffix = suffix
+      @conn_name = connection
       @available = Concurrent::Array.new
       @in_use = Concurrent::Array.new
       @semaphore = Concurrent::Semaphore.new(pool_size)
@@ -62,7 +63,7 @@ module Lepus
       end
 
       # Create a new connection
-      connection = Lepus.config.create_connection(suffix: @conn_suffix)
+      connection = Lepus.config.create_connection(suffix: @conn_suffix, connection: @conn_name)
       @mutex.with_write_lock do
         @in_use << connection
       end

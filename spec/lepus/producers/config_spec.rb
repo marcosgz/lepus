@@ -64,6 +64,42 @@ RSpec.describe Lepus::Producers::Config do
       connection_pool2 = config.send(:connection_pool)
       expect(connection_pool1).to be(connection_pool2)
     end
+
+    it "uses the default connection pool when no name is given" do
+      connection_pool = instance_double(Lepus::ConnectionPool)
+      allow(connection_pool).to receive(:with_connection).and_yield(:conn)
+      allow(config).to receive(:connection_pool).with(:default).and_return(connection_pool)
+
+      expect { |b| config.with_connection(&b) }.to yield_with_args(:conn)
+    end
+
+    context "with named connections" do
+      before { Lepus.config.connection(:analytics, url: "amqp://remote:5672") }
+
+      after { Lepus.config.connections.delete(:analytics) }
+
+      it "keeps one pool per connection name" do
+        default_pool = config.send(:connection_pool)
+        named_pool = config.send(:connection_pool, "analytics")
+
+        expect(named_pool).not_to be(default_pool)
+        expect(named_pool.conn_name).to eq(:analytics)
+        expect(default_pool.conn_name).to eq(:default)
+        expect(config.send(:connection_pool, :analytics)).to be(named_pool)
+      end
+
+      it "checks out connections from the named pool" do
+        connection_pool = instance_double(Lepus::ConnectionPool)
+        allow(connection_pool).to receive(:with_connection).and_yield(:remote_conn)
+        allow(config).to receive(:connection_pool).with(:analytics).and_return(connection_pool)
+
+        expect { |b| config.with_connection(:analytics, &b) }.to yield_with_args(:remote_conn)
+      end
+
+      it "raises for an unknown connection" do
+        expect { config.with_connection(:unknown) {} }.to raise_error(Lepus::InvalidConnectionError, /:unknown/)
+      end
+    end
   end
 
   describe "constants" do

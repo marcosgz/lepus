@@ -158,6 +158,10 @@ module Lepus
             return unless Lepus::Producers.exchange_enabled?(exchange_name)
 
             if Lepus::Testing.fake_publisher_enabled?
+              unless Lepus.config.connection?(connection)
+                raise Lepus::InvalidConnectionError, "Unknown connection #{connection.inspect}"
+              end
+
               return fake_publish(message, **options)
             end
 
@@ -186,6 +190,7 @@ module Lepus
 
             fake_message = {
               exchange: exchange_name,
+              connection: connection,
               payload: message, # Store the original message, not the JSON string
               routing_key: opts[:routing_key],
               headers: opts[:headers],
