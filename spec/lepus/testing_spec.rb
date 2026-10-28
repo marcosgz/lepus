@@ -130,6 +130,39 @@ RSpec.describe Lepus::Testing do
     end
   end
 
+  describe "connection recording" do
+    before { Lepus.config.connection(:cherryroad, url: "amqp://remote:5672") }
+
+    after { reset_config! }
+
+    it "records the default connection on fake messages" do
+      TestProducer1.publish("message")
+
+      expect(described_class.exchange("test_exchange_1").messages.first[:connection]).to eq(:default)
+    end
+
+    it "records the named connection on fake messages" do
+      TestProducer1.publish("default message")
+      TestProducer1.publish("remote message", connection: :cherryroad)
+
+      messages = described_class.exchange("test_exchange_1").find_messages(connection: :cherryroad)
+      expect(messages.map { |m| m[:payload] }).to eq(["remote message"])
+    end
+
+    it "finds messages by connection given as a string" do
+      TestProducer1.publish("remote message", connection: :cherryroad)
+
+      messages = described_class.exchange("test_exchange_1").find_messages(connection: "cherryroad")
+      expect(messages.map { |m| m[:payload] }).to eq(["remote message"])
+    end
+
+    it "raises for an unregistered connection like a real publish would" do
+      expect { TestProducer1.publish("message", connection: :cheryroad) }
+        .to raise_error(Lepus::InvalidConnectionError, /:cheryroad/)
+      expect(described_class.exchange("test_exchange_1").messages).to be_empty
+    end
+  end
+
   describe ".producer_messages" do
     it "returns messages for a specific producer" do
       Lepus::Producers.enable!(TestProducerForMessages)

@@ -89,6 +89,14 @@ end
 
 `producer_messages(ProducerClass)` returns an array of hashes with `:payload`, `:routing_key`, `:delivery_info`, `:metadata`.
 
+Each fake message also records the named connection it was published through:
+
+```ruby
+Lepus::Testing.exchange('orders').find_messages(connection: :replica)
+```
+
+The connection may be given as a symbol or a string. Publishing through a connection that was never registered with `config.connection` raises `Lepus::InvalidConnectionError`, as it does outside of fake mode.
+
 ## RSpec matchers
 
 ```ruby

@@ -56,6 +56,10 @@ module Lepus
   class InvalidProducerConfigError < Error
   end
 
+  # Error that is raised when a named connection is not registered.
+  class InvalidConnectionError < Error
+  end
+
   class ShutdownError < Error
   end
 

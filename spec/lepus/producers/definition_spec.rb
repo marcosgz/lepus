@@ -124,4 +124,25 @@ RSpec.describe Lepus::Producers::Definition do
       end
     end
   end
+
+  describe "#connection" do
+    it "defaults to the default connection" do
+      definition = described_class.new(exchange: "my_exchange")
+
+      expect(definition.connection).to eq(:default)
+    end
+
+    it "uses the configured connection name" do
+      definition = described_class.new(exchange: "my_exchange", connection: "cherryroad")
+
+      expect(definition.connection).to eq(:cherryroad)
+    end
+
+    it "does not leak the connection into exchange or publish options" do
+      definition = described_class.new(exchange: "my_exchange", connection: :cherryroad)
+
+      expect(definition.exchange_options).not_to have_key(:connection)
+      expect(definition.publish_options).not_to have_key(:connection)
+    end
+  end
 end

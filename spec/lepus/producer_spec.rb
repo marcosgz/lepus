@@ -526,4 +526,79 @@ RSpec.describe Lepus::Producer do
       end
     end
   end
+
+  describe "named connections" do
+    let(:mock_connection) { instance_double(Bunny::Session) }
+    let(:mock_channel) { instance_double(Bunny::Channel) }
+    let(:mock_exchange) { instance_double(Bunny::Exchange, publish: nil) }
+
+    before do
+      Lepus::Producers.enable!(producer_class)
+      allow(Lepus.config.producer_config).to receive(:with_connection).and_yield(mock_connection)
+      allow(mock_connection).to receive(:with_channel).and_yield(mock_channel)
+      allow(mock_channel).to receive(:exchange).and_return(mock_exchange)
+    end
+
+    it "publishes through the default connection when none is configured" do
+      producer_class.configure(exchange: "test_exchange")
+
+      producer_class.publish("message")
+
+      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:default)
+    end
+
+    it "publishes through the connection set in configure" do
+      producer_class.configure(exchange: "test_exchange", connection: :cherryroad)
+
+      producer_class.publish("message")
+
+      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:cherryroad)
+    end
+
+    it "lets the per-call connection override the configured one" do
+      producer_class.configure(exchange: "test_exchange", connection: :cherryroad)
+
+      producer_class.publish("message", connection: :other)
+
+      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:other)
+    end
+
+    it "does not forward the connection to bunny" do
+      producer_class.configure(exchange: "test_exchange")
+
+      producer_class.publish("message", connection: :cherryroad, routing_key: "key")
+
+      expect(mock_exchange).to have_received(:publish).with("message", hash_not_including(:connection))
+    end
+
+    it "memoizes one publisher per connection" do
+      producer_class.configure(exchange: "test_exchange")
+
+      default_publisher = producer_class.publisher
+      named_publisher = producer_class.publisher(:cherryroad)
+
+      expect(default_publisher.connection).to eq(:default)
+      expect(named_publisher.connection).to eq(:cherryroad)
+      expect(producer_class.publisher(:default)).to be(default_publisher)
+      expect(producer_class.publisher("cherryroad")).to be(named_publisher)
+    end
+
+    it "resets memoized publishers when reconfigured" do
+      producer_class.configure(exchange: "test_exchange")
+      publisher = producer_class.publisher
+
+      producer_class.configure(exchange: "test_exchange", connection: :cherryroad)
+
+      expect(producer_class.publisher).not_to be(publisher)
+      expect(producer_class.publisher.connection).to eq(:cherryroad)
+    end
+
+    it "forwards the connection from instance publish" do
+      producer_class.configure(exchange: "test_exchange")
+
+      producer_class.new.publish("message", connection: :cherryroad)
+
+      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:cherryroad)
+    end
+  end
 end
