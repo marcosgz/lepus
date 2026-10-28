@@ -208,4 +208,20 @@ RSpec.describe Lepus::ConnectionPool do
       expect(connections.uniq.length).to be <= pool_size
     end
   end
+
+  describe "connection name" do
+    it "uses the default connection when not specified" do
+      pool.with_connection { |_conn| }
+
+      expect(pool.conn_name).to eq(:default)
+      expect(Lepus.config).to have_received(:create_connection).with(suffix: nil, connection: :default)
+    end
+
+    it "creates connections for the given named connection" do
+      named_pool = described_class.new(suffix: "producer", connection: :analytics)
+      named_pool.with_connection { |_conn| }
+
+      expect(Lepus.config).to have_received(:create_connection).with(suffix: "producer", connection: :analytics)
+    end
+  end
 end

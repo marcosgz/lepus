@@ -30,7 +30,8 @@ OrdersProducer.publish(
 ```ruby
 configure(
   exchange: { name: 'orders', type: :topic, durable: true },
-  publish:  { persistent: true, mandatory: false }
+  publish:  { persistent: true, mandatory: false },
+  connection: :default
 )
 ```
 
@@ -38,6 +39,7 @@ configure(
 |-----|---------|
 | `exchange` | String (name only) or hash (`name`, `type`, `durable`, `auto_delete`). Auto-declared on first publish. |
 | `publish` | Default publish options merged into every `publish` call: `persistent`, `mandatory`, `content_type`, `expiration`, etc. |
+| `connection` | Named connection to publish through. Defaults to `:default` (`rabbitmq_url`). See [Named connections](#named-connections). |
 
 ## Publishing
 
@@ -119,7 +121,7 @@ OrdersProducer.order_created(order)
 
 ## Connection pooling
 
-Producers share a single connection pool across the process:
+Producers share one connection pool per named connection across the process:
 
 ```ruby
 Lepus.configure do |config|
@@ -129,6 +131,32 @@ Lepus.configure do |config|
   end
 end
 ```
+
+## Named connections
+
+Register extra brokers in the configuration (see [configuration.md](configuration.md#named-connections)):
+
+```ruby
+Lepus.configure do |config|
+  config.connection(:replica, url: ENV.fetch('REPLICA_RABBITMQ_URL'))
+end
+```
+
+Then choose the connection per producer or per call. The per-call value wins, then the one in `configure`, then `:default`:
+
+```ruby
+class AuditProducer < Lepus::Producer
+  configure(exchange: 'audit', connection: :replica)
+end
+
+OrdersProducer.publish(payload, routing_key: 'order.created')                       # :default
+OrdersProducer.publish(payload, routing_key: 'order.created', connection: :replica) # :replica
+AuditProducer.publish(payload)                                                      # :replica
+```
+
+`connection` is never sent to Bunny as a publish option. Each connection gets its own lazily created pool, so a broker that is down only affects the publishes routed to it. An unregistered name raises `Lepus::InvalidConnectionError`.
+
+The low-level publisher takes the same option: `Lepus::Publisher.new('audit', connection: :replica)`.
 
 ## Enable / disable publishing
 

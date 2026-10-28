@@ -35,6 +35,7 @@ module Lepus
       # @param [Hash] opts The options to configure the producer with.
       # @option opts [String, Hash] :exchange The name of the exchange to publish to.
       # @option opts [Hash] :publish Default publish options (persistent, mandatory, immediate).
+      # @option opts [Symbol] :connection The named connection to publish through. Defaults to :default.
       # @yield [definition] Optional block to further configure the producer.
       # @yieldparam [Lepus::Producers::Definition] definition The definition object.
       # @return [Lepus::Producers::Definition] The configured producer definition.
@@ -42,6 +43,7 @@ module Lepus
         raise ArgumentError, "Cannot configure an abstract class" if abstract_class?
 
         @definition = Producers::Definition.new(opts)
+        @publishers = nil
         yield(@definition) if block_given?
         @definition
       end
@@ -54,10 +56,13 @@ module Lepus
         descendants.uniq
       end
 
-      # Creates a publisher instance configured with this producer's settings.
+      # Returns a publisher configured with this producer's settings, memoized per connection.
+      # @param connection [Symbol, String, nil] The named connection. Defaults to the configured one.
       # @return [Lepus::Publisher] A publisher instance ready to send messages.
-      def publisher
-        @publisher ||= Publisher.new(definition.exchange_name, **definition.exchange_options)
+      def publisher(connection = nil)
+        name = (connection || definition.connection).to_sym
+        @publishers ||= {}
+        @publishers[name] ||= Publisher.new(definition.exchange_name, connection: name, **definition.exchange_options)
       end
 
       # Returns the middleware chain for this producer.
@@ -79,9 +84,11 @@ module Lepus
       # Executes the middleware chain (global + per-producer) before publishing.
       #
       # @param payload [String, Hash] The message payload to publish.
+      # @param connection [Symbol, String, nil] The named connection to publish through,
+      #   overriding the one set in {.configure}.
       # @param options [Hash] Additional publish options (routing_key, headers, etc.).
       # @return [void]
-      def publish(payload, **options)
+      def publish(payload, connection: nil, **options)
         if definition.nil?
           raise InvalidProducerConfigError, <<~ERROR
             The #{name} producer is not configured.
@@ -99,7 +106,7 @@ module Lepus
         )
 
         combined_chain.execute(message) do |msg|
-          publisher.publish(msg.payload, **msg.to_publish_options)
+          publisher(connection).publish(msg.payload, **msg.to_publish_options)
         end
       end
 
@@ -142,8 +149,8 @@ module Lepus
 
     attr_reader :definition
 
-    def publisher
-      @publisher ||= Publisher.new(definition.exchange_name, **definition.exchange_options)
+    def publisher(connection = nil)
+      self.class.publisher(connection)
     end
 
     def publish(message, **options)

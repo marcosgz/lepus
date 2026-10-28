@@ -8,6 +8,7 @@ module Lepus
     DEFAULT_RECOVERY_INTERVAL = 5.0
     DEFAULT_RECOVER_FROM_CONNECTION_CLOSE = true
     DEFAULT_CONSUMERS_DIRECTORY = Pathname.new("app/consumers")
+    DEFAULT_CONNECTION = :default
 
     # @return [String] the connection string for RabbitMQ.
     attr_accessor :rabbitmq_url
@@ -93,17 +94,48 @@ module Lepus
       Web::ManagementAPI.new(base_url: management_api_url)
     end
 
-    # @param suffix [String] the suffix to add to the connection name
-    # @return [Bunny::Session] the connection to RabbitMQ
-    def create_connection(suffix: nil)
-      kwargs = connection_config
+    # Registers a named RabbitMQ connection that producers can publish through.
+    # The :default connection is reserved and always uses {#rabbitmq_url}.
+    # @param name [Symbol, String] the connection name
+    # @param url [String] the connection string for RabbitMQ
+    # @param options [Hash] Bunny session options overriding the global ones
+    # @return [Hash] the connection settings
+    def connection(name, url:, **options)
+      name = name.to_sym
+      raise ArgumentError, "The #{DEFAULT_CONNECTION.inspect} connection is configured through rabbitmq_url" if name == DEFAULT_CONNECTION
+      raise ArgumentError, "The #{name.inspect} connection requires a url" if url.to_s.strip.empty?
 
-      if suffix && connection_name
-        kwargs[:connection_name] = "#{connection_name} #{suffix}"
+      connections[name] = options.merge(url: url)
+    end
+
+    # @return [Hash{Symbol => Hash}] the named connections registered via {#connection}
+    def connections
+      @connections ||= {}
+    end
+
+    # @param name [Symbol, String, nil] the connection name
+    # @return [Boolean] whether the connection is the default one or a registered named connection
+    def connection?(name)
+      name = (name || DEFAULT_CONNECTION).to_sym
+      name == DEFAULT_CONNECTION || connections.key?(name)
+    end
+
+    # @param suffix [String] the suffix to add to the connection name
+    # @param connection [Symbol, String] the named connection to open, :default uses {#rabbitmq_url}
+    # @return [Bunny::Session] the connection to RabbitMQ
+    # @raise [Lepus::InvalidConnectionError] when the connection name is not registered
+    def create_connection(suffix: nil, connection: DEFAULT_CONNECTION)
+      name = (connection || DEFAULT_CONNECTION).to_sym
+      url, options = connection_settings(name)
+      kwargs = connection_config.merge(options)
+
+      if connection_name && !options.key?(:connection_name)
+        label = [suffix, (name == DEFAULT_CONNECTION) ? nil : "(#{name})"].compact.join(" ")
+        kwargs[:connection_name] = "#{connection_name} #{label}" unless label.empty?
       end
 
       ::Bunny
-        .new(rabbitmq_url, **kwargs)
+        .new(url, **kwargs)
         .tap { |conn| conn.start }
     end
 
@@ -173,6 +205,15 @@ module Lepus
     end
 
     protected
+
+    def connection_settings(name)
+      return [rabbitmq_url, {}] if name == DEFAULT_CONNECTION
+
+      settings = connections.fetch(name) do
+        raise Lepus::InvalidConnectionError, "Unknown connection #{name.inspect}. Register it with Lepus.config.connection(#{name.inspect}, url: ...)"
+      end
+      [settings[:url], settings.reject { |key, _| key == :url }]
+    end
 
     def connection_config
       {

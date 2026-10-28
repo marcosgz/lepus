@@ -15,17 +15,22 @@ module Lepus
     }.freeze
 
     # @param exchange_name [String] The name of the exchange to publish messages to.
+    # @param connection [Symbol, String] The named connection to publish through.
     # @param options [Hash] Additional options for the exchange (type, durable, auto_delete).
     # @return [void]
-    def initialize(exchange_name, **options)
+    def initialize(exchange_name, connection: Lepus::Configuration::DEFAULT_CONNECTION, **options)
       @exchange_name = exchange_name
+      @connection = (connection || Lepus::Configuration::DEFAULT_CONNECTION).to_sym
       @exchange_options = DEFAULT_EXCHANGE_OPTIONS.merge(options)
     end
+
+    # @return [Symbol] the named connection this publisher uses
+    attr_reader :connection
 
     def publish(message, **options)
       return unless Producers.exchange_enabled?(exchange_name)
 
-      Lepus.config.producer_config.with_connection do |connection|
+      Lepus.config.producer_config.with_connection(connection) do |connection|
         connection.with_channel do |channel|
           channel_publish(channel, message, **options)
         end

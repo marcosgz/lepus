@@ -367,4 +367,101 @@ RSpec.describe Lepus::Configuration do
       expect(api.base_url).to eq("http://custom:15673")
     end
   end
+
+  describe "#connection" do
+    it "registers a named connection with its url and bunny options" do
+      configuration.connection(:analytics, url: "amqp://remote:5672", heartbeat: 30)
+
+      expect(configuration.connections).to eq(analytics: {url: "amqp://remote:5672", heartbeat: 30})
+    end
+
+    it "symbolizes the connection name" do
+      configuration.connection("analytics", url: "amqp://remote:5672")
+
+      expect(configuration.connections.keys).to eq([:analytics])
+    end
+
+    it "requires a url" do
+      expect { configuration.connection(:analytics, url: nil) }.to raise_error(ArgumentError, /requires a url/)
+      expect { configuration.connection(:analytics, url: " ") }.to raise_error(ArgumentError, /requires a url/)
+      expect(configuration.connections).to eq({})
+    end
+
+    it "refuses to redefine the default connection" do
+      expect { configuration.connection(:default, url: "amqp://remote:5672") }.to raise_error(ArgumentError, /rabbitmq_url/)
+    end
+  end
+
+  describe "#connections" do
+    it "is empty by default" do
+      expect(configuration.connections).to eq({})
+    end
+  end
+
+  describe "#connection?" do
+    before { configuration.connection(:analytics, url: "amqp://remote:5672") }
+
+    it "is true for the default connection" do
+      expect(configuration.connection?(:default)).to be(true)
+      expect(configuration.connection?(nil)).to be(true)
+    end
+
+    it "is true for a registered connection" do
+      expect(configuration.connection?("analytics")).to be(true)
+    end
+
+    it "is false for an unknown connection" do
+      expect(configuration.connection?(:unknown)).to be(false)
+    end
+  end
+
+  describe "#create_connection" do
+    let(:session) { instance_double(Bunny::Session, start: nil) }
+
+    before do
+      configuration.rabbitmq_url = "amqp://local:5672"
+      configuration.connection_name = "app"
+      allow(Bunny).to receive(:new).and_return(session)
+    end
+
+    it "connects to rabbitmq_url by default" do
+      expect(configuration.create_connection(suffix: "producer")).to be(session)
+
+      expect(Bunny).to have_received(:new).with(
+        "amqp://local:5672",
+        hash_including(connection_name: "app producer", recovery_attempts: 10)
+      )
+      expect(session).to have_received(:start)
+    end
+
+    it "keeps the connection name when no suffix is given" do
+      configuration.create_connection
+
+      expect(Bunny).to have_received(:new).with("amqp://local:5672", hash_including(connection_name: "app"))
+    end
+
+    it "connects to a named connection merging its bunny options" do
+      configuration.connection(:analytics, url: "amqp://remote:5672", recovery_attempts: 3, heartbeat: 30)
+
+      configuration.create_connection(suffix: "producer", connection: "analytics")
+
+      expect(Bunny).to have_received(:new).with(
+        "amqp://remote:5672",
+        hash_including(connection_name: "app producer (analytics)", recovery_attempts: 3, heartbeat: 30)
+      )
+    end
+
+    it "keeps a connection_name set on the named connection" do
+      configuration.connection(:analytics, url: "amqp://remote:5672", connection_name: "app->analytics")
+
+      configuration.create_connection(suffix: "producer", connection: :analytics)
+
+      expect(Bunny).to have_received(:new).with("amqp://remote:5672", hash_including(connection_name: "app->analytics"))
+    end
+
+    it "raises for an unknown connection" do
+      expect { configuration.create_connection(connection: :unknown) }.to raise_error(Lepus::InvalidConnectionError, /:unknown/)
+      expect(Bunny).not_to have_received(:new)
+    end
+  end
 end

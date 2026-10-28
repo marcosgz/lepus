@@ -45,6 +45,8 @@ module Lepus
               message[:routing_key] == value
             when :payload
               message[:payload] == value
+            when :connection
+              message[:connection] == value&.to_sym
             when :headers
               message[:headers]&.any? { |k, v| value.any? { |vk, vv| k == vk && v == vv } }
             else

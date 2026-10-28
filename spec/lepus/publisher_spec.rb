@@ -331,4 +331,37 @@ RSpec.describe Lepus::Publisher do
       expect(exchange).not_to have_received(:publish)
     end
   end
+
+  describe "named connections" do
+    let(:mock_connection) { instance_double(Bunny::Session) }
+    let(:channel) { instance_double(Bunny::Channel) }
+    let(:exchange) { instance_double(Bunny::Exchange, publish: nil) }
+
+    before do
+      allow(Lepus.config.producer_config).to receive(:with_connection).and_yield(mock_connection)
+      allow(mock_connection).to receive(:with_channel).and_yield(channel)
+      allow(channel).to receive(:exchange).and_return(exchange)
+    end
+
+    it "uses the default connection by default" do
+      publisher.publish("message")
+
+      expect(publisher.connection).to eq(:default)
+      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:default)
+    end
+
+    it "publishes through the given connection" do
+      named_publisher = described_class.new(exchange_name, connection: "analytics")
+      named_publisher.publish("message")
+
+      expect(named_publisher.connection).to eq(:analytics)
+      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:analytics)
+    end
+
+    it "does not pass the connection to the exchange declaration" do
+      described_class.new(exchange_name, connection: :analytics).publish("message")
+
+      expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
+    end
+  end
 end

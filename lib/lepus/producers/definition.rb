@@ -4,7 +4,7 @@ module Lepus
   module Producers
     # Definition class for producer-specific settings
     class Definition
-      attr_reader :publish_options
+      attr_reader :publish_options, :connection
 
       def initialize(options = {})
         opts = Lepus::Primitive::Hash.new(options).deep_symbolize_keys
@@ -15,6 +15,8 @@ module Lepus
 
         # Handle default publish options
         @publish_options = Lepus::Publisher::DEFAULT_PUBLISH_OPTIONS.merge(opts.delete(:publish) || {})
+
+        @connection = (opts.delete(:connection) || Lepus::Configuration::DEFAULT_CONNECTION).to_sym
 
         # Store any remaining options for future use
         @options = opts
