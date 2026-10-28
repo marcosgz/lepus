@@ -218,10 +218,10 @@ RSpec.describe Lepus::ConnectionPool do
     end
 
     it "creates connections for the given named connection" do
-      named_pool = described_class.new(suffix: "producer", connection: :cherryroad)
+      named_pool = described_class.new(suffix: "producer", connection: :analytics)
       named_pool.with_connection { |_conn| }
 
-      expect(Lepus.config).to have_received(:create_connection).with(suffix: "producer", connection: :cherryroad)
+      expect(Lepus.config).to have_received(:create_connection).with(suffix: "producer", connection: :analytics)
     end
   end
 end

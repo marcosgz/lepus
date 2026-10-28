@@ -548,15 +548,15 @@ RSpec.describe Lepus::Producer do
     end
 
     it "publishes through the connection set in configure" do
-      producer_class.configure(exchange: "test_exchange", connection: :cherryroad)
+      producer_class.configure(exchange: "test_exchange", connection: :analytics)
 
       producer_class.publish("message")
 
-      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:cherryroad)
+      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:analytics)
     end
 
     it "lets the per-call connection override the configured one" do
-      producer_class.configure(exchange: "test_exchange", connection: :cherryroad)
+      producer_class.configure(exchange: "test_exchange", connection: :analytics)
 
       producer_class.publish("message", connection: :other)
 
@@ -566,7 +566,7 @@ RSpec.describe Lepus::Producer do
     it "does not forward the connection to bunny" do
       producer_class.configure(exchange: "test_exchange")
 
-      producer_class.publish("message", connection: :cherryroad, routing_key: "key")
+      producer_class.publish("message", connection: :analytics, routing_key: "key")
 
       expect(mock_exchange).to have_received(:publish).with("message", hash_not_including(:connection))
     end
@@ -575,30 +575,30 @@ RSpec.describe Lepus::Producer do
       producer_class.configure(exchange: "test_exchange")
 
       default_publisher = producer_class.publisher
-      named_publisher = producer_class.publisher(:cherryroad)
+      named_publisher = producer_class.publisher(:analytics)
 
       expect(default_publisher.connection).to eq(:default)
-      expect(named_publisher.connection).to eq(:cherryroad)
+      expect(named_publisher.connection).to eq(:analytics)
       expect(producer_class.publisher(:default)).to be(default_publisher)
-      expect(producer_class.publisher("cherryroad")).to be(named_publisher)
+      expect(producer_class.publisher("analytics")).to be(named_publisher)
     end
 
     it "resets memoized publishers when reconfigured" do
       producer_class.configure(exchange: "test_exchange")
       publisher = producer_class.publisher
 
-      producer_class.configure(exchange: "test_exchange", connection: :cherryroad)
+      producer_class.configure(exchange: "test_exchange", connection: :analytics)
 
       expect(producer_class.publisher).not_to be(publisher)
-      expect(producer_class.publisher.connection).to eq(:cherryroad)
+      expect(producer_class.publisher.connection).to eq(:analytics)
     end
 
     it "forwards the connection from instance publish" do
       producer_class.configure(exchange: "test_exchange")
 
-      producer_class.new.publish("message", connection: :cherryroad)
+      producer_class.new.publish("message", connection: :analytics)
 
-      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:cherryroad)
+      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:analytics)
     end
   end
 end

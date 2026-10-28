@@ -370,20 +370,20 @@ RSpec.describe Lepus::Configuration do
 
   describe "#connection" do
     it "registers a named connection with its url and bunny options" do
-      configuration.connection(:cherryroad, url: "amqp://remote:5672", heartbeat: 30)
+      configuration.connection(:analytics, url: "amqp://remote:5672", heartbeat: 30)
 
-      expect(configuration.connections).to eq(cherryroad: {url: "amqp://remote:5672", heartbeat: 30})
+      expect(configuration.connections).to eq(analytics: {url: "amqp://remote:5672", heartbeat: 30})
     end
 
     it "symbolizes the connection name" do
-      configuration.connection("cherryroad", url: "amqp://remote:5672")
+      configuration.connection("analytics", url: "amqp://remote:5672")
 
-      expect(configuration.connections.keys).to eq([:cherryroad])
+      expect(configuration.connections.keys).to eq([:analytics])
     end
 
     it "requires a url" do
-      expect { configuration.connection(:cherryroad, url: nil) }.to raise_error(ArgumentError, /requires a url/)
-      expect { configuration.connection(:cherryroad, url: " ") }.to raise_error(ArgumentError, /requires a url/)
+      expect { configuration.connection(:analytics, url: nil) }.to raise_error(ArgumentError, /requires a url/)
+      expect { configuration.connection(:analytics, url: " ") }.to raise_error(ArgumentError, /requires a url/)
       expect(configuration.connections).to eq({})
     end
 
@@ -399,7 +399,7 @@ RSpec.describe Lepus::Configuration do
   end
 
   describe "#connection?" do
-    before { configuration.connection(:cherryroad, url: "amqp://remote:5672") }
+    before { configuration.connection(:analytics, url: "amqp://remote:5672") }
 
     it "is true for the default connection" do
       expect(configuration.connection?(:default)).to be(true)
@@ -407,7 +407,7 @@ RSpec.describe Lepus::Configuration do
     end
 
     it "is true for a registered connection" do
-      expect(configuration.connection?("cherryroad")).to be(true)
+      expect(configuration.connection?("analytics")).to be(true)
     end
 
     it "is false for an unknown connection" do
@@ -441,22 +441,22 @@ RSpec.describe Lepus::Configuration do
     end
 
     it "connects to a named connection merging its bunny options" do
-      configuration.connection(:cherryroad, url: "amqp://remote:5672", recovery_attempts: 3, heartbeat: 30)
+      configuration.connection(:analytics, url: "amqp://remote:5672", recovery_attempts: 3, heartbeat: 30)
 
-      configuration.create_connection(suffix: "producer", connection: "cherryroad")
+      configuration.create_connection(suffix: "producer", connection: "analytics")
 
       expect(Bunny).to have_received(:new).with(
         "amqp://remote:5672",
-        hash_including(connection_name: "app producer (cherryroad)", recovery_attempts: 3, heartbeat: 30)
+        hash_including(connection_name: "app producer (analytics)", recovery_attempts: 3, heartbeat: 30)
       )
     end
 
     it "keeps a connection_name set on the named connection" do
-      configuration.connection(:cherryroad, url: "amqp://remote:5672", connection_name: "scrive->cherryroad")
+      configuration.connection(:analytics, url: "amqp://remote:5672", connection_name: "app->analytics")
 
-      configuration.create_connection(suffix: "producer", connection: :cherryroad)
+      configuration.create_connection(suffix: "producer", connection: :analytics)
 
-      expect(Bunny).to have_received(:new).with("amqp://remote:5672", hash_including(connection_name: "scrive->cherryroad"))
+      expect(Bunny).to have_received(:new).with("amqp://remote:5672", hash_including(connection_name: "app->analytics"))
     end
 
     it "raises for an unknown connection" do

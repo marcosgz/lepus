@@ -74,26 +74,26 @@ RSpec.describe Lepus::Producers::Config do
     end
 
     context "with named connections" do
-      before { Lepus.config.connection(:cherryroad, url: "amqp://remote:5672") }
+      before { Lepus.config.connection(:analytics, url: "amqp://remote:5672") }
 
-      after { Lepus.config.connections.delete(:cherryroad) }
+      after { Lepus.config.connections.delete(:analytics) }
 
       it "keeps one pool per connection name" do
         default_pool = config.send(:connection_pool)
-        named_pool = config.send(:connection_pool, "cherryroad")
+        named_pool = config.send(:connection_pool, "analytics")
 
         expect(named_pool).not_to be(default_pool)
-        expect(named_pool.conn_name).to eq(:cherryroad)
+        expect(named_pool.conn_name).to eq(:analytics)
         expect(default_pool.conn_name).to eq(:default)
-        expect(config.send(:connection_pool, :cherryroad)).to be(named_pool)
+        expect(config.send(:connection_pool, :analytics)).to be(named_pool)
       end
 
       it "checks out connections from the named pool" do
         connection_pool = instance_double(Lepus::ConnectionPool)
         allow(connection_pool).to receive(:with_connection).and_yield(:remote_conn)
-        allow(config).to receive(:connection_pool).with(:cherryroad).and_return(connection_pool)
+        allow(config).to receive(:connection_pool).with(:analytics).and_return(connection_pool)
 
-        expect { |b| config.with_connection(:cherryroad, &b) }.to yield_with_args(:remote_conn)
+        expect { |b| config.with_connection(:analytics, &b) }.to yield_with_args(:remote_conn)
       end
 
       it "raises for an unknown connection" do

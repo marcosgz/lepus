@@ -131,7 +131,7 @@ RSpec.describe Lepus::Testing do
   end
 
   describe "connection recording" do
-    before { Lepus.config.connection(:cherryroad, url: "amqp://remote:5672") }
+    before { Lepus.config.connection(:analytics, url: "amqp://remote:5672") }
 
     after { reset_config! }
 
@@ -143,16 +143,16 @@ RSpec.describe Lepus::Testing do
 
     it "records the named connection on fake messages" do
       TestProducer1.publish("default message")
-      TestProducer1.publish("remote message", connection: :cherryroad)
+      TestProducer1.publish("remote message", connection: :analytics)
 
-      messages = described_class.exchange("test_exchange_1").find_messages(connection: :cherryroad)
+      messages = described_class.exchange("test_exchange_1").find_messages(connection: :analytics)
       expect(messages.map { |m| m[:payload] }).to eq(["remote message"])
     end
 
     it "finds messages by connection given as a string" do
-      TestProducer1.publish("remote message", connection: :cherryroad)
+      TestProducer1.publish("remote message", connection: :analytics)
 
-      messages = described_class.exchange("test_exchange_1").find_messages(connection: "cherryroad")
+      messages = described_class.exchange("test_exchange_1").find_messages(connection: "analytics")
       expect(messages.map { |m| m[:payload] }).to eq(["remote message"])
     end
 

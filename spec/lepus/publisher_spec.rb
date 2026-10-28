@@ -351,15 +351,15 @@ RSpec.describe Lepus::Publisher do
     end
 
     it "publishes through the given connection" do
-      named_publisher = described_class.new(exchange_name, connection: "cherryroad")
+      named_publisher = described_class.new(exchange_name, connection: "analytics")
       named_publisher.publish("message")
 
-      expect(named_publisher.connection).to eq(:cherryroad)
-      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:cherryroad)
+      expect(named_publisher.connection).to eq(:analytics)
+      expect(Lepus.config.producer_config).to have_received(:with_connection).with(:analytics)
     end
 
     it "does not pass the connection to the exchange declaration" do
-      described_class.new(exchange_name, connection: :cherryroad).publish("message")
+      described_class.new(exchange_name, connection: :analytics).publish("message")
 
       expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
     end
