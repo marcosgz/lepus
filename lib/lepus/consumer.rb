@@ -98,26 +98,9 @@ module Lepus
       message = Message.coerce(delivery_info, metadata, payload)
       message.consumer_class = self.class
 
-      combined_chain = MiddlewareChain.combine(
-        Lepus.config.consumer_middleware_chain,
-        self.class.middleware_chain
-      )
-
-      combined_chain.execute(message) do |msg|
-        perform(msg).tap do |result|
-          verify_result(result)
-        end
+      Lepus.instrument(:process_delivery, **delivery_attributes(delivery_info)) do |event|
+        event[:result] = deliver(message, delivery_info)
       end
-    rescue Lepus::InvalidConsumerReturnError
-      raise
-    rescue Exception # rubocop:disable Lint/RescueException
-      on_delivery_error
-      # In testing mode, re-raise exceptions if consumer_raise_errors? is enabled
-      if defined?(Lepus::Testing) && Lepus::Testing.consumer_raise_errors?
-        raise
-      end
-
-      reject!
     end
 
     # Returns whether the last delivery resulted in an error.
@@ -192,6 +175,39 @@ module Lepus
     # Hook called when a delivery raises an exception.
     # No-op in core; overridden by Lepus::Web to track error state.
     def on_delivery_error
+    end
+
+    def deliver(message, delivery_info)
+      combined_chain = MiddlewareChain.combine(
+        Lepus.config.consumer_middleware_chain,
+        self.class.middleware_chain
+      )
+
+      combined_chain.execute(message) do |msg|
+        perform(msg).tap do |result|
+          verify_result(result)
+        end
+      end
+    rescue Lepus::InvalidConsumerReturnError
+      raise
+    rescue Exception => error # rubocop:disable Lint/RescueException
+      Lepus.instrument(:consumer_error, error: error, **delivery_attributes(delivery_info))
+      on_delivery_error
+      # In testing mode, re-raise exceptions if consumer_raise_errors? is enabled
+      if defined?(Lepus::Testing) && Lepus::Testing.consumer_raise_errors?
+        raise
+      end
+
+      reject!
+    end
+
+    def delivery_attributes(delivery_info)
+      {
+        consumer: self.class.name,
+        exchange: delivery_info&.exchange,
+        routing_key: delivery_info&.routing_key,
+        redelivered: delivery_info&.redelivered
+      }
     end
 
     def verify_result(result)
