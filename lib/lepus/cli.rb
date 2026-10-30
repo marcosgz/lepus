@@ -10,6 +10,7 @@ module Lepus
     method_option :logfile, type: :string, default: nil
     method_option :pidfile, type: :string, default: nil
     method_option :require_file, type: :string, aliases: "-r", default: nil
+    method_option :except, type: :array, default: nil, desc: "Consumers to leave out"
 
     desc "start FirstConsumer SecondConsumer ... NthConsumer", "Run Consumer"
     default_command :start
@@ -17,9 +18,10 @@ module Lepus
     def start(*consumers)
       opts = (@options || {}).transform_keys(&:to_sym)
 
-      if (list = consumers.flat_map { |c| c.split(",") }.map(&:strip).uniq.sort).any?
+      if (list = consumer_names(consumers)).any?
         opts[:consumers] = list
       end
+      opts[:except] = consumer_names(opts[:except]) if opts[:except]
 
       if (logfile = opts.delete(:logfile))
         Lepus.logger = Logger.new(logfile)
@@ -77,6 +79,12 @@ module Lepus
           Then run the web dashboard again.
         MSG
       end
+    end
+
+    private
+
+    def consumer_names(names)
+      names.flat_map { |name| name.split(",") }.map(&:strip).reject(&:empty?).uniq.sort
     end
   end
 end

@@ -567,6 +567,12 @@ bundle exec lepus start MyConsumer1 MyConsumer2 --debug
 
 Each consumer will run in a separate process, and a supervisor will monitor them. If a consumer crashes, the supervisor will restart it.
 
+To run every consumer except some, for example to move one to its own deployment, use `--except` with a comma-separated list:
+
+```bash
+bundle exec lepus start --except MyConsumer1,MyConsumer2
+```
+
 ### Instrumentation and logging
 
 Every consumed message emits a `process_delivery.lepus` event (`consumer`, `exchange`, `routing_key`, `redelivered`, `result`), and an exception raised by `#perform` emits `consumer_error.lepus` (with `error`) before the message is rejected. In Rails, `Lepus::LogSubscriber` logs both to `Lepus.logger`:

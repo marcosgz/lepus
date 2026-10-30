@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    lepus (0.2.1)
+    lepus (0.2.2)
       base64
       bunny
       concurrent-ruby
