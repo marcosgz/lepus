@@ -13,26 +13,28 @@ end
 RSpec.describe "Lepus::LogSubscriber", if: defined?(Lepus::LogSubscriber) do
   let(:output) { StringIO.new }
   let(:previous_logger) { Lepus.logger }
+  let(:subscriber) { Lepus::LogSubscriber.new }
 
   before do
     previous_logger
     Lepus.logger = Logger.new(output)
-    Lepus::LogSubscriber.attach_to(:lepus)
   end
 
-  after do
-    Lepus::LogSubscriber.detach_from(:lepus)
-    Lepus.logger = previous_logger
+  after { Lepus.logger = previous_logger }
+
+  def event(name, payload)
+    now = Time.now
+    ActiveSupport::Notifications::Event.new("#{name}.lepus", now, now, "id", payload)
   end
 
   it "logs a processed delivery with its result" do
-    ActiveSupport::Notifications.instrument("process_delivery.lepus", consumer: "OrdersConsumer", routing_key: "orders.created", result: :ack) {}
+    subscriber.process_delivery(event("process_delivery", consumer: "OrdersConsumer", routing_key: "orders.created", result: :ack))
 
     expect(output.string).to include("INFO").and include("Processed OrdersConsumer").and include('routing_key: "orders.created", result: :ack')
   end
 
   it "logs a consumer error" do
-    ActiveSupport::Notifications.instrument("consumer_error.lepus", consumer: "OrdersConsumer", routing_key: "orders.created", error: RuntimeError.new("boom"))
+    subscriber.consumer_error(event("consumer_error", consumer: "OrdersConsumer", routing_key: "orders.created", error: RuntimeError.new("boom")))
 
     expect(output.string).to include("ERROR").and include("Error in OrdersConsumer").and include('error: "RuntimeError boom"')
   end
