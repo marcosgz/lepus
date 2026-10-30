@@ -302,6 +302,23 @@ RSpec.describe Lepus::Supervisor, :integration do
       expect(supervisor.send(:consumer_classes)).to include(MyConsumer)
       expect(supervisor.send(:consumer_classes)).not_to include(AbstractConsumer)
     end
+
+    it "leaves out the consumers given in except" do
+      stub_const("KeptConsumer", Class.new(Lepus::Consumer))
+      stub_const("SkippedConsumer", Class.new(Lepus::Consumer))
+      supervisor = described_class.new(except: ["SkippedConsumer"])
+
+      expect(supervisor.send(:consumer_classes)).to include(KeptConsumer)
+      expect(supervisor.send(:consumer_classes)).not_to include(SkippedConsumer)
+    end
+
+    it "leaves out excepted consumers from an explicit list" do
+      stub_const("KeptConsumer", Class.new(Lepus::Consumer))
+      stub_const("SkippedConsumer", Class.new(Lepus::Consumer))
+      supervisor = described_class.new(consumers: %w[KeptConsumer SkippedConsumer], except: [SkippedConsumer])
+
+      expect(supervisor.send(:consumer_classes)).to eq([KeptConsumer])
+    end
   end
 
   describe "#check_bunny_connection" do

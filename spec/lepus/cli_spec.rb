@@ -3,6 +3,28 @@
 require "lepus/cli"
 
 RSpec.describe Lepus::CLI do
+  describe "#start" do
+    before { allow(Lepus::Supervisor).to receive(:start) }
+
+    it "passes the consumers to the supervisor" do
+      described_class.start(["start", "OrdersConsumer,UsersConsumer"])
+
+      expect(Lepus::Supervisor).to have_received(:start).with(hash_including(consumers: %w[OrdersConsumer UsersConsumer]))
+    end
+
+    it "passes --except to the supervisor" do
+      described_class.start(["start", "--except", "SagaConsumer,AuditConsumer"])
+
+      expect(Lepus::Supervisor).to have_received(:start).with(hash_including(except: %w[AuditConsumer SagaConsumer]))
+    end
+
+    it "does not pass except when it is not given" do
+      described_class.start(["start"])
+
+      expect(Lepus::Supervisor).to have_received(:start).with(no_args)
+    end
+  end
+
   describe "#health_check" do
     let(:now) { Time.now }
     let(:recent_process) { instance_double(Lepus::Process, last_heartbeat_at: now) }

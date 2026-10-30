@@ -21,11 +21,13 @@ module Lepus
     # @param pidfile [String] The path to the pidfile where the supervisor's PID will be stored. Default is "tmp/pids/lepus.pid".
     # @param shutdown_timeout [Integer] The timeout in seconds to wait for child processes to terminate gracefully before forcing termination. Default is 5 seconds.
     # @param consumers [Array<String, Class>] An optional list of consumer class names (as strings or constants) to be run by this supervisor. If not provided, all discovered consumer classes will be used.
+    # @param except [Array<String, Class>] An optional list of consumer class names (as strings or constants) to leave out.
     def initialize(require_file: nil, pidfile: "tmp/pids/lepus.pid", shutdown_timeout: 5, **kwargs)
       @pidfile_path = pidfile
       @require_file = require_file
       @shutdown_timeout = shutdown_timeout.to_i
       @consumer_class_names = Array(kwargs[:consumers]).map(&:to_s) if kwargs.key?(:consumers)
+      @excluded_consumer_names = Array(kwargs[:except]).map(&:to_s)
 
       @forks = {}
       @pipes = {}
@@ -79,7 +81,7 @@ module Lepus
         @consumer_class_names.map { |name| Lepus::Primitive::String.new(name).constantize }
       else
         Lepus::Consumer.descendants
-      end.reject(&:abstract_class?)
+      end.reject { |klass| klass.abstract_class? || @excluded_consumer_names.include?(klass.name) }
     end
 
     def boot
