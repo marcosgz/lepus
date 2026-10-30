@@ -70,7 +70,7 @@ RSpec.describe Lepus::Web do
       allow(consumer).to receive(:perform).and_return(:ack)
 
       # Use a real-enough delivery info to go through process_delivery
-      delivery_info = instance_double(Bunny::DeliveryInfo, routing_key: "test")
+      delivery_info = instance_double(Bunny::DeliveryInfo, exchange: "test", routing_key: "test", redelivered: false)
       metadata = instance_double(Bunny::MessageProperties, headers: nil, content_type: nil)
 
       # Stub Message.coerce to avoid needing real Bunny objects

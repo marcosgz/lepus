@@ -567,6 +567,15 @@ bundle exec lepus start MyConsumer1 MyConsumer2 --debug
 
 Each consumer will run in a separate process, and a supervisor will monitor them. If a consumer crashes, the supervisor will restart it.
 
+### Instrumentation and logging
+
+Every consumed message emits a `process_delivery.lepus` event (`consumer`, `exchange`, `routing_key`, `redelivered`, `result`), and an exception raised by `#perform` emits `consumer_error.lepus` (with `error`) before the message is rejected. In Rails, `Lepus::LogSubscriber` logs both to `Lepus.logger`:
+
+```
+Lepus-0.2.1 Processed OrdersConsumer (12.3ms)  exchange: "orders", routing_key: "orders.created", redelivered: false, result: :ack
+Lepus-0.2.1 Error in OrdersConsumer (0.0ms)  exchange: "orders", routing_key: "orders.created", redelivered: false, error: "RuntimeError boom"
+```
+
 ### Puma Plugin
 
 We provide a Puma plugin if you want to run the Lepus's supervisor together with Puma and have Puma monitor and manage it. You just need to add

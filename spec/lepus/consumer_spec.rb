@@ -2,6 +2,12 @@
 
 require "spec_helper"
 
+begin
+  require "active_support/notifications"
+rescue LoadError
+  nil
+end
+
 RSpec.describe Lepus::Consumer do
   let(:channel) { instance_double(Bunny::Channel) }
   let(:queue) { instance_double(Bunny::Queue) }
@@ -197,6 +203,43 @@ RSpec.describe Lepus::Consumer do
         Lepus::InvalidConsumerReturnError,
         "#perform must return :ack, :reject or :requeue, received :blorg instead"
       )
+    end
+
+    it "rejects the message when #perform raises" do
+      allow(instance).to receive(:perform).and_raise(RuntimeError, "boom")
+
+      expect(instance.process_delivery(delivery_info, metadata, payload)).to be :reject
+    end
+
+    context "with ActiveSupport::Notifications", if: defined?(ActiveSupport::Notifications) do
+      def capture_events(name)
+        events = []
+        callback = ->(*args) { events << ActiveSupport::Notifications::Event.new(*args) }
+        ActiveSupport::Notifications.subscribed(callback, name) { yield }
+        events
+      end
+
+      it "instruments the delivery with its result" do
+        allow(instance).to receive(:perform).and_return(:ack)
+
+        events = capture_events("process_delivery.lepus") do
+          instance.process_delivery(delivery_info, metadata, payload)
+        end
+
+        expect(events.map(&:payload)).to contain_exactly(
+          hash_including(exchange: "test_exchange", routing_key: "test.routing.key", redelivered: false, result: :ack)
+        )
+      end
+
+      it "instruments the error when #perform raises" do
+        allow(instance).to receive(:perform).and_raise(RuntimeError, "boom")
+
+        events = capture_events("consumer_error.lepus") do
+          instance.process_delivery(delivery_info, metadata, payload)
+        end
+
+        expect(events.map { |event| event.payload[:error] }).to contain_exactly(an_instance_of(RuntimeError))
+      end
     end
   end
 

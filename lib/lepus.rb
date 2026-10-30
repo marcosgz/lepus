@@ -77,7 +77,7 @@ module Lepus
     def instrument(channel, **options, &block)
       if defined?(ActiveSupport::Notifications)
         ActiveSupport::Notifications.instrument("#{channel}.lepus", **options, &block)
-      else
+      elsif block
         yield(options.dup)
       end
     end

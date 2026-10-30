@@ -100,6 +100,14 @@ class Lepus::LogSubscriber < ActiveSupport::LogSubscriber
     end
   end
 
+  def process_delivery(event)
+    info formatted_event(event, action: "Processed #{event.payload[:consumer]}", **event.payload.slice(:exchange, :routing_key, :redelivered, :result))
+  end
+
+  def consumer_error(event)
+    error formatted_event(event, action: "Error in #{event.payload[:consumer]}", **event.payload.slice(:exchange, :routing_key, :redelivered), error: formatted_error(event.payload[:error]))
+  end
+
   private
 
   def formatted_event(event, action:, **attributes)
