@@ -102,6 +102,19 @@ RSpec.describe Lepus::Consumers::Config do
     end
   end
 
+  describe "#delay_values" do
+    it "is nil by default" do
+      expect(described_class.new(queue: "jobs").delay_values).to be_nil
+    end
+
+    it "normalizes the delays option and keeps it out of options" do
+      config = described_class.new(queue: "jobs", delays: [300_000, 60_000])
+
+      expect(config.delay_values).to eq([60_000, 300_000])
+      expect(config.options).not_to have_key(:delays)
+    end
+  end
+
   describe "#worker_name" do
     it "returns the default process name" do
       expect(config.worker_name).to eq("default")

@@ -466,6 +466,20 @@ RSpec.describe Lepus::Consumer do
       expect(channel).to have_received(:basic_publish).with(payload, "", "jobs.delay.300", anything)
     end
 
+    it "rejects the message without publishing when the delay is not in the consumer delays" do
+      consumer_class.configure(queue: "jobs", exchange: "jobs_exchange", delays: [1000])
+
+      expect(instance.process_delivery(delivery_info, metadata, payload)).to eq(:reject)
+      expect(channel).not_to have_received(:basic_publish)
+    end
+
+    it "publishes when the delay is in the consumer delays" do
+      consumer_class.configure(queue: "jobs", exchange: "jobs_exchange", delays: [300, 1000])
+
+      expect(instance.process_delivery(delivery_info, metadata, payload)).to eq(:ack)
+      expect(channel).to have_received(:basic_publish).with(payload, "", "jobs.delay.300", anything)
+    end
+
     it "raises when called outside of a delivery" do
       expect { instance.send(:delay!, 300) }.to raise_error(Lepus::Error, /while processing a message/)
     end

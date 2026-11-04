@@ -321,13 +321,26 @@ flowchart LR
 
 #### Limiting the delay queues
 
-Set `config.delay_values` to the only delays your application may use. Any other value raises `Lepus::Error` before anything is published, including in testing mode:
+Delay queues belong to an exchange (producer delays) or a consumer queue (`delay!`), so the allowed delays are set there with `delays:`. Any other value raises `Lepus::Error` before anything is published, including in testing mode. Without `delays:`, any delay is accepted.
 
 ```ruby
-Lepus.configure do |config|
-  config.delay_values = [5_000, 30_000, 300_000]
+class OrderEventsProducer < Lepus::Producer
+  configure(exchange: "order_events", delays: [5_000, 30_000])
+end
+
+class ReindexConsumer < Lepus::Consumer
+  configure(queue: "reindex", exchange: "stories", delays: [60_000, 300_000, 900_000])
+
+  def perform(message)
+    attempt = message.metadata.headers.to_h["x-lepus-delayed-count"].to_i
+    return delay!(self.class.config.delay_values[attempt]) if pending?(message) && attempt < 3
+
+    ack!
+  end
 end
 ```
+
+`delay!` raising inside `perform` rejects the message like any other error. `Lepus::Publisher#publish(..., delay:)` has no allowlist; use a producer when you want one.
 
 Lepus also logs `[Lepus::Delay] Declared delay queue "order_events.delayed.30000" (3 in this process)` at info level the first time each process declares a delay queue, so a growing count is easy to spot.
 

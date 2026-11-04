@@ -50,7 +50,7 @@ module Lepus
       raise ArgumentError, "channel is required" unless channel
       return unless Producers.exchange_enabled?(exchange_name)
 
-      delay = Delay.resolve(delay) if delay
+      delay = Delay.normalize(delay) if delay
       payload, opts = prepare_message(message, **options)
       exchange = channel.exchange(exchange_name, exchange_options)
       Lepus.instrument(:publish, exchange: exchange_name, routing_key: opts[:routing_key], delay: delay) do

@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 * Added: `delay!(ms)` (aliased `delay`) consumer helper re-delivers the current message to the consumer's own queue after the delay and acks it, incrementing the `x-lepus-delayed-count` header
 * Added: `delay:` through the default exchange delivers to the queue named by `routing_key` later, e.g. `Lepus::Publisher.new("").publish(payload, routing_key: "jobs", delay: 5_000)` (also on `channel_publish`)
 * Added: `config.delay_queue_expires` (default 1 hour) sets how long unused delay queues are kept beyond their delay before RabbitMQ deletes them
-* Added: `config.delay_values` restricts delays to a fixed set, raising `Lepus::Error` for any other value, to bound the number of delay queues
+* Added: `delays:` option on producer and consumer `configure` restricts delays to a fixed set, raising `Lepus::Error` for any other value, to bound the number of delay queues
 * Added: info log the first time each process declares a delay queue
 * Added: `delay` key in the `publish.lepus` instrumentation payload
 * Added: `Lepus::Testing` records `delay` and `expiration` of fake messages, and `lepus_publish_message.with_delay(ms)` matcher

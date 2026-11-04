@@ -37,7 +37,7 @@ module Lepus
 
       DEFAULT_ERROR_QUEUE_OPTIONS = DEFAULT_QUEUE_OPTIONS
 
-      attr_reader :options, :prefetch_count
+      attr_reader :options, :prefetch_count, :delay_values
 
       def initialize(options = {})
         opts = Lepus::Primitive::Hash.new(options).deep_symbolize_keys
@@ -67,6 +67,7 @@ module Lepus
           @bind_opts[:routing_key] ||= routing_key
         end
         @prefetch_count = opts.key?(:prefetch) ? opts.delete(:prefetch) : DEFAULT_PREFETCH_COUNT
+        @delay_values = Lepus::Delay.normalize_all(opts.delete(:delays))
         @options = opts
       end
 

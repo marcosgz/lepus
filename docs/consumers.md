@@ -44,6 +44,7 @@ configure(
 | `prefetch` | Channel QoS (`basic.qos`). Leave at `1` unless you know you need more. |
 | `retry_queue` | When truthy, declares a `<queue>.retry` queue and dead-letters rejected messages into it; after `delay` ms they return to the queue. Only `:reject` (and a `perform` that raises, which rejects) goes there; `:requeue` and `:nack` put the message straight back on the queue. |
 | `error_queue` | Queue name (string) or `true` to auto-name. Messages that exhaust retries land here. |
+| `delays` | Only delays (ms) accepted by `delay!`; anything else raises `Lepus::Error`. See [Delaying a message](#delaying-a-message). |
 | `process.name` | The named worker pool this consumer runs in — see `Lepus.configure.worker(:name)`. |
 | `process.threads` | Threads inside the consumer's worker dedicated to this consumer. |
 
@@ -150,7 +151,7 @@ class ReindexConsumer < Lepus::Consumer
 end
 ```
 
-It accepts milliseconds or anything responding to `in_milliseconds` (`5.seconds`). No configuration is needed:
+It accepts milliseconds or anything responding to `in_milliseconds` (`5.seconds`). No configuration is needed, but every distinct delay creates a queue, so you can list the allowed ones with `configure(..., delays: [5_000, 60_000])`. Any other value raises `Lepus::Error`, which rejects the message like any other error in `perform`.
 
 - The message is re-published as received (raw payload, headers and properties, before middlewares changed it), minus `expiration`, through the default exchange to a `reindex.delay.5000` queue with `x-message-ttl: 5000` that dead-letters into `reindex`. The `.delay.` infix keeps it apart from the `<exchange>.delayed.<ms>` queues of producer delays, even when the queue and exchange share a name. Only this queue gets it again, not other queues bound to the exchange.
 - The `x-lepus-delayed-count` header is incremented on each delay, so you can cap your own backoff.

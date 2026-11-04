@@ -37,17 +37,24 @@ module Lepus
         ms
       end
 
-      # Normalizes the delay and checks it against {Lepus::Configuration#delay_values}.
+      # Normalizes the delay and checks it against the allowed delays, when given.
+      # @param allowed [Array<Integer>, nil] The only delays accepted, in milliseconds.
       # @return [Integer] The delay in whole milliseconds.
       # @raise [Lepus::Error] when the delay is not one of the allowed values.
-      def resolve(value)
+      def resolve(value, allowed = nil)
         ms = normalize(value)
-        allowed = Lepus.config.delay_values
         if allowed && !allowed.include?(ms)
-          raise Lepus::Error, "Delay #{ms}ms is not allowed, expected one of #{allowed.inspect} (config.delay_values)"
+          raise Lepus::Error, "Delay #{ms}ms is not allowed, expected one of #{allowed.inspect} (delays option)"
         end
 
         ms
+      end
+
+      # @return [Array<Integer>, nil] The normalized, sorted and unique delays, or nil when none are given.
+      def normalize_all(values)
+        return if values.nil?
+
+        Array(values).map { |value| normalize(value) }.uniq.sort.freeze
       end
 
       def exchange_name_for(exchange)

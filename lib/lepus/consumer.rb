@@ -160,6 +160,7 @@ module Lepus
     #
     # @param value [Integer, Float, #in_milliseconds] The delay in milliseconds.
     # @return [:ack]
+    # @raise [Lepus::Error] when the consumer is configured with +delays+ that don't include the value.
     def delay!(value)
       message = Thread.current[CURRENT_DELIVERY_KEY]
       raise Lepus::Error, "delay! must be called while processing a message" unless message
@@ -169,7 +170,7 @@ module Lepus
       headers = opts[:headers] || {}
       opts[:headers] = headers.merge(Delay::COUNT_HEADER => headers[Delay::COUNT_HEADER].to_i + 1)
       opts[:routing_key] = self.class.config.queue_name
-      opts[:delay] = value
+      opts[:delay] = Delay.resolve(value, self.class.config.delay_values)
 
       publisher = Lepus::Publisher.new(Delay::DEFAULT_EXCHANGE)
       if (channel = instance_variable_get(:@_handler_channel))

@@ -251,13 +251,19 @@ RSpec.describe Lepus::Producer do
       expect(publisher).to have_received(:publish).with("Hello", hash_including(delay: 2000))
     end
 
-    it "rejects delays outside config.delay_values before publishing" do
-      Lepus.config.delay_values = [1000]
+    it "rejects delays outside the producer delays before publishing" do
+      producer_class.configure(exchange: "test_exchange", delays: [1000])
 
       expect { producer_class.publish("Hello", delay: 500) }.to raise_error(Lepus::Error, /not allowed/)
       expect(publisher).not_to have_received(:publish)
-    ensure
-      Lepus.config.delay_values = nil
+    end
+
+    it "accepts delays listed in the producer delays" do
+      producer_class.configure(exchange: "test_exchange", delays: [1000])
+
+      producer_class.publish("Hello", delay: 1000)
+
+      expect(publisher).to have_received(:publish).with("Hello", hash_including(delay: 1000))
     end
 
     it "does not pass a delay when none is given" do

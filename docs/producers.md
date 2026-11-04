@@ -40,6 +40,7 @@ configure(
 | `exchange` | String (name only) or hash (`name`, `type`, `durable`, `auto_delete`). Auto-declared on first publish. |
 | `publish` | Default publish options merged into every `publish` call: `persistent`, `mandatory`, `content_type`, `expiration`, etc. |
 | `connection` | Named connection to publish through. Defaults to `:default` (`rabbitmq_url`). See [Named connections](#named-connections). |
+| `delays` | Only delays (ms) accepted by `publish(..., delay:)`; anything else raises `Lepus::Error`. See [Delayed messages](#delayed-messages). |
 
 ## Publishing
 
@@ -85,7 +86,7 @@ When the TTL expires RabbitMQ dead-letters the message into `orders`. There's no
 
 The delay header has no `x-` prefix on purpose: with `x-match: all`, RabbitMQ ignores `x-` binding arguments, so every delay queue would receive every message.
 
-Each delay value has its own queue with a per-queue TTL, so there's no head-of-line blocking: a 1 second delay published after a 1 hour delay still arrives after 1 second. Every distinct value creates a queue, so prefer a small set of fixed delays (e.g. 1s, 30s, 5min) over computed ones. Set `config.delay_values = [1_000, 30_000, 300_000]` to reject any other value with `Lepus::Error`; Lepus also logs at info level the first time each process declares a delay queue.
+Each delay value has its own queue with a per-queue TTL, so there's no head-of-line blocking: a 1 second delay published after a 1 hour delay still arrives after 1 second. Every distinct value creates a queue, so prefer a small set of fixed delays (e.g. 1s, 30s, 5min) over computed ones. Configure the producer with `delays: [1_000, 30_000, 300_000]` to reject any other value with `Lepus::Error` before publishing; Lepus also logs at info level the first time each process declares a delay queue.
 
 Lepus doesn't use per-message `expiration` for delays, but one you pass is still applied inside the delay queue: RabbitMQ uses the lower of the two TTLs, so `expiration: 10_000, delay: 60_000` arrives after 10 seconds, and it drops `expiration` when dead-lettering, so the delivered message no longer has it.
 

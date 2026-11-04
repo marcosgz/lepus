@@ -194,7 +194,7 @@ module Lepus
               payload: message, # Store the original message, not the JSON string
               routing_key: opts[:routing_key],
               headers: opts[:headers],
-              delay: opts[:delay] && Lepus::Delay.resolve(opts[:delay]),
+              delay: opts[:delay] && Lepus::Delay.normalize(opts[:delay]),
               expiration: opts[:expiration],
               persistent: opts[:persistent],
               mandatory: opts[:mandatory],
