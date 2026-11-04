@@ -17,6 +17,7 @@ module Lepus
     REDECLARE_INTERVAL = 60
 
     @declarations = {}
+    @known_queues = Set.new
     @mutex = Mutex.new
 
     class << self
@@ -32,6 +33,19 @@ module Lepus
 
         ms = ms.round
         raise ArgumentError, "Delay must be greater than zero, got #{value.inspect}" unless ms > 0
+
+        ms
+      end
+
+      # Normalizes the delay and checks it against {Lepus::Configuration#delay_values}.
+      # @return [Integer] The delay in whole milliseconds.
+      # @raise [Lepus::Error] when the delay is not one of the allowed values.
+      def resolve(value)
+        ms = normalize(value)
+        allowed = Lepus.config.delay_values
+        if allowed && !allowed.include?(ms)
+          raise Lepus::Error, "Delay #{ms}ms is not allowed, expected one of #{allowed.inspect} (config.delay_values)"
+        end
 
         ms
       end
@@ -89,7 +103,10 @@ module Lepus
       end
 
       def reset!
-        mutex.synchronize { declarations.clear }
+        mutex.synchronize do
+          declarations.clear
+          known_queues.clear
+        end
       end
 
       private
@@ -124,7 +141,11 @@ module Lepus
             "Delete the queue or keep its previous arguments."
         end
 
-        mutex.synchronize { declarations[key] = monotonic_now + redeclare_interval }
+        first = mutex.synchronize do
+          declarations[key] = monotonic_now + redeclare_interval
+          known_queues.add?(queue)
+        end
+        Lepus.logger.info("[Lepus::Delay] Declared delay queue #{queue.inspect} (#{known_queues.size} in this process)") if first
       end
 
       def declared?(key)
@@ -146,7 +167,7 @@ module Lepus
         ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
       end
 
-      attr_reader :declarations, :mutex
+      attr_reader :declarations, :known_queues, :mutex
     end
   end
 end

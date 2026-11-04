@@ -101,7 +101,7 @@ module Lepus
 
         publish_opts = definition.publish_options.merge(options)
         delay = publish_opts.delete(:delay)
-        delay = Delay.normalize(delay) if delay
+        delay = Delay.resolve(delay) if delay
         message = build_message(payload, publish_opts)
         combined_chain = MiddlewareChain.combine(
           Lepus.config.producer_middleware_chain,

@@ -290,9 +290,50 @@ OrderEventsProducer.publish({ order_id: 123 }, routing_key: "order.reminder", de
 Lepus::Publisher.new("order_events").publish("ping", routing_key: "order.ping", delay: 5_000)
 ```
 
-Lepus declares a headers exchange `order_events.delayed` and one queue per delay value (`order_events.delayed.30000`) with `x-message-ttl` set to the delay. When the TTL expires, RabbitMQ dead-letters the message into `order_events` with its original routing key and headers, so consumers bound to it receive it as usual. Each delay value has its own queue, so a long delay never holds back a shorter one. Prefer a small set of fixed delays, since every distinct value creates a queue.
+A consumer can also put the message it is processing back on its own queue for later with [`delay!`](#consumer-configuration).
 
-Unused delay queues are deleted by RabbitMQ after the delay plus one hour (`x-expires`). Change it with `config.delay_queue_expires = 600_000`, or set it to `nil` to disable. Changing it later conflicts with existing queues, which then need to be deleted. See [Producers](docs/producers.md#delayed-messages) for details.
+#### How it works
+
+Delays are built from regular RabbitMQ queues: a message waits in a queue nobody consumes until its `x-message-ttl` expires, then RabbitMQ dead-letters it to the real destination. These are real, durable queues that you will see in the management UI.
+
+```mermaid
+flowchart LR
+    P["publish(delay: 30_000)"] --> DX{{"order_events.delayed<br/>(headers exchange)"}}
+    DX -- "lepus-delay = 30000" --> DQ["order_events.delayed.30000<br/>(TTL 30s, no consumers)"]
+    DX -- "lepus-delay = 5000" --> DQ2["order_events.delayed.5000<br/>(TTL 5s, no consumers)"]
+    DQ -- "TTL expires:<br/>dead-letter" --> X{{"order_events"}}
+    DQ2 -- "TTL expires:<br/>dead-letter" --> X
+    X -- "original routing key" --> Q1["your consumer queues"]
+```
+
+```mermaid
+flowchart LR
+    C["consumer of reindex<br/>calls delay!(5_000)"] -- "ack + re-publish" --> DQ["reindex.delay.5000<br/>(TTL 5s, no consumers)"]
+    DQ -- "TTL expires:<br/>dead-letter" --> Q["reindex"]
+    Q --> C
+```
+
+- **One queue per distinct delay value, not per message.** A million messages delayed by 30 seconds share `order_events.delayed.30000`. The number of queues is (exchanges or consumer queues using delays) × (distinct delay values).
+- **Use a small set of fixed delays** such as 5s, 30s and 5min. Computed or random delays (`rand(1_000..60_000)`, `(run_at - Time.now) * 1000`, jitter in a backoff) create a new queue for nearly every message.
+- **Each delay value has its own TTL**, so a long delay never holds back a shorter one.
+- **Messages keep their routing key and headers** when they reach the target exchange, so existing bindings and consumers work unchanged.
+- **`delay!` re-delivers only to that consumer's queue**, not to other queues bound to the same exchange. It acks the current delivery and increments the `x-lepus-delayed-count` header. Nothing is delivered while the message waits, but if your code calls `delay!` on every attempt it repeats forever, so cap it with that header.
+
+#### Limiting the delay queues
+
+Set `config.delay_values` to the only delays your application may use. Any other value raises `Lepus::Error` before anything is published, including in testing mode:
+
+```ruby
+Lepus.configure do |config|
+  config.delay_values = [5_000, 30_000, 300_000]
+end
+```
+
+Lepus also logs `[Lepus::Delay] Declared delay queue "order_events.delayed.30000" (3 in this process)` at info level the first time each process declares a delay queue, so a growing count is easy to spot.
+
+#### Cleanup
+
+Unused delay queues are deleted by RabbitMQ after the delay plus one hour (`x-expires`), together with any message still in them. Lepus re-declares a queue while it is in use, so pending messages never outlive it. Change the window with `config.delay_queue_expires = 600_000`, or set it to `nil` to keep the queues forever. Queue arguments can't change once a queue exists, so changing this later raises `Lepus::Error` for existing queues until they are deleted. See [Producers](docs/producers.md#delayed-messages) and [Consumers](docs/consumers.md#delaying-a-message) for details.
 
 ### Configuration > Consumer Worker
 

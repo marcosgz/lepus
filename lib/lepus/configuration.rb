@@ -65,6 +65,15 @@ module Lepus
     #   RabbitMQ deletes it (x-expires = delay + this value). nil disables x-expires.
     attr_accessor :delay_queue_expires
 
+    # @return [Array<Integer>, nil] the only delays, in milliseconds, accepted by +delay:+ and +delay!+.
+    #   Each distinct delay creates its own queue, so this guards against unbounded queue creation.
+    #   nil (the default) accepts any delay.
+    attr_reader :delay_values
+
+    def delay_values=(values)
+      @delay_values = values && Array(values).map { |value| Delay.normalize(value) }.uniq.sort.freeze
+    end
+
     DEFAULT_PROMETHEUS_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10].freeze
 
     def initialize

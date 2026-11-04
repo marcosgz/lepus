@@ -311,6 +311,29 @@ RSpec.describe Lepus::Configuration do
     end
   end
 
+  describe "#delay_values" do
+    it "is nil by default" do
+      expect(configuration.delay_values).to be_nil
+    end
+
+    it "normalizes, dedupes and sorts the values" do
+      configuration.delay_values = [30_000, 500.4, Struct.new(:in_milliseconds).new(30_000)]
+
+      expect(configuration.delay_values).to eq([500, 30_000])
+    end
+
+    it "can be cleared" do
+      configuration.delay_values = [500]
+      configuration.delay_values = nil
+
+      expect(configuration.delay_values).to be_nil
+    end
+
+    it "raises for invalid values" do
+      expect { configuration.delay_values = [0] }.to raise_error(ArgumentError)
+    end
+  end
+
   describe "#application_name" do
     it "falls back to connection_name when not explicitly set" do
       configuration.connection_name = "fallback-app"

@@ -85,7 +85,7 @@ When the TTL expires RabbitMQ dead-letters the message into `orders`. There's no
 
 The delay header has no `x-` prefix on purpose: with `x-match: all`, RabbitMQ ignores `x-` binding arguments, so every delay queue would receive every message.
 
-Each delay value has its own queue with a per-queue TTL, so there's no head-of-line blocking: a 1 second delay published after a 1 hour delay still arrives after 1 second. Every distinct value creates a queue, so prefer a small set of fixed delays (e.g. 1s, 30s, 5min) over computed ones.
+Each delay value has its own queue with a per-queue TTL, so there's no head-of-line blocking: a 1 second delay published after a 1 hour delay still arrives after 1 second. Every distinct value creates a queue, so prefer a small set of fixed delays (e.g. 1s, 30s, 5min) over computed ones. Set `config.delay_values = [1_000, 30_000, 300_000]` to reject any other value with `Lepus::Error`; Lepus also logs at info level the first time each process declares a delay queue.
 
 Lepus doesn't use per-message `expiration` for delays, but one you pass is still applied inside the delay queue: RabbitMQ uses the lower of the two TTLs, so `expiration: 10_000, delay: 60_000` arrives after 10 seconds, and it drops `expiration` when dead-lettering, so the delivered message no longer has it.
 

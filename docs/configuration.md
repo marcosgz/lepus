@@ -28,6 +28,7 @@ end
 | `recovery_attempts` | `10` | Max automatic reconnects; `nil` for infinite |
 | `recover_from_connection_close` | `true` | Auto-recover after a clean close |
 | `delay_queue_expires` | `3_600_000` | Milliseconds an unused delay queue is kept beyond its delay (`x-expires`); `nil` disables. See [Delayed messages](producers.md#delayed-messages) |
+| `delay_values` | `nil` | Only delays (ms) accepted by `delay:` and `delay!`; anything else raises `Lepus::Error`. Each distinct delay creates a queue, so this caps them. `nil` accepts any delay |
 
 ### Named connections
 

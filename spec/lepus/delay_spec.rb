@@ -81,6 +81,28 @@ RSpec.describe Lepus::Delay do
     end
   end
 
+  describe ".resolve" do
+    it "accepts any delay when delay_values is not set" do
+      expect(described_class.resolve(1234)).to eq(1234)
+    end
+
+    it "accepts allowed delays" do
+      Lepus.config.delay_values = [500, 30_000]
+
+      expect(described_class.resolve(30_000.2)).to eq(30_000)
+    end
+
+    it "raises for delays outside delay_values" do
+      Lepus.config.delay_values = [500, 30_000]
+
+      expect { described_class.resolve(1000) }.to raise_error(Lepus::Error, /1000ms is not allowed, expected one of \[500, 30000\]/)
+    end
+
+    it "still validates the value" do
+      expect { described_class.resolve(0) }.to raise_error(ArgumentError, /greater than zero/)
+    end
+  end
+
   describe "names" do
     it "builds the delayed exchange name" do
       expect(described_class.exchange_name_for("events")).to eq("events.delayed")
@@ -146,6 +168,22 @@ RSpec.describe Lepus::Delay do
       described_class.declare_for_exchange!(channel, "events", 1000)
 
       expect(channel).to have_received(:queue_declare).twice
+    end
+
+    it "logs only the first declaration of each delay queue" do
+      logger = Logger.new(nil)
+      allow(logger).to receive(:info)
+      allow(Lepus).to receive(:logger).and_return(logger)
+      other_connection = instance_double(Bunny::Session)
+      other_channel = instance_double(Bunny::Channel, connection: other_connection, queue_declare: nil)
+      allow(other_connection).to receive(:with_channel).and_yield(other_channel)
+
+      described_class.declare_for_queue!(channel, "jobs", 500)
+      described_class.declare_for_queue!(other_channel, "jobs", 500)
+      described_class.declare_for_queue!(channel, "jobs", 1000)
+
+      expect(logger).to have_received(:info).with(/Declared delay queue "jobs.delay.500" \(1 in this process\)/).once
+      expect(logger).to have_received(:info).with(/Declared delay queue "jobs.delay.1000" \(2 in this process\)/).once
     end
 
     it "declares again on another connection" do
