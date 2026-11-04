@@ -21,7 +21,9 @@ RSpec.describe Lepus::CLI do
     it "does not pass except when it is not given" do
       described_class.start(["start"])
 
-      expect(Lepus::Supervisor).to have_received(:start).with(no_args)
+      expect(Lepus::Supervisor).to have_received(:start) do |*args|
+        expect(args.first.to_h).not_to have_key(:except)
+      end
     end
   end
 
