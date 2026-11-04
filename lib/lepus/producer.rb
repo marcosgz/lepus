@@ -87,6 +87,7 @@ module Lepus
       # @param connection [Symbol, String, nil] The named connection to publish through,
       #   overriding the one set in {.configure}.
       # @param options [Hash] Additional publish options (routing_key, headers, etc.).
+      # @option options [Integer, #in_milliseconds] :delay Delivers the message after this many milliseconds.
       # @return [void]
       def publish(payload, connection: nil, **options)
         if definition.nil?
@@ -99,6 +100,8 @@ module Lepus
         return unless Producers.enabled?(self)
 
         publish_opts = definition.publish_options.merge(options)
+        delay = publish_opts.delete(:delay)
+        delay = Delay.normalize(delay) if delay
         message = build_message(payload, publish_opts)
         combined_chain = MiddlewareChain.combine(
           Lepus.config.producer_middleware_chain,
@@ -106,7 +109,9 @@ module Lepus
         )
 
         combined_chain.execute(message) do |msg|
-          publisher(connection).publish(msg.payload, **msg.to_publish_options)
+          opts = msg.to_publish_options
+          opts[:delay] = delay if delay
+          publisher(connection).publish(msg.payload, **opts)
         end
       end
 

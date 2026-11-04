@@ -42,7 +42,7 @@ configure(
 | `exchange` | Bind to this exchange. String, or hash (`name`, `type`, `durable`, `auto_delete`). |
 | `routing_key` | Binding routing key(s). |
 | `prefetch` | Channel QoS (`basic.qos`). Leave at `1` unless you know you need more. |
-| `retry_queue` | When truthy, sets up a retry queue with a delay exchange. Messages requeued via `:requeue` or `max_retry` go here. |
+| `retry_queue` | When truthy, declares a `<queue>.retry` queue and dead-letters rejected messages into it; after `delay` ms they return to the queue. Only `:reject` (and a `perform` that raises, which rejects) goes there; `:requeue` and `:nack` put the message straight back on the queue. |
 | `error_queue` | Queue name (string) or `true` to auto-name. Messages that exhaust retries land here. |
 | `process.name` | The named worker pool this consumer runs in — see `Lepus.configure.worker(:name)`. |
 | `process.threads` | Threads inside the consumer's worker dedicated to this consumer. |
@@ -69,6 +69,7 @@ Return a disposition symbol or call one of the helpers:
 | `:reject` | `reject!` | Reject without requeue (drops, or goes to DLX if configured). |
 | `:requeue` | `requeue!` | Reject with requeue — back of the queue. |
 | `:nack` | `nack!` | Negative-ack. |
+| `:ack` | `delay!(ms)` | Re-deliver the message to this queue after `ms` milliseconds, then ack it. See [Delaying a message](#delaying-a-message). |
 
 A `perform` that returns nothing implicitly acks. A `perform` that raises is logged, `on_thread_error` fires, and the message is rejected.
 
@@ -123,10 +124,42 @@ use :max_retry, retries: 5, error_queue: 'orders.error'
 
 On rejection:
 
-1. `max_retry` inspects `x-death` headers.
-2. If retries are below the limit, it re-publishes to the retry queue.
-3. After TTL, the retry queue dead-letters back to the original queue for another attempt.
-4. After N failures, the middleware routes to the error queue.
+1. The rejected message is dead-lettered into the retry queue.
+2. After the TTL, the retry queue dead-letters it back to the original queue for another attempt.
+3. On each delivery `max_retry` counts the `rejected` entries of the `x-death` header.
+4. Once the rejected count exceeds `retries` (the first attempt plus N retries), the middleware publishes the payload, without headers or properties, to the error queue and acks the message.
+
+## Delaying a message
+
+`delay!(ms)` (aliased `delay`) puts the message being processed back on this consumer's queue after `ms` milliseconds and acks the current delivery. Use it when the work can't be done yet, e.g. waiting for a replica to catch up:
+
+```ruby
+class ReindexConsumer < Lepus::Consumer
+  configure(queue: 'reindex', exchange: 'stories', routing_key: 'story.published')
+  use :json
+
+  MAX_DELAYS = 3
+
+  def perform(message)
+    attempts = message.metadata.headers.to_h['x-lepus-delayed-count'].to_i
+    return delay!(5_000) if replica_behind? && attempts < MAX_DELAYS
+
+    reindex(message.payload)
+    ack!
+  end
+end
+```
+
+It accepts milliseconds or anything responding to `in_milliseconds` (`5.seconds`). No configuration is needed:
+
+- The message is re-published as received (raw payload, headers and properties, before middlewares changed it), minus `expiration`, through the default exchange to a `reindex.delay.5000` queue with `x-message-ttl: 5000` that dead-letters into `reindex`. The `.delay.` infix keeps it apart from the `<exchange>.delayed.<ms>` queues of producer delays, even when the queue and exchange share a name. Only this queue gets it again, not other queues bound to the exchange.
+- The `x-lepus-delayed-count` header is incremented on each delay, so you can cap your own backoff.
+- The redelivery arrives with routing key `reindex` (the queue name), like retries do. Put anything you route on in the payload or headers.
+- The queue is declared on first use and gets `x-expires` like producer delays; see [Queue expiry](producers.md#queue-expiry).
+- `max_retry` ignores delays: it only counts `rejected` deaths, while delay queues produce `expired` ones.
+- `delay!` returns `:ack`, so the `:unique` middleware releases the dedupe lock under the default `release_on: [:ack]`. Duplicates published during the delay are not suppressed, and the redelivered message doesn't hold a lock.
+
+`delay!` must be called from `perform`; outside a delivery it raises `Lepus::Error`. Any publish to the default exchange can be delayed the same way: `Lepus::Publisher.new('').publish(payload, routing_key: 'reindex', delay: 5_000)`.
 
 ## Worker assignment
 

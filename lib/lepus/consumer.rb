@@ -4,6 +4,8 @@ module Lepus
   # The abstract base class for consumers processing messages from queues.
   # @abstract Subclass and override {#work} to implement.
   class Consumer
+    CURRENT_DELIVERY_KEY = :lepus_consumer_delivery
+
     class << self
       def abstract_class?
         return @abstract_class == true if defined?(@abstract_class)
@@ -95,12 +97,16 @@ module Lepus
     # @param [String] payload The payload of the received message.
     # @raise [InvalidConsumerReturnError] if you return something other than +:ack+, +:reject+ or +:requeue+ from {#perform}.
     def process_delivery(delivery_info, metadata, payload)
+      previous_delivery = Thread.current[CURRENT_DELIVERY_KEY]
       message = Message.coerce(delivery_info, metadata, payload)
       message.consumer_class = self.class
 
+      Thread.current[CURRENT_DELIVERY_KEY] = message
       Lepus.instrument(:process_delivery, **delivery_attributes(delivery_info)) do |event|
         event[:result] = deliver(message, delivery_info)
       end
+    ensure
+      Thread.current[CURRENT_DELIVERY_KEY] = previous_delivery
     end
 
     # Returns whether the last delivery resulted in an error.
@@ -147,6 +153,33 @@ module Lepus
       :nack
     end
     alias_method :nack, :nack!
+
+    # Re-delivers the message being processed to this consumer's queue after the given delay,
+    # and acks the current delivery. The redelivery arrives through the default exchange, so its
+    # routing key is the queue name, and its {Lepus::Delay::COUNT_HEADER} header is incremented.
+    #
+    # @param value [Integer, Float, #in_milliseconds] The delay in milliseconds.
+    # @return [:ack]
+    def delay!(value)
+      message = Thread.current[CURRENT_DELIVERY_KEY]
+      raise Lepus::Error, "delay! must be called while processing a message" unless message
+
+      opts = message.to_publish_options
+      opts.delete(:expiration)
+      headers = opts[:headers] || {}
+      opts[:headers] = headers.merge(Delay::COUNT_HEADER => headers[Delay::COUNT_HEADER].to_i + 1)
+      opts[:routing_key] = self.class.config.queue_name
+      opts[:delay] = value
+
+      publisher = Lepus::Publisher.new(Delay::DEFAULT_EXCHANGE)
+      if (channel = instance_variable_get(:@_handler_channel))
+        publisher.channel_publish(channel, message.payload, **opts)
+      else
+        publisher.publish(message.payload, **opts)
+      end
+      ack!
+    end
+    alias_method :delay, :delay!
 
     private
 

@@ -21,6 +21,7 @@ module IntegrationHelper
         consumer: consumer_class,
         payload: message.payload,
         metadata: message.metadata,
+        routing_key: message.delivery_info&.routing_key,
         result: result,
         at: Time.now
       }

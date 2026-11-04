@@ -91,6 +91,30 @@ RSpec.describe Lepus::Testing::RSpecMatchers do
     it "fails when publishing to wrong exchange" do
       expect { TestProducerForMatchers.publish("test") }.not_to lepus_publish_message.to_exchange("wrong_exchange")
     end
+
+    it "matches when publishing with a specific delay" do
+      expect { TestProducerForMatchers.publish("test", delay: 500) }.to lepus_publish_message.to_exchange("test_exchange").with_delay(500)
+    end
+
+    it "matches delays given as objects responding to in_milliseconds" do
+      expect { TestProducerForMatchers.publish("test", delay: 2000) }
+        .to lepus_publish_message.with_delay(Struct.new(:in_milliseconds).new(2000.0))
+    end
+
+    it "fails when the delay differs" do
+      expect { TestProducerForMatchers.publish("test", delay: 500) }.not_to lepus_publish_message.with_delay(1000)
+    end
+
+    it "fails when the message is not delayed" do
+      expect { TestProducerForMatchers.publish("test") }.not_to lepus_publish_message.with_delay(500)
+    end
+
+    it "describes the delay in the failure message" do
+      matcher = lepus_publish_message.with_delay(1000)
+      matcher.matches?(proc { TestProducerForMatchers.publish("test", delay: 500) })
+
+      expect(matcher.failure_message).to include("with delay 1000ms (0 matched)")
+    end
   end
 end
 # rubocop:enable RSpec/SpecFilePathFormat

@@ -281,6 +281,19 @@ class MyProducer < Lepus::Producer
 end
 ```
 
+### Delayed messages
+
+Pass `delay:` (in milliseconds, or anything responding to `in_milliseconds` such as `5.minutes`) to deliver a message later. No RabbitMQ plugin is needed:
+
+```ruby
+OrderEventsProducer.publish({ order_id: 123 }, routing_key: "order.reminder", delay: 30_000)
+Lepus::Publisher.new("order_events").publish("ping", routing_key: "order.ping", delay: 5_000)
+```
+
+Lepus declares a headers exchange `order_events.delayed` and one queue per delay value (`order_events.delayed.30000`) with `x-message-ttl` set to the delay. When the TTL expires, RabbitMQ dead-letters the message into `order_events` with its original routing key and headers, so consumers bound to it receive it as usual. Each delay value has its own queue, so a long delay never holds back a shorter one. Prefer a small set of fixed delays, since every distinct value creates a queue.
+
+Unused delay queues are deleted by RabbitMQ after the delay plus one hour (`x-expires`). Change it with `config.delay_queue_expires = 600_000`, or set it to `nil` to disable. Changing it later conflicts with existing queues, which then need to be deleted. See [Producers](docs/producers.md#delayed-messages) for details.
+
 ### Configuration > Consumer Worker
 
 You can configure the consumer process using the `worker` method. The default worker is named `:default`, but you can define more workers with different names for different consumers.
@@ -387,6 +400,24 @@ By declaring the `retry_queue` option, it will automatically create a queue name
 It may result in a infinite loop if the message is always rejected. To avoid this, you can use the `error_queue` option to route the message to an `queue_name.error` queue after a number of attempts by using the `MaxRetry` middleware covered in the next section.
 
 Refer to the [Dead Letter Exchanges](https://www.rabbitmq.com/docs/dlx) documentation for more information about retry.
+
+A consumer can also put the current message back on its own queue for later with `delay!` (aliased `delay`). It acks the current delivery and increments the `x-lepus-delayed-count` header, so you can cap the attempts:
+
+```ruby
+class ReindexConsumer < Lepus::Consumer
+  configure(queue: "reindex", exchange: "stories", routing_key: "story.published")
+  use :json
+
+  def perform(message)
+    return delay!(5_000) if replica_behind? && message.metadata.headers.to_h["x-lepus-delayed-count"].to_i < 3
+
+    reindex(message.payload)
+    ack!
+  end
+end
+```
+
+The redelivery goes only to this consumer's queue (through `reindex.delay.5000`), not to other queues bound to the exchange. See [Consumers](docs/consumers.md#delaying-a-message) for details.
 
 ### Middlewares
 

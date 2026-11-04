@@ -213,6 +213,56 @@ RSpec.describe Lepus::Producer do
     end
   end
 
+  describe ".publish with delay" do
+    let(:publisher) { instance_double(Lepus::Publisher, publish: nil) }
+
+    before do
+      producer_class.configure(exchange: "test_exchange")
+      Lepus::Producers.enable!(producer_class)
+      allow(producer_class).to receive(:publisher).and_return(publisher)
+    end
+
+    it "passes the normalized delay to the publisher" do
+      producer_class.publish("Hello", routing_key: "a.b", delay: 1500.2)
+
+      expect(publisher).to have_received(:publish).with("Hello", hash_including(routing_key: "a.b", delay: 1500))
+    end
+
+    it "does not expose the delay to middlewares as a publish option" do
+      seen = nil
+      middleware = Class.new(Lepus::Middleware) do
+        define_method(:call) do |message, app|
+          seen = message.publish_options
+          app.call(message)
+        end
+      end
+      producer_class.use(middleware)
+
+      producer_class.publish("Hello", delay: 500)
+
+      expect(seen).not_to have_key(:delay)
+    end
+
+    it "uses the delay from the producer publish options" do
+      producer_class.configure(exchange: "test_exchange", publish: {delay: 2000})
+
+      producer_class.publish("Hello")
+
+      expect(publisher).to have_received(:publish).with("Hello", hash_including(delay: 2000))
+    end
+
+    it "does not pass a delay when none is given" do
+      producer_class.publish("Hello")
+
+      expect(publisher).to have_received(:publish).with("Hello", hash_excluding(:delay))
+    end
+
+    it "raises for invalid delays" do
+      expect { producer_class.publish("Hello", delay: "soon") }.to raise_error(ArgumentError)
+      expect(publisher).not_to have_received(:publish)
+    end
+  end
+
   describe "#initialize" do
     it "creates an instance with the class definition" do
       producer_class.configure(exchange: "instance_exchange")

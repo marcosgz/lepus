@@ -27,6 +27,7 @@ end
 | `connection_name` | gem-generated | Shown in RabbitMQ management UI — set to your service name |
 | `recovery_attempts` | `10` | Max automatic reconnects; `nil` for infinite |
 | `recover_from_connection_close` | `true` | Auto-recover after a clean close |
+| `delay_queue_expires` | `3_600_000` | Milliseconds an unused delay queue is kept beyond its delay (`x-expires`); `nil` disables. See [Delayed messages](producers.md#delayed-messages) |
 
 ### Named connections
 

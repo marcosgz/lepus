@@ -10,6 +10,7 @@ module Lepus
           @expected_exchange = nil
           @expected_routing_key = nil
           @expected_payload = nil
+          @expected_delay = nil
         end
 
         # Support block expectations
@@ -37,7 +38,7 @@ module Lepus
             return false
           end
 
-          matches_count? && matches_exchange? && matches_routing_key? && matches_payload?
+          matches_count? && matches_exchange? && matches_routing_key? && matches_payload? && matches_delay?
         end
 
         def failure_message
@@ -57,6 +58,11 @@ module Lepus
           if @expected_payload
             matching_payload = get_recent_messages(@published_count).count { |msg| @expected_payload.matches?(msg[:payload]) }
             message += " with payload matching #{@expected_payload} (#{matching_payload} matched)"
+          end
+
+          if @expected_delay
+            matching_delay = get_recent_messages(@published_count).count { |msg| msg[:delay] == @expected_delay }
+            message += " with delay #{@expected_delay}ms (#{matching_delay} matched)"
           end
 
           message
@@ -86,6 +92,11 @@ module Lepus
           self
         end
 
+        def with_delay(delay)
+          @expected_delay = Lepus::Delay.normalize(delay)
+          self
+        end
+
         private
 
         def expected_description
@@ -93,6 +104,7 @@ module Lepus
           desc += " to exchange '#{@expected_exchange}'" if @expected_exchange
           desc += " with routing key '#{@expected_routing_key}'" if @expected_routing_key
           desc += " with payload matching #{@expected_payload}" if @expected_payload
+          desc += " with delay #{@expected_delay}ms" if @expected_delay
           desc
         end
 
@@ -138,6 +150,13 @@ module Lepus
             end
 
           recent_messages.any? { |msg| payload_matcher.matches?(msg[:payload]) }
+        end
+
+        def matches_delay?
+          return true unless @expected_delay
+          return false if @published_count == 0
+
+          get_recent_messages(@published_count).any? { |msg| msg[:delay] == @expected_delay }
         end
 
         def count_all_messages

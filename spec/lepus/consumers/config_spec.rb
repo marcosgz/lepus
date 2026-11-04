@@ -325,6 +325,50 @@ RSpec.describe Lepus::Consumers::Config do
     end
   end
 
+  describe "#retry_queue_name" do
+    it "returns nil when retry_queue is not set" do
+      expect(config.retry_queue_name).to be_nil
+    end
+
+    context "when the retry_queue is set as true" do
+      let(:options) { {queue: "queue-name", retry_queue: true} }
+
+      it "returns the default name" do
+        expect(config.retry_queue_name).to eq("queue-name.retry")
+      end
+    end
+
+    context "when the retry_queue has a name" do
+      let(:options) { {queue: "queue-name", retry_queue: "custom-retry"} }
+
+      it "returns the configured name" do
+        expect(config.retry_queue_name).to eq("custom-retry")
+      end
+    end
+  end
+
+  describe "#error_queue_name" do
+    it "returns nil when error_queue is not set" do
+      expect(config.error_queue_name).to be_nil
+    end
+
+    context "when the error_queue is set as true" do
+      let(:options) { {queue: "queue-name", error_queue: true} }
+
+      it "returns the default name" do
+        expect(config.error_queue_name).to eq("queue-name.error")
+      end
+    end
+
+    context "when the error_queue has a name" do
+      let(:options) { {queue: "queue-name", error_queue: {name: "custom-error"}} }
+
+      it "returns the configured name" do
+        expect(config.error_queue_name).to eq("custom-error")
+      end
+    end
+  end
+
   describe "#binds_args" do
     context "when no routing key is set on a topic exchange (default)" do
       it "defaults to '#' to catch all messages" do

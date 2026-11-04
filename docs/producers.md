@@ -60,6 +60,46 @@ All Bunny publish options are supported. Frequently useful:
 | `content_type` | MIME type. Auto-set to `application/json` by `:json` middleware. |
 | `expiration` | Per-message TTL in milliseconds. |
 | `mandatory` | Return the message if it can't be routed. |
+| `delay` | Deliver the message after this many milliseconds (Integer, Float or anything responding to `in_milliseconds`). Lepus option, never sent to Bunny. See [Delayed messages](#delayed-messages). |
+
+## Delayed messages
+
+```ruby
+OrdersProducer.publish(payload, routing_key: 'order.reminder', delay: 30_000)
+OrdersProducer.publish(payload, routing_key: 'order.reminder', delay: 5.minutes) # ActiveSupport::Duration
+Lepus::Publisher.new('orders').publish(payload, routing_key: 'order.reminder', delay: 30_000)
+```
+
+A default can be set with `configure(publish: { delay: 1_000 })`. Middlewares run as usual and don't see `delay` among the publish options.
+
+### How it works
+
+RabbitMQ has no delayed delivery without the `rabbitmq_delayed_message_exchange` plugin, so Lepus builds it from TTL queues and dead-lettering. For a target exchange `orders` and a delay of 30000 ms, Lepus declares on first use:
+
+| Resource | Details |
+|----------|---------|
+| `orders.delayed` | Durable headers exchange. Delayed messages are published here with the original routing key plus the `lepus-delay: 30000` header. |
+| `orders.delayed.30000` | Durable queue bound to `orders.delayed` with `x-match: all, lepus-delay: 30000`. Arguments: `x-message-ttl: 30000`, `x-dead-letter-exchange: orders`, `x-expires` (see below). |
+
+When the TTL expires RabbitMQ dead-letters the message into `orders`. There's no `x-dead-letter-routing-key`, so it keeps its original routing key and headers, which works for topic, direct, fanout and headers exchanges. The delivered message also carries the `lepus-delay` header and RabbitMQ's `x-death` header.
+
+The delay header has no `x-` prefix on purpose: with `x-match: all`, RabbitMQ ignores `x-` binding arguments, so every delay queue would receive every message.
+
+Each delay value has its own queue with a per-queue TTL, so there's no head-of-line blocking: a 1 second delay published after a 1 hour delay still arrives after 1 second. Every distinct value creates a queue, so prefer a small set of fixed delays (e.g. 1s, 30s, 5min) over computed ones.
+
+Lepus doesn't use per-message `expiration` for delays, but one you pass is still applied inside the delay queue: RabbitMQ uses the lower of the two TTLs, so `expiration: 10_000, delay: 60_000` arrives after 10 seconds, and it drops `expiration` when dead-lettering, so the delivered message no longer has it.
+
+### Queue expiry
+
+Delay queues get `x-expires` set to the delay plus `config.delay_queue_expires` (default 1 hour), so queues for delays you no longer use are deleted by RabbitMQ, together with any message still in them. Publishing doesn't count as queue usage, so while a process keeps publishing a delay, Lepus re-declares its queue at least every `delay_queue_expires / 2` (and at least once a minute). A message published at any time therefore expires before its queue does. Set `config.delay_queue_expires = nil` to keep delay queues forever.
+
+Queue arguments can't change once a queue exists. If you change `delay_queue_expires`, publishing to an existing delay queue raises `Lepus::Error` naming the queue. Keep the previous value, or delete the queue (it only holds messages still waiting) and restart every process that publishes delays in the same deploy: until a process re-declares a deleted queue (up to a minute later), its delayed messages for that queue are dropped.
+
+### Declarations
+
+Declarations are memoized per connection, delay queue and arguments, and run on a short-lived channel, so a failure doesn't close the channel used for publishing.
+
+`mandatory` and publisher confirms only cover the publish into the delay exchange or queue. Dead-lettering into the target when the TTL expires is not subject to them: if the target exchange doesn't exist, or no binding matches the routing key at that moment, RabbitMQ drops the message without a return or nack. Publishing through the producer declares the exchange, but the bindings must also be in place when the delay ends.
 
 ## Payload types
 

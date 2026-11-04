@@ -152,15 +152,15 @@ module Lepus
       end
 
       def retry_queue_name
-        name = @retry_queue_opts[:name]
-        name ||= "#{queue_name}.retry"
-        name
+        return unless @retry_queue_opts
+
+        @retry_queue_opts[:name] || "#{queue_name}.retry"
       end
 
       def error_queue_name
-        name = @error_queue_opts[:name]
-        name ||= "#{queue_name}.error"
-        name
+        return unless @error_queue_opts
+
+        @error_queue_opts[:name] || "#{queue_name}.error"
       end
 
       protected

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.0 - 2026-11-04
+* Added: `delay:` option on `Producer.publish` and `Lepus::Publisher#publish` (milliseconds, or anything responding to `in_milliseconds`) delivers messages later through per-delay TTL queues, without the delayed-message plugin
+* Added: `delay!(ms)` (aliased `delay`) consumer helper re-delivers the current message to the consumer's own queue after the delay and acks it, incrementing the `x-lepus-delayed-count` header
+* Added: `delay:` through the default exchange delivers to the queue named by `routing_key` later, e.g. `Lepus::Publisher.new("").publish(payload, routing_key: "jobs", delay: 5_000)` (also on `channel_publish`)
+* Added: `config.delay_queue_expires` (default 1 hour) sets how long unused delay queues are kept beyond their delay before RabbitMQ deletes them
+* Added: `delay` key in the `publish.lepus` instrumentation payload
+* Added: `Lepus::Testing` records `delay` and `expiration` of fake messages, and `lepus_publish_message.with_delay(ms)` matcher
+* Fixed: `Consumers::Config#retry_queue_name` and `#error_queue_name` return nil instead of raising when the queue is not configured
+
 ## 0.2.2 - 2026-10-30
 * Added: `lepus start --except A,B` (and `Supervisor.new(except:)`) runs every consumer but the ones listed
 
