@@ -55,10 +55,16 @@ export function overview(root, { meta }) {
   let destroyed = false;
 
   const headline = h("h1", { class: "headline", id: "map" }, h("span", { class: "quiet" }, "Reading the broker"));
-  const subline = h("p", { class: "subline" },
-    "Each band is an exchange routing to its queues; every line runs on to the queue's consumer and to acknowledgement. " +
-    "Amber tokens are messages on the move, more of them on busier lines. A hollow amber bar is a backlog waiting in its queue, " +
-    "violet loops beneath a line are retries, a teal clock counts messages delayed on purpose until they are released, and red bars count messages parked in error queues. Point at a queue for exact numbers, select it to find it in the table.");
+  const legend = h("ul", { class: "legend", "aria-label": "How to read the map" },
+    ...[
+      ["move", "Flowing", "messages on the move, more tokens on busier lines"],
+      ["idle", "Backing up", "a backlog waiting in its queue"],
+      ["back", "Retrying", "loops beneath a line"],
+      ["wait", "Delayed", "held on purpose until they are released"],
+      ["stop", "Errors", "messages parked in error queues"]
+    ].map(([kind, name, words]) => h("li", {}, symbol(kind), h("span", {}, h("b", {}, name), " ", words))));
+  const legendHint = h("p", { class: "legend-hint" },
+    "Each band is an exchange routing to its queues, then on to their consumers and acknowledgement. Point at a queue for exact numbers, select it to find it in the table.");
   const status = h("p", { class: "status-note", role: "status", hidden: true });
   const mapHost = h("div", { class: "map" });
   const mapNote = h("p", { class: "map-note" });
@@ -75,7 +81,7 @@ export function overview(root, { meta }) {
   const connectionsHost = h("div");
 
   root.append(
-    h("header", { class: "intro" }, headline, subline),
+    h("header", { class: "intro" }, headline, legend, legendHint),
     status,
     empty,
     mapHost,
@@ -134,7 +140,9 @@ export function overview(root, { meta }) {
     add("stop", compact(totals.errors), count(totals.errors), totals.errors === 1 ? "message in error queues" : "messages in error queues");
     clear(headline);
     parts.forEach((part, index) => {
-      if (index > 0) headline.append(index === parts.length - 1 ? " and " : ", ");
+      const last = index > 0 && index === parts.length - 1;
+      if (index > 0) headline.append(last ? " " : ", ");
+      if (last) part.prepend("and ");
       headline.append(part);
     });
     headline.append(".");
