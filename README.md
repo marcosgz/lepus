@@ -5,8 +5,6 @@
   </picture>
 </h1>
 
-![Lepus web dashboard](docs/images/lepus-web.png)
-
 Lepus is a lightweight but powerful Ruby library to help you to consume and produce messages to [RabbitMQ](https://www.rabbitmq.com/) using the [Bunny](https://github.com/ruby-amqp/bunny) gem. It's similar to the Sidekiq, Faktory, ActiveJob, SolidQueue, and other libraries, but using RabbitMQ as the message broker.
 
 ## Documentation
