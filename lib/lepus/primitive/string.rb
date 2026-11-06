@@ -1,17 +1,7 @@
 # frozen_string_literal: true
 
-begin
-  require "dry/inflector"
-rescue LoadError
-  # noop
-end
-
-begin
-  require "active_support/inflector"
-rescue LoadError
-  # noop
-end
-
+# Uses dry-inflector or ActiveSupport only when the host app has already
+# loaded one, so Lepus never pulls either in by itself.
 module Lepus::Primitive
   class String < ::String
     def classify

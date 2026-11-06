@@ -3,8 +3,6 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## 0.3.0 - 2026-11-04
 * Added: `delay:` option on `Producer.publish` and `Lepus::Publisher#publish` (milliseconds, or anything responding to `in_milliseconds`) delivers messages later through per-delay TTL queues, without the delayed-message plugin
 * Added: `delay!(ms)` (aliased `delay`) consumer helper re-delivers the current message to the consumer's own queue after the delay and acks it, incrementing the `x-lepus-delayed-count` header
 * Added: `delay:` through the default exchange delivers to the queue named by `routing_key` later, e.g. `Lepus::Publisher.new("").publish(payload, routing_key: "jobs", delay: 5_000)` (also on `channel_publish`)
