@@ -1,12 +1,10 @@
 const numbers = new Intl.NumberFormat();
 const timeOfDay = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
-const dayTime = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export const count = (value) => numbers.format(Math.round(value || 0));
 export const plural = (n, one, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 export const toTime = (value) => (value ? (typeof value === "number" ? value : Date.parse(value)) : null);
 export const hourMinute = (value) => timeOfDay.format(new Date(value));
-export const stamp = (value) => (value ? dayTime.format(new Date(value)) : "");
 
 export function compact(value) {
   const n = Math.round(value || 0);

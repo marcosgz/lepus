@@ -115,7 +115,7 @@ export class TopologyMap {
       bands: []
     };
     let y = 50;
-    for (const band of this.model.bands) {
+    for (const band of this.model.bands.filter((candidate) => candidate.rows.length)) {
       const head = wide ? 0 : 30;
       const top = y + head;
       let rowTop = top + (wide ? 0 : 6);

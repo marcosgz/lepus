@@ -53,15 +53,6 @@ export function refill(el, ...children) {
   return el;
 }
 
-let toastTimer;
-export function toast(message) {
-  const el = document.getElementById("toast");
-  el.textContent = message;
-  el.classList.add("is-shown");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("is-shown"), 3600);
-}
-
 export const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 function copyAttributes(from, to) {

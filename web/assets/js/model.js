@@ -37,6 +37,7 @@ export function waiting(delayQueues) {
 
 export function isMain(queue, queues) {
   if (queue.role === "main") return true;
+  if (queue.role === "delay") return false;
   if (queue.parent_exchange) return false;
   return !queues.has(queue.parent);
 }
@@ -217,6 +218,10 @@ export function buildModel(topology, memory, { now = Date.now(), expanded = new 
     }
   }
 
+  for (const name of delayedByExchange.keys()) {
+    if (exchanges.has(name)) band(name);
+  }
+
   const routed = new Set([...sources.keys()].filter((key) => key.startsWith("queue:")).map((key) => key.slice(6)));
   for (const queue of topology.queues) {
     if (!isMain(queue, queues) || routed.has(queue.name)) continue;
@@ -232,7 +237,7 @@ export function buildModel(topology, memory, { now = Date.now(), expanded = new 
   }
 
   const unbound = topology.exchanges
-    .filter((exchange) => !bands.has(exchange.name) && !delayFronts.has(exchange.name))
+    .filter((exchange) => !(bands.has(exchange.name) && bands.get(exchange.name).rows.length) && !delayFronts.has(exchange.name))
     .map((exchange) => exchange.name)
     .sort();
 

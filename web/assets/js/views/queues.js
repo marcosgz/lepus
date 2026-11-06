@@ -66,14 +66,14 @@ function onward(queue) {
 }
 
 function delivers(queue) {
-  const after = `delivers after ${duration(queue.delay_ms)}`;
+  const after = `releases after ${duration(queue.delay_ms)}`;
   return queue.target_type === "exchange" ? `${after} to the ${queue.target} exchange, keeping the routing key` : `${after} to ${queue.target}`;
 }
 
 // What a retry, delay or error queue does with its messages, read from its
-// arguments: "retries after 5 s, back to orders.billing" or "delivers after
+// arguments: "retries after 5 s, back to orders.billing" or "releases after
 // 5 s to orders.billing, expires when unused for 1 h".
-export function childDuty(queue) {
+function childDuty(queue) {
   const ttl = queue.ttl ? duration(queue.ttl) : null;
   const next = onward(queue);
   const parts = [];
@@ -108,6 +108,8 @@ function entry(queue, also, kids) {
 
 // The map's bands as table groups: each exchange with the queues drawn on
 // its band, then the default exchange's queues, which have no binding.
+// Delay queues whose queue or exchange is gone are listed under the
+// default exchange.
 function groupsFrom(topology, bands) {
   const queues = new Map(topology.queues.map((queue) => [queue.name, queue]));
   const children = new Map();
@@ -118,7 +120,7 @@ function groupsFrom(topology, bands) {
   }
   const kidsOf = (name) => [...(children.get(name) || [])]
     .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || (a.delay_ms || 0) - (b.delay_ms || 0) || a.name.localeCompare(b.name));
-  return bands.map((band) => {
+  const groups = bands.map((band) => {
     const members = band.allRows.filter((row) => row.kind === "queue").map((row) => entry(row.queue, row.also, kidsOf(row.name)));
     const unbound = band.key === DEFAULT_BAND;
     return {
@@ -131,7 +133,20 @@ function groupsFrom(topology, bands) {
       delays: band.delayed ? band.delayed.queues : [],
       queues: members
     };
-  }).filter((group) => group.queues.length);
+  });
+  const placed = new Set(bands.map((band) => band.key));
+  const orphans = topology.queues.filter((queue) => queue.role === "delay" &&
+    !(queue.parent_exchange ? placed.has(queue.parent_exchange) : queues.has(queue.parent)));
+  if (orphans.length) {
+    let fallback = groups.find((group) => group.unbound);
+    if (!fallback) {
+      fallback = { key: DEFAULT_BAND, name: "Default exchange", unbound: true, type: "direct", rate: 0, delayed: 0, delays: [], queues: [] };
+      groups.push(fallback);
+    }
+    fallback.delays = [...fallback.delays, ...orphans].sort((a, b) => (a.delay_ms || 0) - (b.delay_ms || 0) || a.name.localeCompare(b.name));
+    fallback.delayed += orphans.reduce((sum, queue) => sum + queue.messages, 0);
+  }
+  return groups.filter((group) => group.queues.length || group.delays.length);
 }
 
 // Every main queue under the exchange that routes to it, in the map's order,
@@ -198,10 +213,10 @@ export class QueueTable {
       queue.kids.some((kid) => kid.name.toLowerCase().includes(text));
   }
 
-  delayRows(group) {
+  shownDelays(group) {
     const text = this.filter;
-    const shown = text ? group.delays.filter((queue) => queue.name.toLowerCase().includes(text) || group.name.toLowerCase().includes(text)) : group.delays;
-    return shown.map((queue) => this.childRow(queue, "q-exchange-delay"));
+    if (!text) return group.delays;
+    return group.delays.filter((queue) => queue.name.toLowerCase().includes(text) || group.name.toLowerCase().includes(text));
   }
 
   toggle(set, storageKey, key) {
@@ -266,8 +281,8 @@ export class QueueTable {
     const drawn = [];
     for (const group of this.groups) {
       const queues = group.queues.filter((queue) => this.matches(queue)).sort(order);
-      const delays = this.delayRows(group);
-      matched += queues.length;
+      const delays = this.shownDelays(group);
+      matched += queues.length + delays.length;
       if (!queues.length && !delays.length) continue;
       const idleQueues = queues.filter((queue) => queue.idle);
       const idle = !this.filter && idleQueues.length >= IDLE_FOLD ? idleQueues : [];
@@ -278,15 +293,15 @@ export class QueueTable {
       const shown = active.filter((queue, index) => moreOpen || index < cut || queue.name === this.revealed);
       const idleShown = idle.filter((queue) => idleOpen || queue.name === this.revealed);
       drawn.push(this.body(`group:${group.key}`, [
-        this.groupRow(group, queues),
-        delays,
+        this.groupRow(group, queues, delays),
+        delays.map((queue) => this.childRow(queue, "q-exchange-delay")),
         shown.map((queue) => this.queueRows(queue)),
         active.length > cut ? this.foldRow(group, "more", moreOpen ? active.length - cut : active.length - shown.length, moreOpen) : null,
         idle.length ? this.foldRow(group, "idle", idleOpen ? idle.length : idle.length - idleShown.length, idleOpen) : null,
         idleShown.map((queue) => this.queueRows(queue))
       ]));
     }
-    this.count.textContent = this.filter ? `${plural(matched, "queue")} match “${this.input.value.trim()}”.` : "";
+    this.count.textContent = this.filter ? `${plural(matched, "queue")} ${matched === 1 ? "matches" : "match"} “${this.input.value.trim()}”.` : "";
     if (!drawn.length) {
       const message = this.groups.length ? "No queue matches that filter." : "No queues to show. They appear once the management API answers.";
       drawn.push(this.body("empty", h("tr", {}, h("td", { colspan: COLUMNS.length, class: "empty" }, message))));
@@ -326,12 +341,13 @@ export class QueueTable {
     }
   }
 
-  groupRow(group, queues) {
+  groupRow(group, queues, delays) {
     const sum = (key) => queues.reduce((total, queue) => total + queue[key], 0);
+    const delayed = this.filter ? sum("delayed") + delays.reduce((total, queue) => total + queue.messages, 0) : group.delayed;
     const meta = [group.unbound ? "no binding, published straight to the queue" : `${group.type || "unknown"} exchange`];
     meta.push(queues.length === group.queues.length ? plural(group.queues.length, "queue") : `${count(queues.length)} of ${plural(group.queues.length, "queue")}`);
-    if (group.delayed) meta.push(`${compact(group.delayed)} delayed`);
-    else if (group.delays.length) meta.push(plural(group.delays.length, "empty delay queue"));
+    if (delayed) meta.push(`${compact(delayed)} delayed`);
+    else if (delays.length) meta.push(plural(delays.length, "empty delay queue"));
     return h("tr", { class: "q-group" },
       h("th", { scope: "rowgroup" },
         h("span", { class: "q-ex" }, group.name),

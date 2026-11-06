@@ -172,7 +172,11 @@ export function overview(root, { meta }) {
     map.set(model);
     renderHeadline(model.totals);
     const notes = [];
-    if (model.unbound.length) notes.push(`${model.unbound.length === 1 ? "Exchange" : "Exchanges"} with no queue bound: ${model.unbound.join(", ")}.`);
+    if (model.unbound.length) {
+      const waits = new Map(model.bands.filter((band) => band.delayed && band.delayed.messages).map((band) => [band.key, band.delayed.messages]));
+      const names = model.unbound.map((name) => (waits.has(name) ? `${name} (${compact(waits.get(name))} delayed)` : name));
+      notes.push(`${names.length === 1 ? "Exchange" : "Exchanges"} with no queue bound: ${names.join(", ")}.`);
+    }
     notes.push("The queues table below lists every queue with exact numbers.");
     mapNote.textContent = notes.join(" ");
   }
