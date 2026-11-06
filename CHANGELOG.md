@@ -11,12 +11,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 * Added: consumer heartbeats report their `retry_queue` and `error_queue`
 * Added: the dashboard shows delayed messages: delay queues and `<exchange>.delayed` exchanges are recognised by Lepus' own naming and arguments, their messages are counted on the queue or exchange they are released to (map, headline, queues table) and `/api/topology` exposes `delay_ms`, `target`, `target_type`, `delayed`, `delays` and `releases_to`
 * Added: consumer heartbeats report the consumer's `delays` and how many messages it handed back with `delay!`, which no longer count as processed
+* Added: `/api/queues` includes each queue's state, flags, arguments, idle time, utilisation and backlog rates
 * Changed: `/api/exchanges` keeps the `<exchange>.delayed` exchanges of the consumers' exchanges
 * Added: `bin/web-demo` serves the dashboard on a simulated broker (`HEAVY=1` for a large one)
 * Removed: the dashboard's offline mode; its service worker now unregisters itself and clears its caches
-* Fixed: the management API client uses the vhost from `rabbitmq_url` instead of always `/`
+* Fixed: the management API client uses the percent-decoded vhost from `rabbitmq_url` instead of always `/`
 * Fixed: `Lepus::Primitive::String` no longer requires dry-inflector or ActiveSupport; it uses them only when the app has already loaded one
 * Fixed: the dashboard no longer serves arbitrary files from outside its assets directory
+* Fixed: the Rails mount example in `docs/web.md`
 * Added: `delay:` option on `Producer.publish` and `Lepus::Publisher#publish` (milliseconds, or anything responding to `in_milliseconds`) delivers messages later through per-delay TTL queues, without the delayed-message plugin
 * Added: `delay!(ms)` (aliased `delay`) consumer helper re-delivers the current message to the consumer's own queue after the delay and acks it, incrementing the `x-lepus-delayed-count` header
 * Added: `delay:` through the default exchange delivers to the queue named by `routing_key` later, e.g. `Lepus::Publisher.new("").publish(payload, routing_key: "jobs", delay: 5_000)` (also on `channel_publish`)

@@ -709,7 +709,7 @@ The dashboard is one page that refreshes itself (every 5 seconds by default; the
 - **Topology map**: each exchange is a band of lines, one per bound queue, running exchange → queue → consumer → acknowledged. Amber tokens move at a pace that follows each segment's message rate, a hollow amber bar shows a backlog piling up at its queue, violet loops under a line are retries, a teal clock counts [delayed messages](#delayed-messages) waiting to be released and red bars count messages in error queues. Quiet queues fold into a "+N" row per exchange so large brokers stay readable.
 - **Headline**: messages flowing, queues backing up, retries, delayed messages and messages in error queues, in one sentence that doubles as the map's key.
 - **Message rates**: published, delivered, acknowledged and redelivered per second over the last 10 minutes or hour, with a table view.
-- **Processes**: supervisors, their workers (PID, memory, connections, heartbeat health) and each consumer's processed, rejected and errored counts.
+- **Processes**: supervisors, their workers (PID, memory, connections, heartbeat health) and each consumer's processed, rejected and errored counts, and how many messages it delayed (handed back with `delay!`).
 - **Queues**: a sortable, filterable table with ready, unacked, consumers, rates, retry and error queue sizes and what waits in delay queues.
 - **Connections**: the broker's client connections.
 
