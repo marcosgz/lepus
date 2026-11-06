@@ -213,6 +213,7 @@ RSpec.describe Lepus::Web::API do
     let(:exchange_data) do
       [
         {name: "orders", type: "topic", durable: true, auto_delete: false, message_stats: {}},
+        {name: "orders.delayed", type: "headers", durable: true, auto_delete: false, message_stats: {}},
         {name: "invoices", type: "topic", durable: true, auto_delete: false, message_stats: {}}
       ]
     end
@@ -230,7 +231,7 @@ RSpec.describe Lepus::Web::API do
 
         expect(status).to eq(200)
         response_data = JSON.parse(body.first)
-        expect(response_data.length).to eq(2)
+        expect(response_data.length).to eq(3)
       end
     end
 
@@ -249,14 +250,12 @@ RSpec.describe Lepus::Web::API do
         allow(aggregator).to receive_messages(running?: true, all_processes: process_data)
       end
 
-      it "returns only lepus-managed exchanges" do
+      it "returns only lepus-managed exchanges and their delayed exchanges" do
         env = Rack::MockRequest.env_for("/exchanges")
         status, _, body = api.call(env)
 
         expect(status).to eq(200)
-        response_data = JSON.parse(body.first)
-        expect(response_data.length).to eq(1)
-        expect(response_data.first["name"]).to eq("orders")
+        expect(JSON.parse(body.first).map { |e| e["name"] }).to eq(%w[orders orders.delayed])
       end
     end
 
@@ -274,6 +273,122 @@ RSpec.describe Lepus::Web::API do
         expect(status).to eq(200)
         expect(JSON.parse(body.first)).to eq([])
       end
+    end
+  end
+
+  describe "/topology" do
+    it "returns the assembled topology" do
+      allow(aggregator).to receive_messages(running?: true, all_processes: [])
+      allow(management_api).to receive_messages(queues: [], exchanges: [], bindings: [], consumers: [])
+
+      status, headers, body = api.call(Rack::MockRequest.env_for("/topology"))
+      payload = JSON.parse(body.first)
+
+      expect(status).to eq(200)
+      expect(headers["content-type"]).to eq("application/json")
+      expect(payload).to include("management" => true, "exchanges" => [], "bindings" => [], "queues" => [], "consumers" => [])
+      expect(payload["generated_at"]).to be_a(String)
+    end
+
+    it "includes the arguments that send a queue's messages on" do
+      allow(aggregator).to receive_messages(running?: true, all_processes: [])
+      allow(management_api).to receive_messages(
+        queues: [
+          {name: "orders", arguments: {}, message_stats: {}},
+          {name: "orders.retry", arguments: {"x-message-ttl" => 30_000, "x-dead-letter-exchange" => "", "x-dead-letter-routing-key" => "orders", "x-expires" => 3_600_000}, message_stats: {}}
+        ],
+        exchanges: [], bindings: [], consumers: []
+      )
+
+      _, _, body = api.call(Rack::MockRequest.env_for("/topology"))
+      retry_queue = JSON.parse(body.first)["queues"].find { |q| q["name"] == "orders.retry" }
+
+      expect(retry_queue).to include("role" => "retry", "parent" => "orders", "ttl" => 30_000, "dead_letter_exchange" => "",
+        "dead_letter_routing_key" => "orders", "expires" => 3_600_000)
+    end
+
+    it "describes delay queues and counts what waits in them" do
+      allow(aggregator).to receive_messages(running?: true, all_processes: [])
+      allow(management_api).to receive_messages(
+        queues: [
+          {name: "emails", arguments: {}, message_stats: {}},
+          {name: "emails.delay.60000", messages: 340, arguments: {"x-message-ttl" => 60_000, "x-dead-letter-exchange" => "", "x-dead-letter-routing-key" => "emails", "x-expires" => 3_660_000}, message_stats: {}}
+        ],
+        exchanges: [], bindings: [], consumers: []
+      )
+
+      _, _, body = api.call(Rack::MockRequest.env_for("/topology"))
+      queues = JSON.parse(body.first)["queues"].to_h { |q| [q["name"], q] }
+
+      expect(queues["emails.delay.60000"]).to include("role" => "delay", "parent" => "emails", "delay_ms" => 60_000, "target" => "emails",
+        "target_type" => "queue", "expires" => 3_660_000, "messages" => 340)
+      expect(queues["emails"]).to include("role" => "main", "delayed" => 340, "delays" => [60_000])
+    end
+
+    it "flags an unreachable management API" do
+      allow(aggregator).to receive(:running?).and_return(false)
+      allow(management_api).to receive(:queues).and_raise(Lepus::Web::ManagementAPI::ConnectionError, "refused")
+
+      _, _, body = api.call(Rack::MockRequest.env_for("/topology"))
+
+      expect(JSON.parse(body.first)).to include("management" => false, "management_error" => "The RabbitMQ management API could not be reached")
+    end
+
+    it "keeps host names and response bodies out of the payload" do
+      allow(aggregator).to receive(:running?).and_return(false)
+      allow(management_api).to receive(:queues).and_raise(SocketError, "Failed to open TCP connection to rabbit-mgmt.internal:15672")
+
+      _, _, body = api.call(Rack::MockRequest.env_for("/topology"))
+
+      expect(body.first).not_to include("rabbit-mgmt.internal", "15672")
+    end
+  end
+
+  describe "/overview" do
+    it "asks for the history of an allowed window" do
+      allow(management_api).to receive(:overview).with(age: 3600, increment: 60).and_return(rates: {}, history: [])
+
+      _, _, body = api.call(Rack::MockRequest.env_for("/overview?age=3600"))
+
+      expect(JSON.parse(body.first)).to include("management" => true, "age" => 3600, "history" => [])
+    end
+
+    it "falls back to the shortest window" do
+      allow(management_api).to receive(:overview).with(age: 600, increment: 10).and_return(history: [])
+
+      _, _, body = api.call(Rack::MockRequest.env_for("/overview?age=99999"))
+
+      expect(JSON.parse(body.first)).to include("age" => 600)
+    end
+
+    it "reports a failure without raising" do
+      allow(management_api).to receive(:overview).and_raise(Lepus::Web::ManagementAPI::Error, "RabbitMQ Management API error: 500 - <html>stack</html>")
+
+      status, _, body = api.call(Rack::MockRequest.env_for("/overview"))
+
+      expect(status).to eq(200)
+      expect(JSON.parse(body.first)).to eq("management" => false, "error" => "The RabbitMQ management API returned an error")
+    end
+
+    context "without management API" do
+      let(:api) { described_class.new(aggregator: aggregator, management_api: nil) }
+
+      it "says so" do
+        _, _, body = api.call(Rack::MockRequest.env_for("/overview"))
+
+        expect(JSON.parse(body.first)).to eq("management" => false)
+      end
+    end
+  end
+
+  describe "/meta" do
+    it "returns what the dashboard needs to poll" do
+      _, _, body = api.call(Rack::MockRequest.env_for("/meta"))
+
+      expect(JSON.parse(body.first)).to include(
+        "version" => Lepus::VERSION, "heartbeat_interval" => 60, "alive_threshold" => 300,
+        "poll_interval" => 5, "poll_intervals" => [0, 2, 5, 15, 60], "history_ages" => [600, 3600]
+      )
     end
   end
 

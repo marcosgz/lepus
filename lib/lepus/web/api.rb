@@ -3,6 +3,10 @@
 module Lepus
   module Web
     class API
+      POLL_INTERVALS = [0, 2, 5, 15, 60].freeze
+      DEFAULT_POLL_INTERVAL = 5
+      HISTORY_AGES = {600 => 10, 3600 => 60}.freeze
+
       def initialize(aggregator: nil, management_api: nil)
         @aggregator = aggregator
         @management_api = management_api
@@ -21,6 +25,12 @@ module Lepus
           connections_data
         when "/exchanges"
           exchanges_data
+        when "/topology"
+          topology_data
+        when "/overview"
+          overview_data(req)
+        when "/meta"
+          meta_data
         else
           Web::RespondWith.json(template: :not_found)
         end
@@ -83,6 +93,40 @@ module Lepus
         Web::RespondWith.json(template: :ok, body: [])
       end
 
+      def topology_data
+        topology = Topology.new(
+          management_api: management_api,
+          aggregator: aggregator,
+          show_all_exchanges: Lepus.config.web_show_all_exchanges
+        )
+        Web::RespondWith.json(template: :ok, body: topology.to_h)
+      end
+
+      def overview_data(req)
+        return Web::RespondWith.json(template: :ok, body: {management: false}) unless management_api
+
+        age = req.params["age"].to_i
+        age = HISTORY_AGES.keys.first unless HISTORY_AGES.key?(age)
+        payload = management_api.overview(age: age, increment: HISTORY_AGES[age])
+        Web::RespondWith.json(template: :ok, body: payload.merge(management: true, age: age))
+      rescue => e
+        Lepus.logger.warn("[Web::API] Failed to fetch overview: #{e.message}")
+        Web::RespondWith.json(template: :ok, body: {management: false, error: ManagementAPI.client_message(e)})
+      end
+
+      def meta_data
+        config = Lepus.config
+        Web::RespondWith.json(template: :ok, body: {
+          version: Lepus::VERSION,
+          heartbeat_interval: config.process_heartbeat_interval,
+          alive_threshold: config.process_alive_threshold,
+          poll_interval: DEFAULT_POLL_INTERVAL,
+          poll_intervals: POLL_INTERVALS,
+          history_ages: HISTORY_AGES.keys,
+          show_all_exchanges: config.web_show_all_exchanges ? true : false
+        })
+      end
+
       def annotate_queues_with_apps(queues)
         return queues unless aggregator&.running?
 
@@ -102,6 +146,7 @@ module Lepus
         known_exchanges = build_known_exchange_names
         return exchanges if known_exchanges.empty?
 
+        known_exchanges += known_exchanges.map { |name| Delay.exchange_name_for(name) }
         exchanges.select { |e| known_exchanges.include?(e[:name]) }
       end
 

@@ -1,6 +1,11 @@
-# Lepus
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/lockup-lepus-on-dark.svg">
+    <img alt="Lepus" src="docs/brand/lockup-lepus-on-light.svg" width="278">
+  </picture>
+</h1>
 
-![Lepus web dashboard](https://github.com/user-attachments/assets/a640fc43-2f53-4aa7-aede-f1464f3e6e03)
+![Lepus web dashboard](docs/images/lepus-web.png)
 
 Lepus is a lightweight but powerful Ruby library to help you to consume and produce messages to [RabbitMQ](https://www.rabbitmq.com/) using the [Bunny](https://github.com/ruby-amqp/bunny) gem. It's similar to the Sidekiq, Faktory, ActiveJob, SolidQueue, and other libraries, but using RabbitMQ as the message broker.
 
@@ -681,7 +686,7 @@ plugin :lepus
 
 Lepus includes a built-in web dashboard that provides a real-time view of your message processing infrastructure. The dashboard allows you to monitor processes, queues, connections, and consumer performance.
 
-![Lepus web dashboard — overview of supervisors, workers, and recent activity](https://github.com/user-attachments/assets/a640fc43-2f53-4aa7-aede-f1464f3e6e03)
+![Lepus web dashboard: the topology map with messages flowing from exchanges through queues to consumers](docs/images/lepus-web.png)
 
 ### Starting the Web Dashboard
 
@@ -699,13 +704,18 @@ bundle exec lepus web --port 3000 --host 127.0.0.1
 
 ### Web Dashboard Features
 
-The Lepus web dashboard provides:
+The dashboard is one page that refreshes itself (every 5 seconds by default; the **Live** control in the top bar pauses it or picks 2, 5, 15 or 60 seconds, and polling also pauses while the tab is in the background):
 
-- **Process Monitoring**: View all running supervisors and workers with their PIDs, memory usage, and heartbeat status
-- **Queue Management**: Monitor queue statistics including message counts, consumer connections, and memory usage
-- **Connection Tracking**: View active RabbitMQ connections and their states
-- **Consumer Performance**: Track processed, rejected, and errored messages per consumer
-- **Real-time Updates**: Dashboard automatically refreshes to show current system state
+- **Topology map**: each exchange is a band of lines, one per bound queue, running exchange → queue → consumer → acknowledged. Amber tokens move at a pace that follows each segment's message rate, a hollow amber bar shows a backlog piling up at its queue, violet loops under a line are retries, a teal clock counts [delayed messages](#delayed-messages) waiting to be released and red bars count messages in error queues. Quiet queues fold into a "+N" row per exchange so large brokers stay readable.
+- **Headline**: messages flowing, queues backing up, retries, delayed messages and messages in error queues, in one sentence that doubles as the map's key.
+- **Message rates**: published, delivered, acknowledged and redelivered per second over the last 10 minutes or hour, with a table view.
+- **Processes**: supervisors, their workers (PID, memory, connections, heartbeat health) and each consumer's processed, rejected and errored counts, and how many messages it delayed (handed back with `delay!`).
+- **Queues**: a sortable, filterable table with ready, unacked, consumers, rates, retry and error queue sizes and what waits in delay queues.
+- **Connections**: the broker's client connections.
+
+The map and the queue table need the RabbitMQ Management API (see `management_api_url`); processes come from worker heartbeats. It follows the system light or dark theme, or you can pick one.
+
+To work on the UI without RabbitMQ, run `bin/web-demo` from a checkout (http://127.0.0.1:9393, `HEAVY=1` for a large simulated broker, `MOUNT=/lepus` to serve it under a sub-path).
 
 ### Integrating with Rails
 

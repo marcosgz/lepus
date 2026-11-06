@@ -8,12 +8,6 @@ RSpec.describe Lepus::Web::App do
   include Rack::Test::Methods
 
   let(:app) { described_class.build }
-  let(:rand_test_dir) { ["test", SecureRandom.hex].join("/") }
-  let(:assets_dir) { Lepus::Web.assets_path.join(rand_test_dir) }
-
-  before do
-    FileUtils.mkdir_p(assets_dir) unless Dir.exist?(assets_dir)
-  end
 
   describe ".build" do
     it "returns a Rack application" do
@@ -43,7 +37,19 @@ RSpec.describe Lepus::Web::App do
         get "/"
         expect(last_response.body).not_to match(%r{href="/assets/})
         expect(last_response.body).not_to match(%r{src="/assets/})
-        expect(last_response.body).to include(%(href="assets/css/styles.css"))
+        expect(last_response.body).to include(%(href="assets/app.css"))
+      end
+
+      it "sends a strict content security policy" do
+        get "/"
+        expect(last_response.headers["content-security-policy"]).to include("script-src 'self'")
+        expect(last_response.headers["content-security-policy"]).not_to include("unsafe-inline")
+      end
+
+      it "loads no script or stylesheet from another origin" do
+        get "/"
+        expect(last_response.body).not_to match(%r{(src|href)="https?://})
+        expect(last_response.body).not_to include("style=")
       end
     end
 
@@ -58,19 +64,45 @@ RSpec.describe Lepus::Web::App do
 
     context "when requesting a CSS file" do
       it "serves CSS files with correct MIME type" do
-        get "/assets/css/styles.css"
+        get "/assets/app.css"
         expect(last_response.status).to eq(200)
         expect(last_response.headers["content-type"]).to eq("text/css")
+        expect(last_response.headers["cache-control"]).to eq("no-cache")
         expect(last_response.body).to include(":root")
       end
     end
 
     context "when requesting a JavaScript file" do
       it "serves JavaScript files with correct MIME type" do
-        get "/assets/js/app.js"
+        get "/assets/js/main.js"
         expect(last_response.status).to eq(200)
         expect(last_response.headers["content-type"]).to match(%r{\A(?:text|application)/javascript\z})
-        expect(last_response.body).to include("Stimulus.Application.start")
+        expect(last_response.body).to include("import ")
+      end
+    end
+
+    context "when requesting the self-hosted font" do
+      it "serves it as woff2" do
+        get "/assets/fonts/overpass/overpass-latin-wght.woff2"
+        expect(last_response.status).to eq(200)
+        expect(last_response.headers["content-type"]).to eq("font/woff2")
+      end
+    end
+
+    context "when requesting the service worker" do
+      it "serves the worker that unregisters itself and clears the old caches" do
+        get "/sw.js"
+        expect(last_response.status).to eq(200)
+        expect(last_response.body).to include("registration.unregister()")
+        expect(last_response.body).to include("caches.delete")
+        expect(last_response.body).not_to include("fetch")
+      end
+    end
+
+    context "when requesting a file outside the assets" do
+      it "serves the index instead" do
+        get "/../lib/lepus.rb"
+        expect(last_response.body).to include("<!DOCTYPE html>")
       end
     end
 

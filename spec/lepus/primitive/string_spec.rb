@@ -3,6 +3,13 @@
 require "spec_helper"
 
 RSpec.describe Lepus::Primitive::String do
+  it "does not load an inflector by itself" do
+    script = 'require "lepus"; Lepus::Primitive::String; exit(defined?(ActiveSupport) || defined?(Dry::Inflector) ? 1 : 0)'
+    lib = File.expand_path("../../../lib", __dir__)
+
+    expect(system(RbConfig.ruby, "-I", lib, "-e", script)).to be(true)
+  end
+
   describe "#classify" do
     context "when dry-inflector is available" do
       before do

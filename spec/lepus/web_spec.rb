@@ -60,6 +60,25 @@ RSpec.describe Lepus::Web do
       expect(consumer.last_delivery_errored?).to be(true)
     end
 
+    it "defaults last_delivery_delayed? to false" do
+      expect(consumer_class.new.last_delivery_delayed?).to be(false)
+    end
+
+    it "tracks a delivery handed back with delay!" do
+      consumer = consumer_class.new
+      consumer.define_singleton_method(:perform) { |_message| delay!(500) }
+      allow(Lepus::Delay).to receive(:resolve).and_return(500)
+      allow(Lepus::Publisher).to receive(:new).and_return(instance_double(Lepus::Publisher, publish: nil))
+      delivery_info = instance_double(Bunny::DeliveryInfo, exchange: "test", routing_key: "test", redelivered: false, delivery_tag: 1)
+      metadata = instance_double(Bunny::MessageProperties, headers: nil, content_type: nil)
+      message = instance_double(Lepus::Message, payload: "payload", to_publish_options: {})
+      allow(message).to receive(:consumer_class=)
+      allow(Lepus::Message).to receive(:coerce).and_return(message)
+
+      expect(consumer.process_delivery(delivery_info, metadata, "payload")).to eq(:ack)
+      expect(consumer.last_delivery_delayed?).to be(true)
+    end
+
     it "resets error state on each new delivery" do
       consumer = consumer_class.new
       consumer.send(:on_delivery_error)
@@ -123,15 +142,24 @@ RSpec.describe Lepus::Web do
     end
 
     it "records processed on :ack" do
-      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
       expect(stats.processed).to eq(1)
     end
 
+    it "records delayed instead of processed when the consumer called delay!" do
+      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false, last_delivery_delayed?: true)
+
+      handler.process_delivery(delivery_info, metadata, "payload")
+
+      expect(stats.delayed).to eq(1)
+      expect(stats.processed).to eq(0)
+    end
+
     it "records rejected on :reject without error" do
-      allow(consumer).to receive_messages(process_delivery: :reject, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :reject, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
@@ -140,7 +168,7 @@ RSpec.describe Lepus::Web do
     end
 
     it "records errored on :reject with error" do
-      allow(consumer).to receive_messages(process_delivery: :reject, last_delivery_errored?: true)
+      allow(consumer).to receive_messages(process_delivery: :reject, last_delivery_errored?: true, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
@@ -149,7 +177,7 @@ RSpec.describe Lepus::Web do
     end
 
     it "records rejected on :requeue without error" do
-      allow(consumer).to receive_messages(process_delivery: :requeue, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :requeue, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
@@ -157,7 +185,7 @@ RSpec.describe Lepus::Web do
     end
 
     it "records rejected on :nack without error" do
-      allow(consumer).to receive_messages(process_delivery: :nack, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :nack, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
@@ -166,7 +194,7 @@ RSpec.describe Lepus::Web do
 
     it "does not record stats when stats is nil" do
       handler.stats = nil
-      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       expect { handler.process_delivery(delivery_info, metadata, "payload") }.not_to raise_error
     end
@@ -186,53 +214,6 @@ RSpec.describe Lepus::Web do
       first_call = described_class.assets_path
       second_call = described_class.assets_path
       expect(first_call).to be(second_call)
-    end
-  end
-
-  describe ".mime_for" do
-    it "returns correct MIME type for HTML files" do
-      expect(described_class.mime_for("index.html")).to eq("text/html")
-      expect(described_class.mime_for("/path/to/file.html")).to eq("text/html")
-    end
-
-    it "returns correct MIME type for CSS files" do
-      expect(described_class.mime_for("styles.css")).to eq("text/css")
-      expect(described_class.mime_for("/assets/css/styles.css")).to eq("text/css")
-    end
-
-    it "returns correct MIME type for JavaScript files" do
-      expect(described_class.mime_for("app.js")).to eq("application/javascript")
-      expect(described_class.mime_for("/assets/js/app.js")).to eq("application/javascript")
-    end
-
-    it "returns correct MIME type for PNG images" do
-      expect(described_class.mime_for("image.png")).to eq("image/png")
-      expect(described_class.mime_for("/assets/images/logo.png")).to eq("image/png")
-    end
-
-    it "returns correct MIME type for JPEG images" do
-      expect(described_class.mime_for("photo.jpg")).to eq("image/jpeg")
-      expect(described_class.mime_for("photo.jpeg")).to eq("image/jpeg")
-      expect(described_class.mime_for("/assets/images/photo.jpg")).to eq("image/jpeg")
-    end
-
-    it "returns correct MIME type for SVG images" do
-      expect(described_class.mime_for("icon.svg")).to eq("image/svg+xml")
-      expect(described_class.mime_for("/assets/icons/icon.svg")).to eq("image/svg+xml")
-    end
-
-    it "returns default MIME type for unknown file extensions" do
-      expect(described_class.mime_for("file.txt")).to eq("application/octet-stream")
-      expect(described_class.mime_for("file")).to eq("application/octet-stream")
-      expect(described_class.mime_for("file.unknown")).to eq("application/octet-stream")
-    end
-
-    it "handles files without extensions" do
-      expect(described_class.mime_for("README")).to eq("application/octet-stream")
-    end
-
-    it "handles empty string" do
-      expect(described_class.mime_for("")).to eq("application/octet-stream")
     end
   end
 end

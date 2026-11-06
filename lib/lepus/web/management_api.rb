@@ -3,6 +3,7 @@
 require "net/http"
 require "uri"
 require "json"
+require "time"
 
 module Lepus
   module Web
@@ -10,12 +11,18 @@ module Lepus
     # Fetches queue and connection statistics.
     class ManagementAPI
       DEFAULT_PORT = 15672
+      OVERVIEW_RATES = {
+        publish: "publish",
+        deliver: "deliver_get",
+        ack: "ack",
+        redeliver: "redeliver"
+      }.freeze
 
       attr_reader :base_url, :vhost
 
-      def initialize(base_url: nil, vhost: "/")
+      def initialize(base_url: nil, vhost: nil)
         @base_url = base_url || derive_management_url
-        @vhost = vhost
+        @vhost = vhost || derive_vhost
       end
 
       # Fetch all queues for the configured vhost
@@ -47,6 +54,36 @@ module Lepus
         data.map { |c| normalize_connection(c) }
       end
 
+      # Fetch the bindings of the configured vhost, without the default exchange's implicit ones
+      # @return [Array<Hash>] array of binding data
+      def bindings
+        data = get("/api/bindings/#{encode_vhost}")
+        return [] unless data.is_a?(Array)
+
+        data
+          .reject { |b| b["source"].to_s.empty? }
+          .map { |b| normalize_binding(b) }
+      end
+
+      # Fetch the consumers subscribed to queues of the configured vhost
+      # @return [Array<Hash>] array of consumer data
+      def consumers
+        data = get("/api/consumers/#{encode_vhost}")
+        return [] unless data.is_a?(Array)
+
+        data.map { |c| normalize_consumer(c) }
+      end
+
+      # Fetch the broker overview, with message rate history when asked
+      # @param age [Integer, nil] seconds of history to include
+      # @param increment [Integer] seconds between history samples
+      # @return [Hash] overview data
+      def overview(age: nil, increment: 10)
+        path = "/api/overview"
+        path += "?msg_rates_age=#{Integer(age)}&msg_rates_incr=#{Integer(increment)}" if age
+        normalize_overview(get(path) || {})
+      end
+
       # Fetch a specific queue
       # @param name [String] queue name
       # @return [Hash, nil] queue data or nil if not found
@@ -65,6 +102,18 @@ module Lepus
 
       class NotFoundError < Error; end
 
+      UNREACHABLE = [ConnectionError, SocketError, SystemCallError, IOError, Timeout::Error].freeze
+
+      # What the dashboard may show about a failure: never the broker's
+      # host names, ports or response bodies, which stay in the log.
+      def self.client_message(error)
+        case error
+        when AuthenticationError then "The RabbitMQ management API rejected the credentials"
+        when *UNREACHABLE then "The RabbitMQ management API could not be reached"
+        else "The RabbitMQ management API returned an error"
+        end
+      end
+
       private
 
       def parse_rabbitmq_uri
@@ -78,6 +127,11 @@ module Lepus
         return "http://localhost:#{DEFAULT_PORT}" unless uri
 
         "http://#{uri.host}:#{DEFAULT_PORT}"
+      end
+
+      def derive_vhost
+        path = parse_rabbitmq_uri&.path.to_s.delete_prefix("/")
+        path.empty? ? "/" : URI::DEFAULT_PARSER.unescape(path)
       end
 
       def credentials
@@ -134,6 +188,15 @@ module Lepus
           messages_unacknowledged: q["messages_unacknowledged"] || 0,
           consumers: q["consumers"] || 0,
           memory: q["memory"] || 0,
+          state: q["state"],
+          durable: q["durable"],
+          exclusive: q["exclusive"] || false,
+          auto_delete: q["auto_delete"] || false,
+          arguments: q["arguments"] || {},
+          idle_since: q["idle_since"],
+          consumer_utilisation: q["consumer_utilisation"],
+          messages_rate: q.dig("messages_details", "rate") || 0.0,
+          messages_ready_rate: q.dig("messages_ready_details", "rate") || 0.0,
           message_stats: normalize_message_stats(q["message_stats"])
         }
       end
@@ -151,6 +214,66 @@ module Lepus
           redeliver: stats["redeliver"] || 0,
           redeliver_rate: stats.dig("redeliver_details", "rate") || 0.0
         }
+      end
+
+      def normalize_binding(b)
+        {
+          source: b["source"],
+          destination: b["destination"],
+          destination_type: b["destination_type"],
+          routing_key: b["routing_key"].to_s,
+          arguments: b["arguments"] || {}
+        }
+      end
+
+      def normalize_consumer(c)
+        channel = c["channel_details"] || {}
+        {
+          queue: c.dig("queue", "name"),
+          consumer_tag: c["consumer_tag"],
+          connection_name: channel["connection_name"],
+          channel: channel["name"],
+          prefetch_count: c["prefetch_count"] || 0,
+          ack_required: c["ack_required"],
+          active: c.fetch("active", true)
+        }
+      end
+
+      def normalize_overview(o)
+        stats = o["message_stats"] || {}
+        totals = o["queue_totals"] || {}
+        {
+          rabbitmq_version: o["rabbitmq_version"],
+          cluster_name: o["cluster_name"],
+          rates: OVERVIEW_RATES.transform_values { |key| stats.dig("#{key}_details", "rate") || 0.0 },
+          queue_totals: {
+            messages: totals["messages"] || 0,
+            messages_ready: totals["messages_ready"] || 0,
+            messages_unacknowledged: totals["messages_unacknowledged"] || 0
+          },
+          object_totals: (o["object_totals"] || {}).transform_keys(&:to_sym),
+          history: rate_history(stats)
+        }
+      end
+
+      # Turns the cumulative samples RabbitMQ keeps per counter into
+      # per-second rates, one row per sample interval, oldest first.
+      def rate_history(stats)
+        series = OVERVIEW_RATES.transform_values do |key|
+          (stats.dig("#{key}_details", "samples") || []).map { |s| [s["timestamp"], s["sample"]] }.sort_by(&:first)
+        end
+        times = series.values.flat_map { |samples| samples.map(&:first) }.uniq.sort
+        return [] if times.size < 2
+
+        counts = series.transform_values(&:to_h)
+        times.each_cons(2).map do |from, to|
+          seconds = (to - from) / 1000.0
+          row = {t: Time.at(to / 1000.0).utc.iso8601}
+          counts.each do |name, by_time|
+            row[name] = (by_time[from] && by_time[to]) ? [(by_time[to] - by_time[from]) / seconds, 0].max.round(2) : 0.0
+          end
+          row
+        end
       end
 
       def normalize_exchange(e)

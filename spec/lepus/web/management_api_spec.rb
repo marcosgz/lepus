@@ -210,4 +210,137 @@ RSpec.describe Lepus::Web::ManagementAPI do
       expect(api.queue("missing")).to be_nil
     end
   end
+
+  describe "vhost" do
+    it "defaults to the vhost of rabbitmq_url" do
+      allow(Lepus.config).to receive(:rabbitmq_url).and_return("amqp://app:secret@rabbit-host:5672/billing")
+
+      expect(described_class.new.vhost).to eq("billing")
+    end
+
+    it "falls back to the root vhost" do
+      allow(Lepus.config).to receive(:rabbitmq_url).and_return("amqp://rabbit-host:5672")
+
+      expect(described_class.new.vhost).to eq("/")
+    end
+
+    it "percent-decodes the vhost and keeps a plus sign" do
+      allow(Lepus.config).to receive(:rabbitmq_url).and_return("amqp://rabbit-host:5672/a+b")
+
+      expect(described_class.new.vhost).to eq("a+b")
+    end
+
+    it "decodes an encoded slash" do
+      allow(Lepus.config).to receive(:rabbitmq_url).and_return("amqp://rabbit-host:5672/%2F")
+
+      expect(described_class.new.vhost).to eq("/")
+    end
+  end
+
+  describe "#bindings" do
+    it "fetches bindings without the default exchange's implicit ones" do
+      stub_request(:get, "http://localhost:15672/api/bindings/%2F")
+        .to_return(
+          status: 200,
+          body: JSON.generate([
+            {"source" => "", "destination" => "orders.main", "destination_type" => "queue", "routing_key" => "orders.main"},
+            {"source" => "orders", "destination" => "orders.main", "destination_type" => "queue", "routing_key" => "order.paid", "arguments" => {}},
+            {"source" => "orders", "destination" => "audit", "destination_type" => "exchange", "routing_key" => ""}
+          ])
+        )
+
+      expect(api.bindings).to eq([
+        {source: "orders", destination: "orders.main", destination_type: "queue", routing_key: "order.paid", arguments: {}},
+        {source: "orders", destination: "audit", destination_type: "exchange", routing_key: "", arguments: {}}
+      ])
+    end
+  end
+
+  describe "#consumers" do
+    it "fetches and normalizes consumers" do
+      stub_request(:get, "http://localhost:15672/api/consumers/%2F")
+        .to_return(
+          status: 200,
+          body: JSON.generate([
+            {
+              "queue" => {"name" => "orders.main", "vhost" => "/"},
+              "consumer_tag" => "OrdersConsumer-1",
+              "channel_details" => {"connection_name" => "Lepus (0.2.2) default", "name" => "ch (1)"},
+              "prefetch_count" => 10,
+              "ack_required" => true,
+              "active" => true
+            }
+          ])
+        )
+
+      expect(api.consumers).to eq([{
+        queue: "orders.main", consumer_tag: "OrdersConsumer-1", connection_name: "Lepus (0.2.2) default",
+        channel: "ch (1)", prefetch_count: 10, ack_required: true, active: true
+      }])
+    end
+  end
+
+  describe "#overview" do
+    it "fetches rates, totals and turns samples into per-second history" do
+      stub_request(:get, "http://localhost:15672/api/overview?msg_rates_age=600&msg_rates_incr=10")
+        .to_return(
+          status: 200,
+          body: JSON.generate({
+            "rabbitmq_version" => "4.1.2",
+            "cluster_name" => "rabbit@demo",
+            "message_stats" => {
+              "publish_details" => {"rate" => 12.5, "samples" => [{"sample" => 300, "timestamp" => 1_700_000_020_000}, {"sample" => 100, "timestamp" => 1_700_000_010_000}, {"sample" => 0, "timestamp" => 1_700_000_000_000}]},
+              "ack_details" => {"rate" => 10.0, "samples" => [{"sample" => 50, "timestamp" => 1_700_000_010_000}, {"sample" => 0, "timestamp" => 1_700_000_000_000}]}
+            },
+            "queue_totals" => {"messages" => 7, "messages_ready" => 5, "messages_unacknowledged" => 2},
+            "object_totals" => {"queues" => 3}
+          })
+        )
+
+      overview = api.overview(age: 600, increment: 10)
+
+      expect(overview[:rabbitmq_version]).to eq("4.1.2")
+      expect(overview[:rates]).to eq(publish: 12.5, deliver: 0.0, ack: 10.0, redeliver: 0.0)
+      expect(overview[:queue_totals]).to eq(messages: 7, messages_ready: 5, messages_unacknowledged: 2)
+      expect(overview[:object_totals]).to eq(queues: 3)
+      expect(overview[:history].map { |row| row[:publish] }).to eq([10.0, 20.0])
+      expect(overview[:history].map { |row| row[:ack] }).to eq([5.0, 0.0])
+      expect(overview[:history].first[:t]).to eq(Time.at(1_700_000_010).utc.iso8601)
+    end
+
+    it "skips the history unless asked" do
+      stub_request(:get, "http://localhost:15672/api/overview").to_return(status: 200, body: "{}")
+
+      expect(api.overview[:history]).to eq([])
+    end
+  end
+
+  describe "queue normalization" do
+    it "keeps the arguments and backlog rates" do
+      stub_request(:get, "http://localhost:15672/api/queues/%2F")
+        .to_return(
+          status: 200,
+          body: JSON.generate([{
+            "name" => "orders.main.retry",
+            "arguments" => {"x-message-ttl" => 5000, "x-dead-letter-routing-key" => "orders.main"},
+            "messages_ready_details" => {"rate" => 1.5},
+            "exclusive" => false
+          }])
+        )
+
+      queue = api.queues.first
+
+      expect(queue[:arguments]).to eq("x-message-ttl" => 5000, "x-dead-letter-routing-key" => "orders.main")
+      expect(queue[:messages_ready_rate]).to eq(1.5)
+      expect(queue[:exclusive]).to be(false)
+    end
+  end
+
+  describe ".client_message" do
+    it "names the kind of failure without the broker's details" do
+      expect(described_class.client_message(described_class::AuthenticationError.new("401 for admin"))).to eq("The RabbitMQ management API rejected the credentials")
+      expect(described_class.client_message(SocketError.new("getaddrinfo: rabbit.internal"))).to eq("The RabbitMQ management API could not be reached")
+      expect(described_class.client_message(described_class::Error.new("500 - body"))).to eq("The RabbitMQ management API returned an error")
+    end
+  end
 end

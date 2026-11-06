@@ -51,6 +51,12 @@ RSpec.describe Lepus::Consumers::Stats do
     end
   end
 
+  describe "#record_delayed" do
+    it "increments the delayed count" do
+      expect { stats.record_delayed }.to change(stats, :delayed).from(0).to(1)
+    end
+  end
+
   describe "#to_h" do
     before do
       3.times { stats.record_processed }
@@ -69,6 +75,47 @@ RSpec.describe Lepus::Consumers::Stats do
       expect(result[:processed]).to eq(3)
       expect(result[:rejected]).to eq(2)
       expect(result[:errored]).to eq(1)
+      expect(result).to include(delayed: 0, delays: nil)
+    end
+
+    it "names the retry and error queues the consumer declares" do
+      result = stats.to_h
+
+      expect(result).to include(retry_queue: nil, error_queue: nil)
+    end
+
+    context "with retry and error queues" do
+      let(:consumer_class) do
+        Class.new(Lepus::Consumer) do
+          configure(queue: "orders", exchange: "orders", retry_queue: true, error_queue: true)
+
+          def self.name
+            "OrdersConsumer"
+          end
+        end
+      end
+
+      it "names them" do
+        expect(stats.to_h).to include(retry_queue: "orders.retry", error_queue: "orders.error")
+      end
+    end
+
+    context "with delays" do
+      let(:consumer_class) do
+        Class.new(Lepus::Consumer) do
+          configure(queue: "orders", exchange: "orders", delays: [60_000, 5000])
+
+          def self.name
+            "OrdersConsumer"
+          end
+        end
+      end
+
+      before { stats.record_delayed }
+
+      it "reports the delays it accepts and how many deliveries it delayed" do
+        expect(stats.to_h).to include(delayed: 1, delays: [5000, 60_000])
+      end
     end
   end
 
