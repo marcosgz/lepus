@@ -70,6 +70,28 @@ RSpec.describe Lepus::Consumers::Stats do
       expect(result[:rejected]).to eq(2)
       expect(result[:errored]).to eq(1)
     end
+
+    it "names the retry and error queues the consumer declares" do
+      result = stats.to_h
+
+      expect(result).to include(retry_queue: nil, error_queue: nil)
+    end
+
+    context "with retry and error queues" do
+      let(:consumer_class) do
+        Class.new(Lepus::Consumer) do
+          configure(queue: "orders", exchange: "orders", retry_queue: true, error_queue: true)
+
+          def self.name
+            "OrdersConsumer"
+          end
+        end
+      end
+
+      it "names them" do
+        expect(stats.to_h).to include(retry_queue: "orders.retry", error_queue: "orders.error")
+      end
+    end
   end
 
   describe "routing key extraction" do

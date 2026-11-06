@@ -1,0 +1,509 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Serves the dashboard on a simulated broker that keeps moving, for working on
+# the UI without RabbitMQ or workers.
+#
+#   bin/web-demo                  # http://127.0.0.1:9393/
+#   PORT=4000 HOST=0.0.0.0 bin/web-demo
+#   HEAVY=1 bin/web-demo          # ~70 queues on 12 exchanges, 20 workers, deep backlogs
+#   MOUNT=/lepus bin/web-demo     # served under a sub-path, as `mount Lepus::Web => "/lepus"` does
+
+require "bundler/setup"
+require "logger"
+require "stringio"
+require "securerandom"
+require "webrick"
+require "lepus"
+require "lepus/web"
+
+module WebDemo
+  CYCLE = 180
+  HISTORY = 3600
+  VERSION_LABEL = "Lepus (#{Lepus::VERSION})"
+  RATES = %i[publish deliver ack redeliver].freeze
+
+  Exchange = Struct.new(:name, :type, keyword_init: true)
+
+  # One main queue with its consumer, and the counters the simulation moves.
+  class Line
+    attr_reader :name, :exchange, :keys, :consumer, :worker, :base, :retry_ttl, :error_queue, :threads
+    attr_accessor :ready, :unacked, :retrying, :errors, :delayed, :rates, :counters, :backlog_rate, :channels
+
+    def initialize(name:, exchange:, keys: [], consumer: nil, worker: nil, base: 1.0, retry_ttl: 5000, error_queue: true, threads: 2, ready: 0, idle: false, capacity: 1.15, drain: 0.4)
+      @name = name
+      @exchange = exchange
+      @keys = keys
+      @consumer = consumer
+      @worker = worker
+      @base = idle ? 0.0 : base
+      @retry_ttl = retry_ttl
+      @error_queue = error_queue
+      @threads = threads
+      @capacity = capacity
+      @drain = drain
+      @ready = ready.to_f
+      @unacked = 0
+      @retrying = 0.0
+      @errors = 0.0
+      @delayed = 0.0
+      @backlog_rate = 0.0
+      @channels = consumer ? threads : 0
+      @rates = Hash.new(0.0)
+      @counters = Hash.new(0.0)
+      @phase = name.sum % 17
+      @period = 40 + name.sum % 50
+    end
+
+    def retry?
+      retry_ttl ? true : false
+    end
+
+    def step(t, dt, rng, slow:, failing:)
+      wave = 1 + 0.3 * Math.sin(t / @period.to_f + @phase) + (rng.rand - 0.5) * 0.16
+      publish = @base * wave
+      returning = retry? ? @retrying * [dt * 1000.0 / retry_ttl, 1].min : 0.0
+      @retrying -= returning
+      capacity = channels.zero? ? 0.0 : @base * capacity_share(slow)
+      available = @ready + (publish + returning / dt) * dt
+      deliver = [capacity * dt, available].min / dt
+      reject_share = failing ? 0.3 : 0.004
+      rejected = deliver * reject_share
+      error_share = failing ? 0.35 : 0.02
+      to_error = error_queue ? rejected * error_share : 0.0
+      to_retry = retry? ? rejected - to_error : 0.0
+      previous = @ready
+      @ready = [@ready + (publish + returning / dt - deliver) * dt, 0.0].max
+      @retrying += to_retry * dt
+      @errors += to_error * dt
+      @backlog_rate = @backlog_rate * 0.6 + ((@ready - previous) / dt) * 0.4
+      @unacked = [(deliver * 0.2).round, channels * 10].min
+      @rates = {publish: publish + returning / dt, deliver: deliver, ack: deliver - rejected, redeliver: returning / dt, retry_in: to_retry, error_in: to_error}
+      @counters[:publish] += publish * dt
+      @counters[:processed] += (deliver - rejected) * dt
+      @counters[:rejected] += to_retry * dt
+      @counters[:errored] += to_error * dt
+    end
+
+    def rate(key)
+      @rates.fetch(key, 0.0)
+    end
+
+    private
+
+    def capacity_share(slow)
+      return 0.1 if slow
+
+      @capacity + ((@ready > 0) ? @drain : 0)
+    end
+  end
+
+  # The broker and the workers reading it, advanced once a second.
+  class World
+    attr_reader :exchanges, :lines, :supervisors, :workers, :history, :started_at
+
+    def initialize(heavy: false, seed: 7)
+      @rng = Random.new(seed)
+      @mutex = Mutex.new
+      @history = []
+      @exchanges = []
+      @lines = []
+      heavy ? build_heavy : build_normal
+      build_processes
+      @started_at = Time.now - HISTORY
+      HISTORY.times { |second| advance(second, 1.0, record_at: @started_at + second) }
+      @clock = HISTORY
+    end
+
+    def start
+      Thread.new do
+        loop do
+          sleep 1
+          synchronize do
+            advance(@clock, 1.0, record_at: Time.now)
+            @clock += 1
+          end
+        end
+      end
+      self
+    end
+
+    def synchronize(&block)
+      @mutex.synchronize(&block)
+    end
+
+    private
+
+    def build_normal
+      add_exchange("orders", :topic)
+      add_exchange("orders.delayed", :headers)
+      add_exchange("invoices", :direct)
+      add_exchange("emails", :fanout)
+      add_exchange("webhooks", :topic)
+      add_exchange("notifications", :fanout)
+      add_exchange("audit", :headers)
+
+      add_line("orders.fulfillment", "orders", %w[order.paid], "FulfillmentConsumer", "default", 42, threads: 5)
+      add_line("orders.billing", "orders", %w[order.created order.paid order.cancelled], "BillingConsumer", "billing", 18)
+      add_line("orders.analytics", "orders", %w[order.#], "OrderAnalyticsConsumer", "default", 64, retry_ttl: nil, error_queue: false, threads: 3)
+      add_line("invoices.render", "invoices", %w[invoice.render], "InvoiceRenderConsumer", "billing", 60, ready: 40)
+      add_line("invoices.deliver", "invoices", %w[invoice.deliver], "InvoiceDeliveryConsumer", "billing", 9)
+      add_line("emails.transactional", "emails", [], "TransactionalEmailConsumer", "mailers", 30, threads: 4)
+      add_line("emails.digest", "emails", [], "DigestEmailConsumer", "mailers", 2.5, retry_ttl: 30_000)
+      add_line("webhooks.outbound", "webhooks", %w[webhook.#], "WebhookDeliveryConsumer", "webhooks", 22, threads: 6)
+      add_line("notifications.push", "notifications", [], "PushNotificationConsumer", "mailers", 15)
+      add_line("notifications.sms", "notifications", [], nil, nil, 0, idle: true)
+      line("orders.fulfillment").delayed = 120
+      line("emails.digest").delayed = 340
+      @scripted = {slow: "invoices.render", failing: "webhooks.outbound"}
+    end
+
+    DOMAINS = {
+      "orders" => %w[created paid cancelled refunded fulfillment billing analytics],
+      "invoices" => %w[render deliver remind void archive],
+      "emails" => %w[transactional digest bounce receipt welcome],
+      "webhooks" => %w[outbound retries partner audit],
+      "payments" => %w[authorize capture refund dispute payout settle],
+      "shipments" => %w[label dispatch track deliver return],
+      "reports" => %w[daily weekly monthly export],
+      "exports" => %w[csv pdf archive],
+      "search" => %w[index reindex suggest purge],
+      "inventory" => %w[reserve release restock count audit],
+      "users" => %w[signup verify login profile delete],
+      "notifications" => %w[push sms email slack teams digest inbox web mobile desktop pager voice chat badge feed alerts]
+    }.freeze
+
+    BACKLOGS = {
+      "reports.monthly" => {ready: 1_200_000, capacity: 0.97, drain: 0.0},
+      "search.reindex" => {ready: 250_000, capacity: 0.99, drain: 0.0},
+      "exports.pdf" => {ready: 4_800, capacity: 1.0, drain: 0.0}
+    }.freeze
+
+    def build_heavy
+      workers = (1..20).map { |n| "pool-#{n}" }
+      DOMAINS.each_with_index do |(domain, actions), index|
+        fanout = domain == "notifications"
+        type = index.even? ? :topic : :direct
+        add_exchange(domain, fanout ? :fanout : type)
+        actions.each_with_index do |action, position|
+          name = "#{domain}.#{action}"
+          keys = fanout ? [] : ["#{domain}.#{action}"]
+          keys << "#{domain}.#{action}.urgent" if position.zero?
+          keys << "#{domain}.all" if position == 1
+          base = (10**(@rng.rand * 3.1)).round(1)
+          consumer = "#{domain.capitalize.chomp("s")}#{action.split("_").map(&:capitalize).join}Consumer"
+          idle = (index + position) % 9 == 4
+          add_line(name, domain, keys, idle ? nil : consumer, workers[(index * 3 + position) % workers.size], base,
+            idle: idle, threads: 1 + position % 5, **BACKLOGS.fetch(name, {}))
+        end
+      end
+      line("payments.capture").delayed = 900
+      @scripted = {slow: "invoices.render", failing: "webhooks.outbound"}
+    end
+
+    def add_exchange(name, type)
+      @exchanges << Exchange.new(name: name, type: type.to_s)
+    end
+
+    def add_line(name, exchange, keys, consumer, worker, base, **options)
+      @lines << Line.new(name: name, exchange: exchange, keys: keys, consumer: consumer, worker: worker, base: base, **options)
+    end
+
+    public
+
+    def line(name)
+      @lines.find { |candidate| candidate.name == name }
+    end
+
+    private
+
+    def build_processes
+      names = @lines.map(&:worker).compact.uniq
+      apps = (names.size > 6) ? %w[orders-service billing-service mailer-service platform-service] : %w[orders-service mailer-service]
+      hosts = apps.each_with_index.map { |_app, index| "app-#{index + 1}.internal" }
+      @supervisors = apps.each_with_index.map do |app, index|
+        {id: SecureRandom.uuid, name: "supervisor-#{index + 1}", pid: 4100 + index * 100, hostname: hosts[index], kind: "Supervisor", application: app}
+      end
+      @workers = names.each_with_index.map do |worker, index|
+        supervisor = @supervisors[index % @supervisors.size]
+        {
+          id: SecureRandom.uuid, name: worker, pid: supervisor[:pid] + 10 + index, hostname: supervisor[:hostname], kind: "Worker",
+          supervisor_id: supervisor[:id], application: supervisor[:application], rss: 120 + @rng.rand(260), late: names.size > 6 && index == 5
+        }
+      end
+    end
+
+    def advance(second, dt, record_at:)
+      phase = second % CYCLE
+      totals = Hash.new(0.0)
+      @lines.each do |line|
+        slow = line.name == @scripted[:slow] && phase >= 20 && phase < 60
+        failing = line.name == @scripted[:failing] && phase >= 90 && phase < 130
+        line.errors *= 0.3 if phase.zero?
+        line.step(second, dt, @rng, slow: slow, failing: failing)
+        RATES.each { |key| totals[key] += line.rate(key) }
+      end
+      @workers&.each { |worker| worker[:rss] = (worker[:rss] + @rng.rand(-3..3)).clamp(120, 400) }
+      @history << {at: record_at, counts: totals}
+      @history.shift while @history.size > HISTORY
+    end
+  end
+
+  # Answers like Lepus::Web::ManagementAPI, from the simulated broker.
+  class ManagementAPI
+    def initialize(world)
+      @world = world
+    end
+
+    def queues
+      @world.synchronize do
+        @world.lines.flat_map { |line| queue_rows(line) }
+      end
+    end
+
+    def queue(name)
+      queues.find { |q| q[:name] == name }
+    end
+
+    def exchanges
+      @world.synchronize do
+        @world.exchanges.map do |exchange|
+          lines = @world.lines.select { |line| line.exchange == exchange.name }
+          out = lines.sum { |line| line.rate(:publish) - line.rate(:redeliver) }
+          incoming = (exchange.type == "fanout") ? (lines.map { |line| line.rate(:publish) - line.rate(:redeliver) }.max || 0) : out
+          incoming = delayed_total(exchange.name.chomp(".delayed")) / 30.0 if exchange.name.end_with?(".delayed")
+          {
+            name: exchange.name, type: exchange.type, durable: true, auto_delete: false,
+            message_stats: {publish_in: 0, publish_in_rate: incoming.round(2), publish_out: 0, publish_out_rate: out.round(2)}
+          }
+        end
+      end
+    end
+
+    def bindings
+      @world.synchronize do
+        rows = @world.lines.flat_map do |line|
+          keys = line.keys.empty? ? [""] : line.keys
+          keys.map { |key| binding(line.exchange, line.name, key) }
+        end
+        delayed = @world.exchanges.select { |exchange| exchange.name.end_with?(".delayed") }
+        rows + delayed.map { |exchange| binding(exchange.name, "#{exchange.name}.30000", "") }
+      end
+    end
+
+    def consumers
+      @world.synchronize do
+        @world.lines.select(&:consumer).flat_map do |line|
+          (1..line.channels).map do |n|
+            {
+              queue: line.name, consumer_tag: "#{line.consumer}-#{n}", connection_name: "#{VERSION_LABEL} #{line.worker}",
+              channel: "#{line.worker} (#{n})", prefetch_count: 10, ack_required: true, active: true
+            }
+          end
+        end
+      end
+    end
+
+    def connections
+      @world.synchronize do
+        workers = @world.workers.map do |worker|
+          connection("#{VERSION_LABEL} #{worker[:name]}", @world.lines.count { |line| line.worker == worker[:name] } * 2)
+        end
+        producers = @world.supervisors.map { |supervisor| connection("#{supervisor[:application]} publisher", 1) }
+        workers + producers + [connection("#{VERSION_LABEL} (web-aggregator)", 1)]
+      end
+    end
+
+    def overview(age: nil, increment: 10)
+      @world.synchronize do
+        history = @world.history
+        now = history.last[:counts]
+        {
+          rabbitmq_version: "4.1.2",
+          cluster_name: "rabbit@demo",
+          rates: {publish: now[:publish].round(2), deliver: now[:deliver].round(2), ack: now[:ack].round(2), redeliver: now[:redeliver].round(2)},
+          queue_totals: {
+            messages: @world.lines.sum { |line| line.ready + line.unacked }.round,
+            messages_ready: @world.lines.sum(&:ready).round,
+            messages_unacknowledged: @world.lines.sum(&:unacked)
+          },
+          object_totals: {queues: queues_count, exchanges: @world.exchanges.size},
+          history: age ? buckets(history.last(age), increment) : []
+        }
+      end
+    end
+
+    private
+
+    def queues_count
+      @world.lines.sum { |line| 1 + (line.retry? ? 1 : 0) + (line.error_queue ? 1 : 0) }
+    end
+
+    def delayed_total(exchange)
+      @world.lines.select { |line| line.exchange == exchange }.sum(&:delayed)
+    end
+
+    def buckets(rows, increment)
+      rows.each_slice(increment).map do |slice|
+        totals = RATES.map { |key| [key, (slice.sum { |row| row[:counts][key] } / slice.size).round(2)] }.to_h
+        totals.merge(t: slice.last[:at].utc.iso8601)
+      end
+    end
+
+    def queue_rows(line)
+      main_args = {}
+      main_args = {"x-dead-letter-exchange" => "", "x-dead-letter-routing-key" => "#{line.name}.retry"} if line.retry?
+      rows = [queue_row(line.name, line.ready, line.unacked, line.channels, main_args,
+        publish: line.rate(:publish), deliver: line.rate(:deliver), ack: line.rate(:ack), redeliver: line.rate(:redeliver), backlog: line.backlog_rate)]
+      if line.retry?
+        rows << queue_row("#{line.name}.retry", line.retrying, 0, 0,
+          {"x-dead-letter-exchange" => "", "x-dead-letter-routing-key" => line.name, "x-message-ttl" => line.retry_ttl},
+          publish: line.rate(:retry_in))
+      end
+      rows << queue_row("#{line.name}.error", line.errors, 0, 0, {}, publish: line.rate(:error_in)) if line.error_queue
+      rows << delay_row(line) if line.delayed.positive?
+      rows
+    end
+
+    def delay_row(line)
+      if @world.exchanges.any? { |exchange| exchange.name == "#{line.exchange}.delayed" }
+        queue_row("#{line.exchange}.delayed.30000", line.delayed, 0, 0,
+          {"x-message-ttl" => 30_000, "x-dead-letter-exchange" => line.exchange}, publish: line.delayed / 30.0)
+      else
+        queue_row("#{line.name}.delay.60000", line.delayed, 0, 0,
+          {"x-message-ttl" => 60_000, "x-dead-letter-exchange" => "", "x-dead-letter-routing-key" => line.name}, publish: line.delayed / 60.0)
+      end
+    end
+
+    def queue_row(name, ready, unacked, consumers, arguments, publish: 0.0, deliver: 0.0, ack: 0.0, redeliver: 0.0, backlog: 0.0)
+      ready = ready.round
+      {
+        name: name, type: "classic", messages: ready + unacked, messages_ready: ready, messages_unacknowledged: unacked,
+        consumers: consumers, memory: 20_000 + ready * 600, state: "running", durable: true, exclusive: false, auto_delete: false,
+        arguments: arguments, idle_since: nil, consumer_utilisation: consumers.zero? ? nil : 0.9,
+        messages_rate: backlog.round(2), messages_ready_rate: backlog.round(2),
+        message_stats: {
+          publish: 0, publish_rate: publish.round(2), deliver_get: 0, deliver_get_rate: deliver.round(2),
+          ack: 0, ack_rate: ack.round(2), redeliver: 0, redeliver_rate: redeliver.round(2)
+        }
+      }
+    end
+
+    def binding(source, destination, key)
+      {source: source, destination: destination, destination_type: "queue", routing_key: key, arguments: {}}
+    end
+
+    def connection(name, channels)
+      {
+        name: "10.0.0.#{name.sum % 200 + 10}:#{40_000 + name.sum} -> 10.0.0.2:5672", state: "running", user: "app", vhost: "/",
+        channels: channels, connected_at: ((@world.started_at.to_f + (name.sum % 900)) * 1000).round,
+        client_properties: {connection_name: name}
+      }
+    end
+  end
+
+  # Answers like Lepus::Web::Aggregator, with a heartbeat per simulated process.
+  class Aggregator
+    def initialize(world)
+      @world = world
+    end
+
+    def start
+    end
+
+    def stop
+    end
+
+    def running?
+      true
+    end
+
+    def all_processes
+      @world.synchronize do
+        supervisors = @world.supervisors.map { |supervisor| process(supervisor, 0, consumers: []) }
+        supervisors + @world.workers.map { |worker| worker_process(worker) }
+      end
+    end
+
+    def find(id)
+      all_processes.find { |process| process[:id] == id }
+    end
+
+    def count
+      all_processes.size
+    end
+
+    private
+
+    def worker_process(worker)
+      lines = @world.lines.select { |line| line.worker == worker[:name] && line.consumer }
+      consumers = lines.map do |line|
+        {
+          class_name: line.consumer, exchange: line.exchange, queue: line.name, route: line.keys.first,
+          retry_queue: (line.retry? ? "#{line.name}.retry" : nil), error_queue: (line.error_queue ? "#{line.name}.error" : nil),
+          threads: line.threads, processed: line.counters[:processed].round, rejected: line.counters[:rejected].round,
+          errored: line.counters[:errored].round
+        }
+      end
+      process(worker, worker[:rss] * 1024 * 1024, consumers: consumers, connections: 1 + lines.size / 4, late: worker[:late])
+    end
+
+    def process(data, rss, consumers:, connections: 1, late: false)
+      age = late ? rand(150..159) : rand(0..25)
+      {
+        id: data[:id], name: data[:name], pid: data[:pid], hostname: data[:hostname], kind: data[:kind],
+        supervisor_id: data[:supervisor_id], application: data[:application],
+        last_heartbeat_at: (Time.now - age).utc.iso8601(6),
+        rss_memory: rss, connections: connections, consumers: consumers
+      }
+    end
+  end
+
+  # Just enough of a Rack handler on WEBrick, which ships with Ruby.
+  class Servlet < WEBrick::HTTPServlet::AbstractServlet
+    def initialize(server, app)
+      super(server)
+      @app = app
+    end
+
+    def service(request, response)
+      env = {
+        "REQUEST_METHOD" => request.request_method, "SCRIPT_NAME" => "", "PATH_INFO" => request.path,
+        "QUERY_STRING" => request.query_string.to_s, "SERVER_NAME" => request.host.to_s, "SERVER_PORT" => request.port.to_s,
+        "SERVER_PROTOCOL" => "HTTP/1.1", "rack.url_scheme" => "http", "rack.input" => StringIO.new(request.body.to_s),
+        "rack.errors" => $stderr
+      }
+      request.each { |name, value| env["HTTP_#{name.upcase.tr("-", "_")}"] = value }
+      status, headers, body = @app.call(env)
+      response.status = status
+      headers.each { |name, value| response[name] = value }
+      response.body = +""
+      body.each { |chunk| response.body << chunk }
+      body.close if body.respond_to?(:close)
+    end
+  end
+
+  def self.install(heavy:)
+    world = World.new(heavy: heavy)
+    Lepus::Web.aggregator = Aggregator.new(world)
+    Lepus::Web.management_api = ManagementAPI.new(world)
+    world
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  $stdout.sync = true
+  Lepus.logger = Logger.new(File::NULL)
+  heavy = ENV["HEAVY"] == "1"
+  world = WebDemo.install(heavy: heavy).start
+  mount = ENV.fetch("MOUNT", "").chomp("/")
+  app = mount.empty? ? Lepus::Web : Rack::URLMap.new(mount => Lepus::Web)
+  port = Integer(ENV.fetch("PORT", "9393"))
+  host = ENV.fetch("HOST", "127.0.0.1")
+  server = WEBrick::HTTPServer.new(Port: port, BindAddress: host, Logger: WEBrick::Log.new(File::NULL), AccessLog: [])
+  server.mount("/", WebDemo::Servlet, app)
+  trap("INT") { server.shutdown }
+  trap("TERM") { server.shutdown }
+  puts "Lepus dashboard demo#{" (heavy)" if heavy}: #{world.lines.size} queues on http://#{host}:#{port}#{mount}/"
+  server.start
+end

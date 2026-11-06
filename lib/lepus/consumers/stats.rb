@@ -47,6 +47,8 @@ module Lepus
           exchange: config.exchange_name,
           queue: config.queue_name,
           route: extract_route(config),
+          retry_queue: (config.retry_queue_name if config.retry_queue_args),
+          error_queue: (config.error_queue_name if config.error_queue_args),
           threads: config.worker_threads,
           processed: @processed.value,
           rejected: @rejected.value,

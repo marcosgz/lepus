@@ -190,21 +190,6 @@ module Lepus
       "#{script_name}/"
     end
 
-    def self.mime_for(path)
-      case File.extname(path)
-      when ".html" then "text/html"
-      when ".css" then "text/css"
-      when ".js" then "application/javascript"
-      when ".png" then "image/png"
-      when ".jpg", ".jpeg" then "image/jpeg"
-      when ".svg" then "image/svg+xml"
-      when ".woff", ".woff2" then "font/woff"
-      when ".ttf" then "font/ttf"
-      when ".eot" then "application/vnd.ms-fontobject"
-      else "application/octet-stream"
-      end
-    end
-
     # Make the Web module directly mountable as a Rack application.
     #
     # Mounting via `mount Lepus::Web => "/lepus"` in routes.rb does not call
@@ -234,5 +219,6 @@ end
 require_relative "web/respond_with"
 require_relative "web/management_api"
 require_relative "web/aggregator"
+require_relative "web/topology"
 require_relative "web/api"
 require_relative "web/app"
