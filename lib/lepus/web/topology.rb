@@ -9,11 +9,15 @@ module Lepus
     # bindings that route them to queues, every queue classified by its role
     # (main, retry, error or delay) and the consumers reading each queue,
     # merged from the management API and worker heartbeats.
+    #
+    # Delay queues are the ones Lepus::Delay declares: "<queue>.delay.<ms>"
+    # dead-letters into <queue> and "<exchange>.delayed.<ms>" into
+    # <exchange>, each holding its messages for exactly <ms>. Messages
+    # waiting in them are counted as delayed on the queue or exchange they
+    # are released to.
     class Topology
-      DELAY_QUEUE = /\.delay\.\d+\z/
-      DELAYED_EXCHANGE_QUEUE = /\.delayed\.\d+\z/
       CONSUMER_TAG_INDEX = /-\d+\z/
-      COUNTERS = %i[processed rejected errored].freeze
+      COUNTERS = %i[processed rejected errored delayed].freeze
 
       def initialize(management_api:, aggregator:, show_all_exchanges: false)
         @management_api = management_api
@@ -26,8 +30,8 @@ module Lepus
         processes = @aggregator&.running? ? @aggregator.all_processes : []
         heartbeat = heartbeat_consumers(processes)
         broker = broker.merge(declared_topology(heartbeat)) unless broker[:management]
-        queues = classify_queues(broker[:queues], heartbeat, broker[:bindings])
-        exchanges = broker[:exchanges].map { |e| exchange_row(e) }
+        queues = count_delayed(classify_queues(broker[:queues], heartbeat, broker[:bindings]))
+        exchanges = exchange_rows(broker[:exchanges], queues)
         bindings = group_bindings(broker[:bindings])
         exchanges, bindings, queues = filter(exchanges, bindings, queues, heartbeat) unless @show_all_exchanges
 
@@ -93,8 +97,44 @@ module Lepus
         applications = heartbeat.each_with_object({}) { |(process, c), map| map[c[:queue]] ||= process[:application] }
 
         queues.map do |queue|
-          role, parent, parent_exchange = classify(queue, context)
-          queue_row(queue, role, parent, parent_exchange, applications[queue[:name]])
+          delay = delay_of(queue)
+          role, parent, parent_exchange = delay ? delay_role(delay) : classify(queue, context)
+          queue_row(queue, role, parent, parent_exchange, applications[queue[:name]], delay)
+        end
+      end
+
+      # Where a queue declared by Lepus::Delay releases its messages, read
+      # from its name and arguments, or nil for any other queue.
+      def delay_of(queue)
+        args = queue[:arguments] || {}
+        ms = args["x-message-ttl"]
+        exchange = args["x-dead-letter-exchange"]
+        return unless ms.is_a?(Integer) && ms.positive? && exchange
+
+        if exchange == Delay::DEFAULT_EXCHANGE
+          target = args["x-dead-letter-routing-key"].to_s
+          {ms: ms, target: target, target_type: "queue"} if queue[:name] == Delay.queue_delay_name_for(target, ms)
+        elsif !args.key?("x-dead-letter-routing-key") && queue[:name] == Delay.exchange_queue_name_for(exchange, ms)
+          {ms: ms, target: exchange, target_type: "exchange"}
+        end
+      end
+
+      def delay_role(delay)
+        (delay[:target_type] == "queue") ? ["delay", delay[:target], nil] : ["delay", nil, delay[:target]]
+      end
+
+      def count_delayed(queues)
+        waiting = delayed_by_target(queues, "queue")
+        queues.each do |queue|
+          held = waiting[queue[:name]]
+          queue[:delayed] = held ? held[:messages] : 0
+          queue[:delays] = held ? held[:delays] : []
+        end
+      end
+
+      def delayed_by_target(queues, type)
+        queues.select { |q| q[:target_type] == type }.group_by { |q| q[:target] }.transform_values do |list|
+          {messages: list.sum { |q| q[:messages] }, delays: list.map { |q| q[:delay_ms] }.uniq.sort}
         end
       end
 
@@ -113,6 +153,7 @@ module Lepus
 
       # A TTL queue that dead-letters into a queue which dead-letters back,
       # or one named "<queue>.retry", holds messages waiting to be retried.
+      # Delay queues never reach here.
       def retry_loop?(queue, by_name)
         target = dead_letter_target(queue, by_name)
         return false if target.nil? || (queue[:arguments] || {})["x-message-ttl"].nil?
@@ -126,7 +167,7 @@ module Lepus
         queues.each_with_object({}) do |queue, map|
           target = dead_letter_target(queue, by_name)
           next unless target
-          next if retry_loop?(queue, by_name) || queue[:name].match?(DELAY_QUEUE)
+          next if retry_loop?(queue, by_name) || delay_of(queue)
 
           map[target] ||= queue[:name]
         end
@@ -134,15 +175,10 @@ module Lepus
 
       def classify(queue, context)
         name = queue[:name]
-        args = queue[:arguments] || {}
-        target = dead_letter_target(queue, context[:by_name])
 
         return [*context[:declared][name], nil] if context[:declared][name]
-        return ["main", nil, nil] if context[:consumed].include?(name)
-        return ["delay", target, nil] if name.match?(DELAY_QUEUE) && target && args["x-message-ttl"]
-        return ["delay", nil, args["x-dead-letter-exchange"]] if name.match?(DELAYED_EXCHANGE_QUEUE) && args["x-message-ttl"] && !args["x-dead-letter-exchange"].to_s.empty?
-        return ["main", nil, nil] if context[:anchored].include?(name)
-        return ["retry", target, nil] if retry_loop?(queue, context[:by_name])
+        return ["main", nil, nil] if context[:consumed].include?(name) || context[:anchored].include?(name)
+        return ["retry", dead_letter_target(queue, context[:by_name]), nil] if retry_loop?(queue, context[:by_name])
         return ["error", context[:dead_letter_targets][name], nil] if context[:dead_letter_targets].key?(name)
 
         suffix_role(name, context[:by_name])
@@ -156,7 +192,7 @@ module Lepus
         ["main", nil, nil]
       end
 
-      def queue_row(queue, role, parent, parent_exchange, application)
+      def queue_row(queue, role, parent, parent_exchange, application, delay)
         stats = queue[:message_stats] || {}
         args = queue[:arguments] || {}
         {
@@ -180,9 +216,37 @@ module Lepus
           dead_letter_exchange: args["x-dead-letter-exchange"],
           dead_letter_routing_key: args["x-dead-letter-routing-key"],
           expires: args["x-expires"],
+          delay_ms: delay&.dig(:ms),
+          target: delay&.dig(:target),
+          target_type: delay&.dig(:target_type),
           idle_since: queue[:idle_since],
           application: application
         }
+      end
+
+      # Each exchange with what waits in its delay queues, and the
+      # "<exchange>.delayed" headers exchanges that feed them marked with the
+      # exchange they release to.
+      def exchange_rows(exchanges, queues)
+        waiting = delayed_by_target(queues, "exchange")
+        names = exchanges.map { |e| e[:name] }.to_set
+        exchanges.map do |exchange|
+          held = waiting[exchange[:name]]
+          releases_to = delay_front_of(exchange, names, waiting)
+          exchange_row(exchange).merge(
+            role: releases_to ? "delay" : nil,
+            releases_to: releases_to,
+            delayed: held ? held[:messages] : 0,
+            delays: held ? held[:delays] : []
+          )
+        end
+      end
+
+      def delay_front_of(exchange, names, waiting)
+        base = exchange[:name].to_s.delete_suffix(".delayed")
+        return if base == exchange[:name] || Delay.exchange_name_for(base) != exchange[:name]
+
+        base if waiting.key?(base) || (exchange[:type] == "headers" && names.include?(base))
       end
 
       def exchange_row(exchange)
@@ -203,7 +267,8 @@ module Lepus
             source: source,
             destination: destination,
             destination_type: type,
-            routing_keys: list.map { |b| b[:routing_key] }.reject(&:empty?).uniq
+            routing_keys: list.map { |b| b[:routing_key] }.reject(&:empty?).uniq,
+            delays: list.filter_map { |b| (b[:arguments] || {})[Delay::HEADER] }.uniq.sort
           }
         end
       end
@@ -216,7 +281,7 @@ module Lepus
         known = heartbeat.map { |(_process, consumer)| consumer[:exchange] }.compact.to_set
         return [exchanges, bindings, queues] if known.empty?
 
-        kept_exchanges = exchanges.select { |e| known.include?(e[:name]) || known.include?(e[:name].chomp(".delayed")) }
+        kept_exchanges = exchanges.select { |e| known.include?(e[:name]) || known.include?(e[:releases_to]) }
         exchange_names = kept_exchanges.map { |e| e[:name] }.to_set
         kept_bindings = bindings.select { |b| exchange_names.include?(b[:source]) }
         queue_names = kept_bindings.select { |b| b[:destination_type] == "queue" }.map { |b| b[:destination] }.to_set
@@ -235,6 +300,7 @@ module Lepus
           entry[:application] ||= process[:application]
           entry[:processes] << {id: process[:id], name: process[:name], hostname: process[:hostname], pid: process[:pid]}
           entry[:threads] += consumer[:threads].to_i
+          entry[:delays] |= Array(consumer[:delays])
           COUNTERS.each { |counter| entry[counter] += consumer[counter].to_i }
         end
         subscriptions.each do |subscription|
@@ -261,7 +327,9 @@ module Lepus
           prefetch: 0,
           processed: 0,
           rejected: 0,
-          errored: 0
+          errored: 0,
+          delayed: 0,
+          delays: []
         }
       end
 

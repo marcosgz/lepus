@@ -1,6 +1,11 @@
 // Turns /api/topology into what the map draws: one band per exchange, one
 // row per queue bound to it (exchange -> queue -> consumer -> acknowledged),
 // with the queue's retry, error and delay queues folded into its row.
+// Delay queues are the ones Lepus declares for delayed publishing and
+// delay!: what waits in them is counted on the queue or the exchange it is
+// released to, never as backlog or retry.
+
+import { count, duration } from "./format.js";
 
 const ACTIVE = 0.01;
 const QUIET_AFTER_MS = 30_000;
@@ -10,6 +15,25 @@ export const DEFAULT_BAND = "";
 
 const sum = (items, fn) => items.reduce((total, item) => total + (fn(item) || 0), 0);
 const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+const byDelay = (a, b) => (a.delay_ms || 0) - (b.delay_ms || 0) || byName(a, b);
+
+// "340 delayed, released after 1 min to emails.digest", or with several
+// delays "272 delayed, released to emails.digest after 1 min (136) or 1 h (136)".
+export function released(delay, target) {
+  const shown = delay.queues.filter((queue) => queue.messages > 0);
+  const queues = shown.length ? shown : delay.queues;
+  const head = `${count(delay.messages)} delayed`;
+  if (queues.length === 1) return `${head}, released after ${duration(queues[0].delay_ms)} to ${target}`;
+  const parts = queues.map((queue) => `${duration(queue.delay_ms)} (${count(queue.messages)})`);
+  return `${head}, released to ${target} after ${parts.slice(0, -1).join(", ")} or ${parts[parts.length - 1]}`;
+}
+
+// What waits in a set of delay queues: how many messages, how fast they
+// arrive and each queue with its delay, shortest first.
+export function waiting(delayQueues) {
+  const queues = [...delayQueues].sort(byDelay);
+  return { messages: sum(queues, (q) => q.messages), rate: sum(queues, (q) => q.publish_rate), queues };
+}
 
 export function isMain(queue, queues) {
   if (queue.role === "main") return true;
@@ -31,7 +55,7 @@ export class Memory {
   // consumer stays red for a few minutes.
   erroredRecently(consumer, now) {
     const key = `${consumer.queue}|${consumer.class_name || consumer.connection_name}`;
-    const handled = consumer.processed + consumer.rejected + consumer.errored;
+    const handled = consumer.processed + consumer.rejected + consumer.errored + (consumer.delayed || 0);
     const seen = this.errored.get(key);
     if (!seen) {
       this.errored.set(key, { errored: consumer.errored, handled, changedAt: 0 });
@@ -65,7 +89,7 @@ function buildRow(queue, { keys, also, children, consumers, memory, now }) {
   const kids = children.get(queue.name) || [];
   const retry = kids.find((kid) => kid.role === "retry") || null;
   const error = kids.find((kid) => kid.role === "error") || null;
-  const delays = kids.filter((kid) => kid.role === "delay");
+  const delay = waiting(kids.filter((kid) => kid.role === "delay"));
   const mine = consumers.filter((consumer) => consumer.queue === queue.name);
   const rates = {
     in: queue.publish_rate,
@@ -73,7 +97,7 @@ function buildRow(queue, { keys, also, children, consumers, memory, now }) {
     ack: queue.ack_rate,
     retry: retry ? retry.publish_rate : 0,
     error: error ? error.publish_rate : 0,
-    delay: sum(delays, (q) => q.publish_rate)
+    delay: delay.rate
   };
   const held = queue.messages + sum(kids, (kid) => kid.messages);
   const active = held > 0 || Object.values(rates).some((value) => value >= ACTIVE);
@@ -88,8 +112,8 @@ function buildRow(queue, { keys, also, children, consumers, memory, now }) {
     also,
     retry,
     error,
-    delayed: sum(delays, (q) => q.messages),
-    delayQueues: delays,
+    delayed: delay.messages,
+    delay,
     consumers: mine,
     consumerLabel: consumerLabel(mine),
     rates,
@@ -97,7 +121,7 @@ function buildRow(queue, { keys, also, children, consumers, memory, now }) {
     rising: backingUp(queue),
     stopped,
     quiet: memory.quiet(queue.name, active, now),
-    score: Math.log10(1 + queue.ready) * 2 + Math.log10(1 + rates.in + rates.out) + (stopped ? 6 : 0) + (error && error.messages ? 3 : 0)
+    score: Math.log10(1 + queue.ready) * 2 + Math.log10(1 + rates.in + rates.out) + Math.log10(1 + delay.messages) + (stopped ? 6 : 0) + (error && error.messages ? 3 : 0)
   };
 }
 
@@ -123,6 +147,7 @@ function foldRows(rows, { expanded, limit, band }) {
     quietCount: rest.filter((row) => row.quiet).length,
     backlog: sum(rest, (row) => row.backlog),
     errors: sum(rest, (row) => (row.error ? row.error.messages : 0)),
+    delayed: sum(rest, (row) => row.delayed),
     rates: { in: sum(rest, (row) => row.rates.in), out: sum(rest, (row) => row.rates.out) },
     names: rest.map((row) => row.name)
   };
@@ -139,27 +164,14 @@ export function buildModel(topology, memory, { now = Date.now(), expanded = new 
     children.get(queue.parent).push(queue);
   }
 
-  // Exchanges whose bindings all lead to delay queues are the delayed
-  // fronts of another exchange; their queues count as that one's delayed.
-  const delayFronts = new Set();
+  // "<exchange>.delayed" headers exchanges feed the delay queues that
+  // release into <exchange>; they draw no band of their own.
+  const delayFronts = new Set(topology.exchanges.filter((exchange) => exchange.role === "delay").map((exchange) => exchange.name));
   const delayedByExchange = new Map();
-  const bindingsBySource = new Map();
-  for (const binding of topology.bindings) {
-    if (!bindingsBySource.has(binding.source)) bindingsBySource.set(binding.source, []);
-    bindingsBySource.get(binding.source).push(binding);
-  }
-  for (const [source, list] of bindingsBySource) {
-    const targets = list.map((binding) => queues.get(binding.destination));
-    if (targets.every((queue) => queue && queue.role === "delay" && queue.parent_exchange)) {
-      delayFronts.add(source);
-      for (const queue of targets) {
-        const entry = delayedByExchange.get(queue.parent_exchange) || { messages: 0, queues: 0, rate: 0 };
-        entry.messages += queue.messages;
-        entry.queues += 1;
-        entry.rate += queue.publish_rate;
-        delayedByExchange.set(queue.parent_exchange, entry);
-      }
-    }
+  for (const queue of topology.queues) {
+    if (queue.role !== "delay" || !queue.parent_exchange) continue;
+    if (!delayedByExchange.has(queue.parent_exchange)) delayedByExchange.set(queue.parent_exchange, []);
+    delayedByExchange.get(queue.parent_exchange).push(queue);
   }
 
   const sources = new Map();
@@ -181,7 +193,7 @@ export function buildModel(topology, memory, { now = Date.now(), expanded = new 
         name: name === DEFAULT_BAND ? "Default exchange" : name,
         type: exchange ? exchange.type || "" : "direct",
         rate: exchange ? exchange.publish_in_rate : 0,
-        delayed: delayedByExchange.get(name) || null,
+        delayed: delayedByExchange.has(name) ? waiting(delayedByExchange.get(name)) : null,
         rows: []
       });
     }
@@ -226,6 +238,7 @@ export function buildModel(topology, memory, { now = Date.now(), expanded = new 
 
   const mainQueues = topology.queues.filter((queue) => isMain(queue, queues));
   const roles = (role) => topology.queues.filter((queue) => queue.role === role && !isMain(queue, queues));
+  const drawnDelays = roles("delay").filter((queue) => queues.has(queue.parent) || bands.has(queue.parent_exchange));
   return {
     bands: ordered,
     unbound,
@@ -235,6 +248,7 @@ export function buildModel(topology, memory, { now = Date.now(), expanded = new 
       ack: sum(mainQueues, (q) => q.ack_rate),
       retry: sum(roles("retry"), (q) => q.publish_rate),
       errors: sum(roles("error"), (q) => q.messages),
+      delayed: sum(drawnDelays, (q) => q.messages),
       backingUp: mainQueues.filter(backingUp).length,
       ready: sum(mainQueues, (q) => q.ready),
       queues: mainQueues.length

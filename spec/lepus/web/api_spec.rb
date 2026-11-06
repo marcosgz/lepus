@@ -213,6 +213,7 @@ RSpec.describe Lepus::Web::API do
     let(:exchange_data) do
       [
         {name: "orders", type: "topic", durable: true, auto_delete: false, message_stats: {}},
+        {name: "orders.delayed", type: "headers", durable: true, auto_delete: false, message_stats: {}},
         {name: "invoices", type: "topic", durable: true, auto_delete: false, message_stats: {}}
       ]
     end
@@ -230,7 +231,7 @@ RSpec.describe Lepus::Web::API do
 
         expect(status).to eq(200)
         response_data = JSON.parse(body.first)
-        expect(response_data.length).to eq(2)
+        expect(response_data.length).to eq(3)
       end
     end
 
@@ -249,14 +250,12 @@ RSpec.describe Lepus::Web::API do
         allow(aggregator).to receive_messages(running?: true, all_processes: process_data)
       end
 
-      it "returns only lepus-managed exchanges" do
+      it "returns only lepus-managed exchanges and their delayed exchanges" do
         env = Rack::MockRequest.env_for("/exchanges")
         status, _, body = api.call(env)
 
         expect(status).to eq(200)
-        response_data = JSON.parse(body.first)
-        expect(response_data.length).to eq(1)
-        expect(response_data.first["name"]).to eq("orders")
+        expect(JSON.parse(body.first).map { |e| e["name"] }).to eq(%w[orders orders.delayed])
       end
     end
 
@@ -306,6 +305,24 @@ RSpec.describe Lepus::Web::API do
 
       expect(retry_queue).to include("role" => "retry", "parent" => "orders", "ttl" => 30_000, "dead_letter_exchange" => "",
         "dead_letter_routing_key" => "orders", "expires" => 3_600_000)
+    end
+
+    it "describes delay queues and counts what waits in them" do
+      allow(aggregator).to receive_messages(running?: true, all_processes: [])
+      allow(management_api).to receive_messages(
+        queues: [
+          {name: "emails", arguments: {}, message_stats: {}},
+          {name: "emails.delay.60000", messages: 340, arguments: {"x-message-ttl" => 60_000, "x-dead-letter-exchange" => "", "x-dead-letter-routing-key" => "emails", "x-expires" => 3_660_000}, message_stats: {}}
+        ],
+        exchanges: [], bindings: [], consumers: []
+      )
+
+      _, _, body = api.call(Rack::MockRequest.env_for("/topology"))
+      queues = JSON.parse(body.first)["queues"].to_h { |q| [q["name"], q] }
+
+      expect(queues["emails.delay.60000"]).to include("role" => "delay", "parent" => "emails", "delay_ms" => 60_000, "target" => "emails",
+        "target_type" => "queue", "expires" => 3_660_000, "messages" => 340)
+      expect(queues["emails"]).to include("role" => "main", "delayed" => 340, "delays" => [60_000])
     end
 
     it "flags an unreachable management API" do

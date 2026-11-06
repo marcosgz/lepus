@@ -146,6 +146,7 @@ module Lepus
         known_exchanges = build_known_exchange_names
         return exchanges if known_exchanges.empty?
 
+        known_exchanges += known_exchanges.map { |name| Delay.exchange_name_for(name) }
         exchanges.select { |e| known_exchanges.include?(e[:name]) }
       end
 

@@ -65,19 +65,28 @@ function onward(queue) {
   return `then to the ${exchange} exchange${key ? ` by ${key}` : ""}`;
 }
 
+function delivers(queue) {
+  const after = `delivers after ${duration(queue.delay_ms)}`;
+  return queue.target_type === "exchange" ? `${after} to the ${queue.target} exchange, keeping the routing key` : `${after} to ${queue.target}`;
+}
+
 // What a retry, delay or error queue does with its messages, read from its
-// arguments: "retries after 5 s, back to orders.billing".
+// arguments: "retries after 5 s, back to orders.billing" or "delivers after
+// 5 s to orders.billing, expires when unused for 1 h".
 export function childDuty(queue) {
   const ttl = queue.ttl ? duration(queue.ttl) : null;
   const next = onward(queue);
   const parts = [];
-  if (queue.role === "retry") parts.push(ttl ? `retries after ${ttl}` : "holds messages to retry");
-  else if (queue.role === "delay") parts.push(ttl ? `waits ${ttl}` : "holds delayed messages");
+  if (queue.role === "delay" && queue.delay_ms) parts.push(delivers(queue));
+  else if (queue.role === "retry") parts.push(ttl ? `retries after ${ttl}` : "holds messages to retry");
+  else if (queue.role === "delay") parts.push("holds delayed messages");
   else parts.push(ttl ? `keeps failed messages for ${ttl}` : "keeps failed messages until they are moved");
-  if (next && (ttl || queue.role !== "error")) parts.push(next);
-  if (queue.expires) parts.push(`deleted after ${duration(queue.expires)} unused`);
+  if (next && queue.role !== "delay" && (ttl || queue.role !== "error")) parts.push(next);
+  if (queue.expires) parts.push(`expires when unused for ${duration(queue.expires)}`);
   return parts.join(", ");
 }
+
+const delaysOf = (kids) => kids.filter((kid) => kid.role === "delay").map((kid) => kid.delay_ms).filter(Boolean);
 
 const busy = (q) => q.ready || q.unacked || q.publish_rate >= ACTIVE || q.deliver_rate >= ACTIVE || q.ack_rate >= ACTIVE;
 
@@ -91,7 +100,8 @@ function entry(queue, also, kids) {
     errorCount: total("error"),
     hasRetry: kids.some((kid) => kid.role === "retry"),
     hasError: kids.some((kid) => kid.role === "error"),
-    delayed: kids.filter((kid) => kid.role === "delay").reduce((sum, kid) => sum + kid.messages, 0),
+    delayed: queue.delayed ?? kids.filter((kid) => kid.role === "delay").reduce((sum, kid) => sum + kid.messages, 0),
+    delays: delaysOf(kids),
     idle: !busy(queue) && !kids.some((kid) => kid.messages || busy(kid))
   };
 }
@@ -107,7 +117,7 @@ function groupsFrom(topology, bands) {
     children.get(queue.parent).push(queue);
   }
   const kidsOf = (name) => [...(children.get(name) || [])]
-    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || a.name.localeCompare(b.name));
+    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || (a.delay_ms || 0) - (b.delay_ms || 0) || a.name.localeCompare(b.name));
   return bands.map((band) => {
     const members = band.allRows.filter((row) => row.kind === "queue").map((row) => entry(row.queue, row.also, kidsOf(row.name)));
     const unbound = band.key === DEFAULT_BAND;
@@ -118,6 +128,7 @@ function groupsFrom(topology, bands) {
       type: band.type,
       rate: unbound ? members.reduce((sum, q) => sum + q.publish_rate, 0) : band.rate,
       delayed: (band.delayed ? band.delayed.messages : 0) + members.reduce((sum, q) => sum + q.delayed, 0),
+      delays: band.delayed ? band.delayed.queues : [],
       queues: members
     };
   }).filter((group) => group.queues.length);
@@ -175,6 +186,7 @@ export class QueueTable {
     this.note.textContent = mains
       ? `${plural(mains, "queue")} under ${plural(exchanges, "exchange")}, in the map's order; sorting orders the queues within each exchange. ` +
         "An exchange's Published/s is what reaches the exchange. Retry and Error count messages in a queue's retry and error queues, – means it has none. " +
+        "Delay queues hold messages published with a delay or handed back with delay! until they are released; under an exchange they release to the exchange. " +
         "Rates are RabbitMQ's own, per second."
       : "";
     this.draw();
@@ -184,6 +196,12 @@ export class QueueTable {
     const text = this.filter;
     return !text || queue.name.toLowerCase().includes(text) || (queue.application || "").toLowerCase().includes(text) ||
       queue.kids.some((kid) => kid.name.toLowerCase().includes(text));
+  }
+
+  delayRows(group) {
+    const text = this.filter;
+    const shown = text ? group.delays.filter((queue) => queue.name.toLowerCase().includes(text) || group.name.toLowerCase().includes(text)) : group.delays;
+    return shown.map((queue) => this.childRow(queue, "q-exchange-delay"));
   }
 
   toggle(set, storageKey, key) {
@@ -248,8 +266,9 @@ export class QueueTable {
     const drawn = [];
     for (const group of this.groups) {
       const queues = group.queues.filter((queue) => this.matches(queue)).sort(order);
+      const delays = this.delayRows(group);
       matched += queues.length;
-      if (!queues.length) continue;
+      if (!queues.length && !delays.length) continue;
       const idleQueues = queues.filter((queue) => queue.idle);
       const idle = !this.filter && idleQueues.length >= IDLE_FOLD ? idleQueues : [];
       const active = queues.filter((queue) => !idle.includes(queue));
@@ -260,6 +279,7 @@ export class QueueTable {
       const idleShown = idle.filter((queue) => idleOpen || queue.name === this.revealed);
       drawn.push(this.body(`group:${group.key}`, [
         this.groupRow(group, queues),
+        delays,
         shown.map((queue) => this.queueRows(queue)),
         active.length > cut ? this.foldRow(group, "more", moreOpen ? active.length - cut : active.length - shown.length, moreOpen) : null,
         idle.length ? this.foldRow(group, "idle", idleOpen ? idle.length : idle.length - idleShown.length, idleOpen) : null,
@@ -311,6 +331,7 @@ export class QueueTable {
     const meta = [group.unbound ? "no binding, published straight to the queue" : `${group.type || "unknown"} exchange`];
     meta.push(queues.length === group.queues.length ? plural(group.queues.length, "queue") : `${count(queues.length)} of ${plural(group.queues.length, "queue")}`);
     if (group.delayed) meta.push(`${compact(group.delayed)} delayed`);
+    else if (group.delays.length) meta.push(plural(group.delays.length, "empty delay queue"));
     return h("tr", { class: "q-group" },
       h("th", { scope: "rowgroup" },
         h("span", { class: "q-ex" }, group.name),
@@ -343,11 +364,11 @@ export class QueueTable {
   queueRow(queue, open) {
     const rising = backingUp(queue);
     const roles = ROLE_ORDER.filter((role) => queue.kids.some((kid) => kid.role === role)).map((role) => ROLES[role].toLowerCase());
-    const sub = [
-      queue.application,
-      queue.also.length ? `also bound to ${queue.also.join(", ")}` : null,
-      queue.delayed ? `${compact(queue.delayed)} delayed` : null
-    ].filter(Boolean).join(" · ");
+    const words = [queue.application, queue.also.length ? `also bound to ${queue.also.join(", ")}` : null].filter(Boolean);
+    const waits = queue.delayed
+      ? h("span", { class: words.length ? "q-wait is-after" : "q-wait" }, `${compact(queue.delayed)} delayed`, queue.delays.length ? ` for ${listed(queue.delays.map(duration))}` : null)
+      : null;
+    const sub = words.length || waits ? [words.join(" · "), words.length && waits ? " · " : null, waits] : null;
     const classes = ["q-row", queue.idle && "is-idle", queue.name === this.picked && "is-picked"].filter(Boolean).join(" ");
     return h("tr", { class: classes, tabindex: -1, "data-queue": queue.name, "data-focus-key": `${queue.name}|row` },
       h("td", {},
@@ -382,9 +403,9 @@ export class QueueTable {
       h("td", { class: queue.errorCount ? null : "is-still", "data-label": "Error" }, queue.hasError ? num(queue.errorCount, queue.errorCount ? "q-error is-on" : null) : dash()));
   }
 
-  childRow(kid) {
-    const held = { error: "q-error is-on", retry: "q-retry is-on" }[kid.role] || null;
-    return h("tr", { class: "q-row q-child" },
+  childRow(kid, extra = null) {
+    const held = { error: "q-error is-on", retry: "q-retry is-on", delay: "q-wait" }[kid.role] || null;
+    return h("tr", { class: ["q-row q-child", extra].filter(Boolean).join(" ") },
       h("td", {},
         h("div", { class: "q-head" },
           h("span", { class: "q-toggle" }),

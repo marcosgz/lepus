@@ -60,6 +60,25 @@ RSpec.describe Lepus::Web do
       expect(consumer.last_delivery_errored?).to be(true)
     end
 
+    it "defaults last_delivery_delayed? to false" do
+      expect(consumer_class.new.last_delivery_delayed?).to be(false)
+    end
+
+    it "tracks a delivery handed back with delay!" do
+      consumer = consumer_class.new
+      consumer.define_singleton_method(:perform) { |_message| delay!(500) }
+      allow(Lepus::Delay).to receive(:resolve).and_return(500)
+      allow(Lepus::Publisher).to receive(:new).and_return(instance_double(Lepus::Publisher, publish: nil))
+      delivery_info = instance_double(Bunny::DeliveryInfo, exchange: "test", routing_key: "test", redelivered: false, delivery_tag: 1)
+      metadata = instance_double(Bunny::MessageProperties, headers: nil, content_type: nil)
+      message = instance_double(Lepus::Message, payload: "payload", to_publish_options: {})
+      allow(message).to receive(:consumer_class=)
+      allow(Lepus::Message).to receive(:coerce).and_return(message)
+
+      expect(consumer.process_delivery(delivery_info, metadata, "payload")).to eq(:ack)
+      expect(consumer.last_delivery_delayed?).to be(true)
+    end
+
     it "resets error state on each new delivery" do
       consumer = consumer_class.new
       consumer.send(:on_delivery_error)
@@ -123,15 +142,24 @@ RSpec.describe Lepus::Web do
     end
 
     it "records processed on :ack" do
-      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
       expect(stats.processed).to eq(1)
     end
 
+    it "records delayed instead of processed when the consumer called delay!" do
+      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false, last_delivery_delayed?: true)
+
+      handler.process_delivery(delivery_info, metadata, "payload")
+
+      expect(stats.delayed).to eq(1)
+      expect(stats.processed).to eq(0)
+    end
+
     it "records rejected on :reject without error" do
-      allow(consumer).to receive_messages(process_delivery: :reject, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :reject, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
@@ -140,7 +168,7 @@ RSpec.describe Lepus::Web do
     end
 
     it "records errored on :reject with error" do
-      allow(consumer).to receive_messages(process_delivery: :reject, last_delivery_errored?: true)
+      allow(consumer).to receive_messages(process_delivery: :reject, last_delivery_errored?: true, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
@@ -149,7 +177,7 @@ RSpec.describe Lepus::Web do
     end
 
     it "records rejected on :requeue without error" do
-      allow(consumer).to receive_messages(process_delivery: :requeue, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :requeue, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
@@ -157,7 +185,7 @@ RSpec.describe Lepus::Web do
     end
 
     it "records rejected on :nack without error" do
-      allow(consumer).to receive_messages(process_delivery: :nack, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :nack, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       handler.process_delivery(delivery_info, metadata, "payload")
 
@@ -166,7 +194,7 @@ RSpec.describe Lepus::Web do
 
     it "does not record stats when stats is nil" do
       handler.stats = nil
-      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false)
+      allow(consumer).to receive_messages(process_delivery: :ack, last_delivery_errored?: false, last_delivery_delayed?: false)
 
       expect { handler.process_delivery(delivery_info, metadata, "payload") }.not_to raise_error
     end

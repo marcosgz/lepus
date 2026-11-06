@@ -42,6 +42,24 @@ RSpec.describe "bin/web-demo" do # rubocop:disable RSpec/DescribeClass
         expect(topology["consumers"].map { |c| c["queue"] } - queues).to be_empty
       end
 
+      it "simulates delays the way Lepus::Delay declares them" do
+        get "/api/topology"
+        topology = JSON.parse(last_response.body)
+        delays = topology["queues"].select { |q| q["role"] == "delay" }
+        exchanges = topology["exchanges"].to_h { |e| [e["name"], e] }
+
+        expect(delays.map { |q| q["target_type"] }.uniq).to contain_exactly("queue", "exchange")
+        expect(delays.map { |q| [q["target"], q["delay_ms"]] }.group_by(&:first).values.map(&:size).max).to be > 1
+        delays.each do |queue|
+          expect(queue).to include("ttl" => queue["delay_ms"], "expires" => queue["delay_ms"] + Lepus.config.delay_queue_expires)
+          next expect(queue["parent"]).to eq(queue["target"]) if queue["target_type"] == "queue"
+
+          expect(exchanges[Lepus::Delay.exchange_name_for(queue["target"])]).to include("role" => "delay", "releases_to" => queue["target"])
+          expect(exchanges[queue["target"]]["delays"]).to include(queue["delay_ms"])
+        end
+        expect(topology["consumers"].select { |c| c["delayed"].positive? }.flat_map { |c| c["delays"] }).not_to be_empty
+      end
+
       it "serves processes, connections and rate history" do
         get "/api/processes"
         expect(JSON.parse(last_response.body).map { |p| p["kind"] }).to include("Supervisor", "Worker")

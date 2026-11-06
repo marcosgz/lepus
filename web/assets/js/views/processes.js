@@ -1,5 +1,5 @@
 import { h, refill } from "../dom.js";
-import { ago, bytes, compact, count, plural, toTime } from "../format.js";
+import { ago, bytes, compact, count, duration, plural, toTime } from "../format.js";
 
 const WORKERS_SHOWN = 8;
 const CONSUMERS_SHOWN = 3;
@@ -21,13 +21,16 @@ function counter(n, word, cls) {
     h("span", { class: "visually-hidden" }, `${count(n)} ${word}`));
 }
 
+// Workers older than delay! report neither delays nor a delayed count.
 function consumerItem(consumer) {
+  const delays = consumer.delays && consumer.delays.length ? `, delay! after ${consumer.delays.map(duration).join(" or ")}` : "";
   return h("li", { class: "con" },
     h("span", { class: "con-name" },
       h("b", {}, consumer.class_name),
-      h("span", {}, ` on ${consumer.queue}, ${plural(consumer.threads || 0, "thread")}`)),
+      h("span", {}, ` on ${consumer.queue}, ${plural(consumer.threads || 0, "thread")}${delays}`)),
     h("span", { class: "con-counts" },
       counter(consumer.processed, "processed", null),
+      consumer.delayed || delays ? counter(consumer.delayed || 0, "delayed", "is-delayed") : null,
       counter(consumer.rejected, "rejected", "is-rejected"),
       counter(consumer.errored, "errored", "is-errored")));
 }
@@ -72,7 +75,7 @@ export class ProcessList {
     const hosts = new Set(processes.map((p) => p.hostname));
     const interval = this.meta.heartbeat_interval || 60;
     this.note.textContent = processes.length
-      ? `${plural(supervisors.length, "supervisor")} running ${plural(workers.length, "worker")} on ${plural(hosts.size, "host")}. Workers report every ${interval} s; counts run from each worker's start.`
+      ? `${plural(supervisors.length, "supervisor")} running ${plural(workers.length, "worker")} on ${plural(hosts.size, "host")}. Workers report every ${interval} s; counts run from each worker's start, and a message handed back with delay! counts as delayed, not processed.`
       : "";
     if (!processes.length) {
       refill(this.list, h("li", { class: "empty" }, "No Lepus process has sent a heartbeat. Workers started with lepus start show up here within one heartbeat."));

@@ -23,12 +23,66 @@ module WebDemo
   VERSION_LABEL = "Lepus (#{Lepus::VERSION})"
   RATES = %i[publish deliver ack redeliver].freeze
 
+  UNUSED_AFTER = 45
+
   Exchange = Struct.new(:name, :type, keyword_init: true)
+
+  # A queue Lepus::Delay declares: "<queue>.delay.<ms>" for a queue delay
+  # (published through the default exchange, or by a consumer's delay!) or
+  # "<exchange>.delayed.<ms>" behind the "<exchange>.delayed" headers
+  # exchange. Each message waits ms, then goes to the target line. When
+  # nothing has used it for a while it expires, as x-expires does.
+  class DelayQueue
+    attr_reader :ms, :target, :exchange, :source, :held, :in_rate, :out_rate
+
+    def initialize(ms:, target:, exchange: nil, source: :producer, rate: 0.0, share: 0.0, window: nil)
+      @ms = ms
+      @target = target
+      @exchange = exchange
+      @source = source
+      @rate = rate
+      @share = share
+      @window = window
+      @held = 0.0
+      @in_rate = 0.0
+      @out_rate = 0.0
+      @used_at = nil
+    end
+
+    def name
+      exchange ? Lepus::Delay.exchange_queue_name_for(exchange, ms) : Lepus::Delay.queue_delay_name_for(target.name, ms)
+    end
+
+    def arguments
+      exchange ? Lepus::Delay.queue_args_for_exchange(exchange, ms) : Lepus::Delay.queue_args_for_queue(target.name, ms)
+    end
+
+    def present?(second)
+      !@used_at.nil? && (@held >= 0.5 || second - @used_at < UNUSED_AFTER)
+    end
+
+    def step(second, dt, rng, failing:)
+      wave = 1 + 0.25 * Math.sin(second / 37.0 + ms % 11) + (rng.rand - 0.5) * 0.2
+      open = @window.nil? || @window.cover?(second % CYCLE)
+      @in_rate = if !open
+        0.0
+      elsif source == :consumer
+        target.rate(:deliver) * (failing ? @share * 6 : @share) * wave
+      else
+        @rate * wave
+      end
+      released = @held * [dt * 1000.0 / ms, 1].min
+      @held = [@held + @in_rate * dt - released, 0.0].max
+      @out_rate = released / dt
+      @used_at = second if @in_rate.positive?
+      target.counters[:delayed] += @in_rate * dt if source == :consumer
+    end
+  end
 
   # One main queue with its consumer, and the counters the simulation moves.
   class Line
     attr_reader :name, :exchange, :keys, :consumer, :worker, :base, :retry_ttl, :error_queue, :threads
-    attr_accessor :ready, :unacked, :retrying, :errors, :delayed, :rates, :counters, :backlog_rate, :channels
+    attr_accessor :ready, :unacked, :retrying, :errors, :rates, :counters, :backlog_rate, :channels
 
     def initialize(name:, exchange:, keys: [], consumer: nil, worker: nil, base: 1.0, retry_ttl: 5000, error_queue: true, threads: 2, ready: 0, idle: false, capacity: 1.15, drain: 0.4)
       @name = name
@@ -46,7 +100,6 @@ module WebDemo
       @unacked = 0
       @retrying = 0.0
       @errors = 0.0
-      @delayed = 0.0
       @backlog_rate = 0.0
       @channels = consumer ? threads : 0
       @rates = Hash.new(0.0)
@@ -59,12 +112,12 @@ module WebDemo
       retry_ttl ? true : false
     end
 
-    def step(t, dt, rng, slow:, failing:)
+    def step(t, dt, rng, slow:, failing:, released: 0.0)
       wave = 1 + 0.3 * Math.sin(t / @period.to_f + @phase) + (rng.rand - 0.5) * 0.16
-      publish = @base * wave
+      publish = @base * wave + released
       returning = retry? ? @retrying * [dt * 1000.0 / retry_ttl, 1].min : 0.0
       @retrying -= returning
-      capacity = channels.zero? ? 0.0 : @base * capacity_share(slow)
+      capacity = channels.zero? ? 0.0 : (@base + released) * capacity_share(slow)
       available = @ready + (publish + returning / dt) * dt
       deliver = [capacity * dt, available].min / dt
       reject_share = failing ? 0.3 : 0.004
@@ -78,7 +131,7 @@ module WebDemo
       @errors += to_error * dt
       @backlog_rate = @backlog_rate * 0.6 + ((@ready - previous) / dt) * 0.4
       @unacked = [(deliver * 0.2).round, channels * 10].min
-      @rates = {publish: publish + returning / dt, deliver: deliver, ack: deliver - rejected, redeliver: returning / dt, retry_in: to_retry, error_in: to_error}
+      @rates = {publish: publish + returning / dt, deliver: deliver, ack: deliver - rejected, redeliver: returning / dt, retry_in: to_retry, error_in: to_error, released: released}
       @counters[:publish] += publish * dt
       @counters[:processed] += (deliver - rejected) * dt
       @counters[:rejected] += to_retry * dt
@@ -100,7 +153,7 @@ module WebDemo
 
   # The broker and the workers reading it, advanced once a second.
   class World
-    attr_reader :exchanges, :lines, :supervisors, :workers, :history, :started_at
+    attr_reader :exchanges, :lines, :delays, :supervisors, :workers, :history, :started_at, :second
 
     def initialize(heavy: false, seed: 7)
       @rng = Random.new(seed)
@@ -108,6 +161,7 @@ module WebDemo
       @history = []
       @exchanges = []
       @lines = []
+      @delays = []
       heavy ? build_heavy : build_normal
       build_processes
       @started_at = Time.now - HISTORY
@@ -136,7 +190,6 @@ module WebDemo
 
     def build_normal
       add_exchange("orders", :topic)
-      add_exchange("orders.delayed", :headers)
       add_exchange("invoices", :direct)
       add_exchange("emails", :fanout)
       add_exchange("webhooks", :topic)
@@ -153,8 +206,12 @@ module WebDemo
       add_line("webhooks.outbound", "webhooks", %w[webhook.#], "WebhookDeliveryConsumer", "webhooks", 22, threads: 6)
       add_line("notifications.push", "notifications", [], "PushNotificationConsumer", "mailers", 15)
       add_line("notifications.sms", "notifications", [], nil, nil, 0, idle: true)
-      line("orders.fulfillment").delayed = 120
-      line("emails.digest").delayed = 340
+      delay_exchange("orders", "orders.billing", 5000, rate: 1.2)
+      delay_exchange("orders", "orders.billing", 300_000, rate: 0.4)
+      delay_queue("emails.digest", 60_000, rate: 2.0)
+      delay_queue("emails.digest", 3_600_000, rate: 0.06)
+      delay_queue("invoices.deliver", 10_000, rate: 1.5, window: 0...50)
+      delay_queue("webhooks.outbound", 30_000, source: :consumer, share: 0.03)
       @scripted = {slow: "invoices.render", failing: "webhooks.outbound"}
     end
 
@@ -197,7 +254,15 @@ module WebDemo
             idle: idle, threads: 1 + position % 5, **BACKLOGS.fetch(name, {}))
         end
       end
-      line("payments.capture").delayed = 900
+      delay_queue("payments.capture", 1000, rate: 40)
+      delay_queue("payments.capture", 15_000, rate: 12)
+      delay_queue("payments.capture", 120_000, rate: 6)
+      delay_exchange("payments", "payments.settle", 600_000, rate: 0.8)
+      delay_exchange("payments", "payments.payout", 86_400_000, rate: 0.02)
+      delay_queue("notifications.digest", 900_000, rate: 1.1)
+      delay_queue("users.verify", 300_000, rate: 0.3, window: 0...90)
+      delay_queue("shipments.track", 60_000, source: :consumer, share: 0.05)
+      delay_queue("webhooks.outbound", 30_000, source: :consumer, share: 0.03)
       @scripted = {slow: "invoices.render", failing: "webhooks.outbound"}
     end
 
@@ -209,10 +274,28 @@ module WebDemo
       @lines << Line.new(name: name, exchange: exchange, keys: keys, consumer: consumer, worker: worker, base: base, **options)
     end
 
+    def delay_queue(target, ms, **options)
+      @delays << DelayQueue.new(ms: ms, target: line(target), **options)
+    end
+
+    def delay_exchange(exchange, target, ms, **options)
+      delayed = Lepus::Delay.exchange_name_for(exchange)
+      add_exchange(delayed, :headers) unless @exchanges.any? { |candidate| candidate.name == delayed }
+      @delays << DelayQueue.new(ms: ms, target: line(target), exchange: exchange, **options)
+    end
+
     public
 
     def line(name)
       @lines.find { |candidate| candidate.name == name }
+    end
+
+    def live_delays
+      @delays.select { |delay| delay.present?(@second) }
+    end
+
+    def consumer_delays(line)
+      @delays.select { |delay| delay.source == :consumer && delay.target == line }.map(&:ms)
     end
 
     private
@@ -234,15 +317,19 @@ module WebDemo
     end
 
     def advance(second, dt, record_at:)
+      @second = second
       phase = second % CYCLE
       totals = Hash.new(0.0)
+      failing = ->(line) { line.name == @scripted[:failing] && phase >= 90 && phase < 130 }
+      @delays.each { |delay| delay.step(second, dt, @rng, failing: failing.call(delay.target)) }
+      released = @delays.group_by(&:target).transform_values { |list| list.sum(&:out_rate) }
       @lines.each do |line|
         slow = line.name == @scripted[:slow] && phase >= 20 && phase < 60
-        failing = line.name == @scripted[:failing] && phase >= 90 && phase < 130
         line.errors *= 0.3 if phase.zero?
-        line.step(second, dt, @rng, slow: slow, failing: failing)
+        line.step(second, dt, @rng, slow: slow, failing: failing.call(line), released: released.fetch(line, 0.0))
         RATES.each { |key| totals[key] += line.rate(key) }
       end
+      @delays.each { |delay| totals[:publish] += delay.in_rate }
       @workers&.each { |worker| worker[:rss] = (worker[:rss] + @rng.rand(-3..3)).clamp(120, 400) }
       @history << {at: record_at, counts: totals}
       @history.shift while @history.size > HISTORY
@@ -257,7 +344,7 @@ module WebDemo
 
     def queues
       @world.synchronize do
-        @world.lines.flat_map { |line| queue_rows(line) }
+        @world.lines.flat_map { |line| queue_rows(line) } + @world.live_delays.map { |delay| delay_row(delay) }
       end
     end
 
@@ -269,9 +356,14 @@ module WebDemo
       @world.synchronize do
         @world.exchanges.map do |exchange|
           lines = @world.lines.select { |line| line.exchange == exchange.name }
-          out = lines.sum { |line| line.rate(:publish) - line.rate(:redeliver) }
-          incoming = (exchange.type == "fanout") ? (lines.map { |line| line.rate(:publish) - line.rate(:redeliver) }.max || 0) : out
-          incoming = delayed_total(exchange.name.chomp(".delayed")) / 30.0 if exchange.name.end_with?(".delayed")
+          direct = lines.map { |line| line.rate(:publish) - line.rate(:redeliver) - line.rate(:released) }
+          out = direct.sum
+          incoming = (exchange.type == "fanout") ? (direct.max || 0) : out
+          fed = @world.delays.select { |delay| delay.exchange && Lepus::Delay.exchange_name_for(delay.exchange) == exchange.name }
+          incoming = out = fed.sum(&:in_rate) unless fed.empty?
+          released = @world.delays.select { |delay| delay.exchange == exchange.name }.sum(&:out_rate)
+          incoming += released
+          out += released
           {
             name: exchange.name, type: exchange.type, durable: true, auto_delete: false,
             message_stats: {publish_in: 0, publish_in_rate: incoming.round(2), publish_out: 0, publish_out_rate: out.round(2)}
@@ -286,8 +378,9 @@ module WebDemo
           keys = line.keys.empty? ? [""] : line.keys
           keys.map { |key| binding(line.exchange, line.name, key) }
         end
-        delayed = @world.exchanges.select { |exchange| exchange.name.end_with?(".delayed") }
-        rows + delayed.map { |exchange| binding(exchange.name, "#{exchange.name}.30000", "") }
+        rows + @world.live_delays.select(&:exchange).map do |delay|
+          binding(Lepus::Delay.exchange_name_for(delay.exchange), delay.name, "", "x-match" => "all", Lepus::Delay::HEADER => delay.ms)
+        end
       end
     end
 
@@ -327,7 +420,7 @@ module WebDemo
             messages_ready: @world.lines.sum(&:ready).round,
             messages_unacknowledged: @world.lines.sum(&:unacked)
           },
-          object_totals: {queues: queues_count, exchanges: @world.exchanges.size},
+          object_totals: {queues: queues_count + @world.live_delays.size, exchanges: @world.exchanges.size},
           history: age ? buckets(history.last(age), increment) : []
         }
       end
@@ -337,10 +430,6 @@ module WebDemo
 
     def queues_count
       @world.lines.sum { |line| 1 + (line.retry? ? 1 : 0) + (line.error_queue ? 1 : 0) }
-    end
-
-    def delayed_total(exchange)
-      @world.lines.select { |line| line.exchange == exchange }.sum(&:delayed)
     end
 
     def buckets(rows, increment)
@@ -361,18 +450,11 @@ module WebDemo
           publish: line.rate(:retry_in))
       end
       rows << queue_row("#{line.name}.error", line.errors, 0, 0, {}, publish: line.rate(:error_in)) if line.error_queue
-      rows << delay_row(line) if line.delayed.positive?
       rows
     end
 
-    def delay_row(line)
-      if @world.exchanges.any? { |exchange| exchange.name == "#{line.exchange}.delayed" }
-        queue_row("#{line.exchange}.delayed.30000", line.delayed, 0, 0,
-          {"x-message-ttl" => 30_000, "x-dead-letter-exchange" => line.exchange}, publish: line.delayed / 30.0)
-      else
-        queue_row("#{line.name}.delay.60000", line.delayed, 0, 0,
-          {"x-message-ttl" => 60_000, "x-dead-letter-exchange" => "", "x-dead-letter-routing-key" => line.name}, publish: line.delayed / 60.0)
-      end
+    def delay_row(delay)
+      queue_row(delay.name, delay.held, 0, 0, delay.arguments, publish: delay.in_rate)
     end
 
     def queue_row(name, ready, unacked, consumers, arguments, publish: 0.0, deliver: 0.0, ack: 0.0, redeliver: 0.0, backlog: 0.0)
@@ -389,8 +471,8 @@ module WebDemo
       }
     end
 
-    def binding(source, destination, key)
-      {source: source, destination: destination, destination_type: "queue", routing_key: key, arguments: {}}
+    def binding(source, destination, key, arguments = {})
+      {source: source, destination: destination, destination_type: "queue", routing_key: key, arguments: arguments}
     end
 
     def connection(name, channels)
@@ -442,7 +524,8 @@ module WebDemo
           class_name: line.consumer, exchange: line.exchange, queue: line.name, route: line.keys.first,
           retry_queue: (line.retry? ? "#{line.name}.retry" : nil), error_queue: (line.error_queue ? "#{line.name}.error" : nil),
           threads: line.threads, processed: line.counters[:processed].round, rejected: line.counters[:rejected].round,
-          errored: line.counters[:errored].round
+          errored: line.counters[:errored].round, delayed: line.counters[:delayed].round,
+          delays: @world.consumer_delays(line).then { |delays| delays.empty? ? nil : delays }
         }
       end
       process(worker, worker[:rss] * 1024 * 1024, consumers: consumers, connections: 1 + lines.size / 4, late: worker[:late])

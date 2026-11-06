@@ -22,6 +22,7 @@ function symbol(kind) {
   if (kind === "idle") svg.append(s("rect", { class: "sym-idle", x: 2, y: 5.5, width: 16, height: 9, rx: 4.5 }));
   if (kind === "stop") svg.append(s("rect", { class: "sym-stop", x: 7, y: 0, width: 6, height: 20, rx: 2 }));
   if (kind === "back") svg.append(s("rect", { class: "sym-back", x: 1, y: 5, width: 18, height: 10, rx: 5 }));
+  if (kind === "wait") svg.append(s("g", { class: "sym-wait" }, s("circle", { cx: 10, cy: 10, r: 7.5 }), s("path", { d: "M10 5.5V10h3.6" })));
   return h("span", { class: "sym" }, svg);
 }
 
@@ -57,7 +58,7 @@ export function overview(root, { meta }) {
   const subline = h("p", { class: "subline" },
     "Each band is an exchange routing to its queues; every line runs on to the queue's consumer and to acknowledgement. " +
     "Amber tokens are messages on the move, more of them on busier lines. A hollow amber bar is a backlog waiting in its queue, " +
-    "violet loops beneath a line are retries and red bars count messages parked in error queues. Point at a queue for exact numbers, select it to find it in the table.");
+    "violet loops beneath a line are retries, a teal clock counts messages delayed on purpose until they are released, and red bars count messages parked in error queues. Point at a queue for exact numbers, select it to find it in the table.");
   const status = h("p", { class: "status-note", role: "status", hidden: true });
   const mapHost = h("div", { class: "map" });
   const mapNote = h("p", { class: "map-note" });
@@ -130,6 +131,7 @@ export function overview(root, { meta }) {
     add("move", `${rate(totals.deliver)} msg/s`, `${count(totals.deliver)} messages a second`, "flowing");
     if (totals.backingUp) add("idle", `${count(totals.backingUp)}`, `${count(totals.backingUp)}`, totals.backingUp === 1 ? "queue backing up" : "queues backing up");
     if (totals.retry >= 0.01) add("back", `${rate(totals.retry)} msg/s`, `${count(totals.retry)} messages a second`, "retrying");
+    if (totals.delayed) add("wait", compact(totals.delayed), count(totals.delayed), "delayed");
     add("stop", compact(totals.errors), count(totals.errors), totals.errors === 1 ? "message in error queues" : "messages in error queues");
     clear(headline);
     parts.forEach((part, index) => {

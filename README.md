@@ -706,11 +706,11 @@ bundle exec lepus web --port 3000 --host 127.0.0.1
 
 The dashboard is one page that refreshes itself (every 5 seconds by default; the **Live** control in the top bar pauses it or picks 2, 5, 15 or 60 seconds, and polling also pauses while the tab is in the background):
 
-- **Topology map**: each exchange is a band of lines, one per bound queue, running exchange → queue → consumer → acknowledged. Amber tokens move at a pace that follows each segment's message rate, a hollow amber bar shows a backlog piling up at its queue, violet loops under a line are retries and red bars count messages in error queues. Quiet queues fold into a "+N" row per exchange so large brokers stay readable.
-- **Headline**: messages flowing, queues backing up, retries and messages in error queues, in one sentence that doubles as the map's key.
+- **Topology map**: each exchange is a band of lines, one per bound queue, running exchange → queue → consumer → acknowledged. Amber tokens move at a pace that follows each segment's message rate, a hollow amber bar shows a backlog piling up at its queue, violet loops under a line are retries, a teal clock counts [delayed messages](#delayed-messages) waiting to be released and red bars count messages in error queues. Quiet queues fold into a "+N" row per exchange so large brokers stay readable.
+- **Headline**: messages flowing, queues backing up, retries, delayed messages and messages in error queues, in one sentence that doubles as the map's key.
 - **Message rates**: published, delivered, acknowledged and redelivered per second over the last 10 minutes or hour, with a table view.
 - **Processes**: supervisors, their workers (PID, memory, connections, heartbeat health) and each consumer's processed, rejected and errored counts.
-- **Queues**: a sortable, filterable table with ready, unacked, consumers, rates and retry and error queue sizes.
+- **Queues**: a sortable, filterable table with ready, unacked, consumers, rates, retry and error queue sizes and what waits in delay queues.
 - **Connections**: the broker's client connections.
 
 The map and the queue table need the RabbitMQ Management API (see `management_api_url`); processes come from worker heartbeats. It follows the system light or dark theme, or you can pick one.

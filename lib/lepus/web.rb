@@ -24,17 +24,30 @@ module Lepus
     end
 
     # Web-specific consumer extensions.
-    # Tracks whether the last delivery resulted in an error (exception),
-    # allowing stats to distinguish explicit rejections from error rejections.
+    # Tracks whether the last delivery resulted in an error (exception) or was
+    # handed back to the queue later with delay!, allowing stats to tell
+    # explicit rejections from error rejections and delays from acks.
     module ConsumerExtensions
       def process_delivery(delivery_info, metadata, payload)
         @_last_delivery_errored = false
+        @_last_delivery_delayed = false
         super
       end
 
       def last_delivery_errored?
         @_last_delivery_errored == true
       end
+
+      def last_delivery_delayed?
+        @_last_delivery_delayed == true
+      end
+
+      protected
+
+      def delay!(value)
+        super.tap { @_last_delivery_delayed = true }
+      end
+      alias_method :delay, :delay!
 
       private
 
@@ -60,7 +73,7 @@ module Lepus
 
         case result
         when :ack
-          stats.record_processed
+          consumer.last_delivery_delayed? ? stats.record_delayed : stats.record_processed
         when :reject, :nack, :requeue
           if consumer.last_delivery_errored?
             stats.record_errored

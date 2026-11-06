@@ -1,6 +1,7 @@
 import { h, s, clear, graft, reducedMotion } from "./dom.js";
 import { compact, count, perSecond, plural, duration } from "./format.js";
 import { isLive, onLive } from "./live.js";
+import { released } from "./model.js";
 
 // Draws the broker as a transit map. Each band is an exchange: a terminal on
 // the left with one line per bound queue. A line runs exchange -> queue ->
@@ -8,13 +9,34 @@ import { isLive, onLive } from "./live.js";
 // segment at a pace that grows with the log of its message rate; violet ones
 // loop back through the retry queue beneath the line and red ones drop into
 // the error queue. A backlog is a hollow amber bar piling up at the queue.
+// Messages delayed on purpose wait in a teal clock pill tucked under the
+// queue, or under the exchange name when they are released to the exchange.
 
 const MAX_TOKENS = 320;
 const RAIL = 13;
+const WAIT = 17;
+const WAIT_LINE = 18;
 const WIDE = 1100;
 
 const visualRate = (rate) => (rate > 0 ? Math.min(2.6, 0.2 + 0.6 * Math.log10(1 + rate)) : 0);
 const charsFor = (px, size = 7.2) => Math.max(4, Math.floor(px / size));
+
+function clock(x, y) {
+  return s("g", { class: "m-clock" },
+    s("circle", { cx: x, cy: y, r: 4.5 }),
+    s("path", { d: `M${x} ${y - 2.6}V${y}h2.2` }));
+}
+
+const pillWidth = (text) => text.length * 6.4 + 27;
+
+// A pill with a clock face: messages waiting out a delay.
+function waitPill(x, y, text, title) {
+  return s("g", { class: "m-wait" },
+    title ? s("title", {}, title) : null,
+    s("rect", { class: "m-wait-box", x, y: y - 8, width: pillWidth(text), height: 16, rx: 8 }),
+    clock(x + 10.5, y),
+    s("text", { class: "m-wait-n", x: x + 19, y: y + 4 }, text));
+}
 
 function fit(text, chars) {
   if (text.length <= chars) return text;
@@ -96,8 +118,13 @@ export class TopologyMap {
     for (const band of this.model.bands) {
       const head = wide ? 0 : 30;
       const top = y + head;
-      const rows = band.rows.map((row, index) => ({ row, y: top + geo.rowH / 2 + index * geo.rowH + (wide ? 0 : 6) }));
-      const bottom = top + band.rows.length * geo.rowH;
+      let rowTop = top + (wide ? 0 : 6);
+      const rows = band.rows.map((row) => {
+        const placed = { row, y: rowTop + geo.rowH / 2 };
+        rowTop += geo.rowH + (!wide && row.delayed > 0 ? WAIT_LINE : 0);
+        return placed;
+      });
+      const bottom = rowTop - (wide ? 0 : 6);
       geo.bands.push({ band, top: y, rows, bottom });
       y = bottom + (wide ? 26 : 22);
     }
@@ -184,19 +211,20 @@ export class TopologyMap {
     const lastY = rows[rows.length - 1].y;
     const meta = [band.type].filter(Boolean);
     if (band.rate >= 0.01) meta.push(`${perSecond(band.rate)} in`);
-    const delayed = band.delayed && band.delayed.messages ? `${compact(band.delayed.messages)} delayed` : null;
-    if (delayed && !geo.wide) meta.push(delayed);
-    const title = s("title", {}, `${band.name}, ${[...meta, delayed].filter(Boolean).join(", ")}`);
+    const delayed = band.delayed && band.delayed.messages ? band.delayed : null;
+    const waits = delayed ? released(delayed, `the ${band.name} exchange`) : null;
+    const title = s("title", {}, [`${band.name}, ${meta.join(", ")}`, waits].filter(Boolean).join(". "));
     if (geo.wide) {
       const chars = charsFor(geo.nameCol - 8, 8.8);
       this.base.append(
         s("text", { class: band.quiet ? "m-ex is-quiet" : "m-ex", x: 0, y: firstY - 2 }, title, fit(band.name, chars)),
         s("text", { class: "m-meta", x: 0, y: firstY + 17 }, fit(meta.join(", "), charsFor(geo.nameCol - 8, 6.6))));
-      if (delayed) this.base.append(s("text", { class: "m-meta", x: 0, y: firstY + 34 }, s("tspan", { class: "m-meta-n" }, delayed)));
+      if (delayed) this.over.append(waitPill(0, firstY + 33, `${compact(delayed.messages)} delayed`, waits));
     } else {
       this.base.append(s("text", { x: geo.capL - 9, y: top + 18 }, title,
         s("tspan", { class: band.quiet ? "m-ex is-quiet" : "m-ex" }, fit(band.name, charsFor(geo.width * 0.55, 8.8))),
-        s("tspan", { class: "m-meta", dx: 8 }, meta.join(", "))));
+        s("tspan", { class: "m-meta", dx: 8 }, meta.join(", ")),
+        delayed ? s("tspan", { class: "m-meta m-wait-n", dx: 8 }, `${compact(delayed.messages)} delayed`) : null));
     }
     for (const { row, y } of rows) {
       if (row.kind === "queue") this.drawQueue(geo, band, row, y, flows);
@@ -231,19 +259,18 @@ export class TopologyMap {
         s("text", { class: "m-backlog-n", x: x + barW / 2, y: y + 4, "text-anchor": "middle" }, text));
     }
 
-    let keysX = capL + 18;
-    if (row.delayed > 0) {
-      const text = `${compact(row.delayed)} delayed`;
-      const w = text.length * 6.6 + 14;
-      const x = capL + 18;
-      if (x + w < qx - barW - 30) {
-        keysX = x + w + 10;
-        this.over.append(
-          s("rect", { class: "m-retry", x, y: y - 8, width: w, height: 16, rx: 8 }),
-          s("text", { class: "m-retry-n", x: x + w / 2, y: y + 4, "text-anchor": "middle" }, text));
+    if (wide && row.delayed > 0) {
+      const full = `${compact(row.delayed)} delayed`;
+      const room = qx - 22 - (capL + 18);
+      const text = pillWidth(full) <= room ? full : compact(row.delayed);
+      const x = qx - 22 - pillWidth(text);
+      if (x >= capL + 18) {
+        this.base.append(s("path", { class: "m-wait-hook", d: `M${qx - 22} ${y + WAIT}H${qx - 9}q7 0 7-7` }));
+        this.over.append(waitPill(x, y + WAIT, text, released(row.delay, row.name)));
       }
     }
 
+    const keysX = capL + 18;
     if (wide && (row.keys.length || row.also.length) && band.type !== "fanout") {
       const parts = [];
       if (row.keys.length) parts.push(row.keys.join(", "));
@@ -314,6 +341,13 @@ export class TopologyMap {
       if (!quiet && (row.rates.in >= 0.01 || row.rates.ack >= 0.01)) {
         consumerLabel = s("text", { class: "m-meta", x: capL + 16, y: y + 24 }, `${perSecond(row.rates.in)} in, ${perSecond(row.rates.ack)} acked`);
       }
+      if (row.delayed > 0) {
+        const text = `${compact(row.delayed)} delayed`;
+        const after = `after ${row.delay.queues.filter((kid) => kid.messages > 0).map((kid) => duration(kid.delay_ms)).join(" or ")}`;
+        const x = capL + 16 + pillWidth(text) + 8;
+        this.over.append(waitPill(capL + 16, y + 24 + WAIT_LINE - 4, text, released(row.delay, row.name)));
+        this.base.append(s("text", { class: "m-meta", x, y: y + 24 + WAIT_LINE }, fit(after, charsFor(capR - x - (errorX === null ? 12 : 90), 6.6))));
+      }
     }
     group.append(...[hit, station, consumer, name, consumerLabel].filter(Boolean));
     this.bindRow(group, band, row);
@@ -359,6 +393,7 @@ export class TopologyMap {
       if (row.backlog) bits.push(`${compact(row.backlog)} ready`);
       if (row.rates.in >= 0.01) bits.push(`${perSecond(row.rates.in)} in`);
       if (row.errors) bits.push(`${compact(row.errors)} in error`);
+      if (row.delayed) bits.push(`${compact(row.delayed)} delayed`);
       if (bits.length) this.base.append(s("text", { class: "m-meta", x: x + w + 10, y: y + 4 }, bits.join(", ")));
     }
   }
@@ -382,7 +417,12 @@ export class TopologyMap {
     if (row.stopped) lines.push("Errors in the last few minutes");
     if (row.retry) lines.push(`Retry ${row.retry.name}: ${count(row.retry.messages)} waiting${row.retry.ttl ? ` ${duration(row.retry.ttl)}` : ""}`);
     if (row.error) lines.push(`Error ${row.error.name}: ${plural(row.error.messages, "message")}`);
-    if (row.delayed) lines.push(`${count(row.delayed)} delayed in ${plural(row.delayQueues.length, "delay queue")}`);
+    if (row.delay.queues.length) lines.push(row.delayed ? released(row.delay, row.name) : `Delay queues for ${row.delay.queues.map((kid) => duration(kid.delay_ms)).join(", ")}, empty`);
+    for (const consumer of row.consumers) {
+      if (!consumer.delays || !consumer.delays.length) continue;
+      const after = consumer.delays.map(duration).join(" or ");
+      lines.push(`${consumer.class_name} hands messages back with delay! after ${after}${consumer.delayed ? `, ${count(consumer.delayed)} so far` : ""}`);
+    }
     return lines;
   }
 

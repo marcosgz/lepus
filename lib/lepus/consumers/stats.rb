@@ -5,7 +5,7 @@ require "concurrent"
 module Lepus
   module Consumers
     # Thread-safe per-consumer-class statistics tracker.
-    # Uses atomic counters to track processed/rejected/errored message counts.
+    # Uses atomic counters to track processed/rejected/errored/delayed message counts.
     class Stats
       attr_reader :consumer_class
 
@@ -14,6 +14,7 @@ module Lepus
         @processed = Concurrent::AtomicFixnum.new(0)
         @rejected = Concurrent::AtomicFixnum.new(0)
         @errored = Concurrent::AtomicFixnum.new(0)
+        @delayed = Concurrent::AtomicFixnum.new(0)
       end
 
       def record_processed
@@ -28,6 +29,10 @@ module Lepus
         @errored.increment
       end
 
+      def record_delayed
+        @delayed.increment
+      end
+
       def processed
         @processed.value
       end
@@ -38,6 +43,10 @@ module Lepus
 
       def errored
         @errored.value
+      end
+
+      def delayed
+        @delayed.value
       end
 
       def to_h
@@ -52,7 +61,9 @@ module Lepus
           threads: config.worker_threads,
           processed: @processed.value,
           rejected: @rejected.value,
-          errored: @errored.value
+          errored: @errored.value,
+          delayed: @delayed.value,
+          delays: config.delay_values
         }
       end
 

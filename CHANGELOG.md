@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 * Changed: the web dashboard is redesigned around a live topology map (exchanges, queues, consumers, retry and error queues) with a message rate strip and tables for processes, queues and connections; it loads nothing from CDNs and sends a strict Content-Security-Policy
 * Added: `GET /api/topology`, `GET /api/overview` and `GET /api/meta` dashboard endpoints, plus `ManagementAPI#bindings`, `#consumers` and `#overview`
 * Added: consumer heartbeats report their `retry_queue` and `error_queue`
+* Added: the dashboard shows delayed messages: delay queues and `<exchange>.delayed` exchanges are recognised by Lepus' own naming and arguments, their messages are counted on the queue or exchange they are released to (map, headline, queues table) and `/api/topology` exposes `delay_ms`, `target`, `target_type`, `delayed`, `delays` and `releases_to`
+* Added: consumer heartbeats report the consumer's `delays` and how many messages it handed back with `delay!`, which no longer count as processed
+* Changed: `/api/exchanges` keeps the `<exchange>.delayed` exchanges of the consumers' exchanges
 * Added: `bin/web-demo` serves the dashboard on a simulated broker (`HEAVY=1` for a large one)
 * Removed: the dashboard's offline mode; its service worker now unregisters itself and clears its caches
 * Fixed: the management API client uses the vhost from `rabbitmq_url` instead of always `/`
