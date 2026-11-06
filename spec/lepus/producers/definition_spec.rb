@@ -79,6 +79,18 @@ RSpec.describe Lepus::Producers::Definition do
     end
   end
 
+  describe "#delay_values" do
+    it "is nil by default" do
+      expect(described_class.new(exchange: "events").delay_values).to be_nil
+    end
+
+    it "normalizes the delays option" do
+      definition = described_class.new(exchange: "events", delays: [30_000, 1_000.2, 30_000])
+
+      expect(definition.delay_values).to eq([1_000, 30_000])
+    end
+  end
+
   describe "#exchange name and options" do
     it "returns exchange name and options without name key" do
       definition = described_class.new(

@@ -281,6 +281,73 @@ class MyProducer < Lepus::Producer
 end
 ```
 
+### Delayed messages
+
+Pass `delay:` (in milliseconds, or anything responding to `in_milliseconds` such as `5.minutes`) to deliver a message later. No RabbitMQ plugin is needed:
+
+```ruby
+OrderEventsProducer.publish({ order_id: 123 }, routing_key: "order.reminder", delay: 30_000)
+Lepus::Publisher.new("order_events").publish("ping", routing_key: "order.ping", delay: 5_000)
+```
+
+A consumer can also put the message it is processing back on its own queue for later with [`delay!`](#consumer-configuration).
+
+#### How it works
+
+Delays are built from regular RabbitMQ queues: a message waits in a queue nobody consumes until its `x-message-ttl` expires, then RabbitMQ dead-letters it to the real destination. These are real, durable queues that you will see in the management UI.
+
+```mermaid
+flowchart LR
+    P["publish(delay: 30_000)"] --> DX{{"order_events.delayed<br/>(headers exchange)"}}
+    DX -- "lepus-delay = 30000" --> DQ["order_events.delayed.30000<br/>(TTL 30s, no consumers)"]
+    DX -- "lepus-delay = 5000" --> DQ2["order_events.delayed.5000<br/>(TTL 5s, no consumers)"]
+    DQ -- "TTL expires:<br/>dead-letter" --> X{{"order_events"}}
+    DQ2 -- "TTL expires:<br/>dead-letter" --> X
+    X -- "original routing key" --> Q1["your consumer queues"]
+```
+
+```mermaid
+flowchart LR
+    C["consumer of reindex<br/>calls delay!(5_000)"] -- "ack + re-publish" --> DQ["reindex.delay.5000<br/>(TTL 5s, no consumers)"]
+    DQ -- "TTL expires:<br/>dead-letter" --> Q["reindex"]
+    Q --> C
+```
+
+- **One queue per distinct delay value, not per message.** A million messages delayed by 30 seconds share `order_events.delayed.30000`. The number of queues is (exchanges or consumer queues using delays) × (distinct delay values).
+- **Use a small set of fixed delays** such as 5s, 30s and 5min. Computed or random delays (`rand(1_000..60_000)`, `(run_at - Time.now) * 1000`, jitter in a backoff) create a new queue for nearly every message.
+- **Each delay value has its own TTL**, so a long delay never holds back a shorter one.
+- **Messages keep their routing key and headers** when they reach the target exchange, so existing bindings and consumers work unchanged.
+- **`delay!` re-delivers only to that consumer's queue**, not to other queues bound to the same exchange. It acks the current delivery and increments the `x-lepus-delayed-count` header. Nothing is delivered while the message waits, but if your code calls `delay!` on every attempt it repeats forever, so cap it with that header.
+
+#### Limiting the delay queues
+
+Delay queues belong to an exchange (producer delays) or a consumer queue (`delay!`), so the allowed delays are set there with `delays:`. Any other value raises `Lepus::Error` before anything is published, including in testing mode. Without `delays:`, any delay is accepted.
+
+```ruby
+class OrderEventsProducer < Lepus::Producer
+  configure(exchange: "order_events", delays: [5_000, 30_000])
+end
+
+class ReindexConsumer < Lepus::Consumer
+  configure(queue: "reindex", exchange: "stories", delays: [60_000, 300_000, 900_000])
+
+  def perform(message)
+    attempt = message.metadata.headers.to_h["x-lepus-delayed-count"].to_i
+    return delay!(self.class.config.delay_values[attempt]) if pending?(message) && attempt < 3
+
+    ack!
+  end
+end
+```
+
+`delay!` raising inside `perform` rejects the message like any other error. `Lepus::Publisher#publish(..., delay:)` has no allowlist; use a producer when you want one.
+
+Lepus also logs `[Lepus::Delay] Declared delay queue "order_events.delayed.30000" (3 in this process)` at info level the first time each process declares a delay queue, so a growing count is easy to spot.
+
+#### Cleanup
+
+Unused delay queues are deleted by RabbitMQ after the delay plus one hour (`x-expires`), together with any message still in them. Lepus re-declares a queue while it is in use, so pending messages never outlive it. Change the window with `config.delay_queue_expires = 600_000`, or set it to `nil` to keep the queues forever. Queue arguments can't change once a queue exists, so changing this later raises `Lepus::Error` for existing queues until they are deleted. See [Producers](docs/producers.md#delayed-messages) and [Consumers](docs/consumers.md#delaying-a-message) for details.
+
 ### Configuration > Consumer Worker
 
 You can configure the consumer process using the `worker` method. The default worker is named `:default`, but you can define more workers with different names for different consumers.
@@ -387,6 +454,24 @@ By declaring the `retry_queue` option, it will automatically create a queue name
 It may result in a infinite loop if the message is always rejected. To avoid this, you can use the `error_queue` option to route the message to an `queue_name.error` queue after a number of attempts by using the `MaxRetry` middleware covered in the next section.
 
 Refer to the [Dead Letter Exchanges](https://www.rabbitmq.com/docs/dlx) documentation for more information about retry.
+
+A consumer can also put the current message back on its own queue for later with `delay!` (aliased `delay`). It acks the current delivery and increments the `x-lepus-delayed-count` header, so you can cap the attempts:
+
+```ruby
+class ReindexConsumer < Lepus::Consumer
+  configure(queue: "reindex", exchange: "stories", routing_key: "story.published")
+  use :json
+
+  def perform(message)
+    return delay!(5_000) if replica_behind? && message.metadata.headers.to_h["x-lepus-delayed-count"].to_i < 3
+
+    reindex(message.payload)
+    ack!
+  end
+end
+```
+
+The redelivery goes only to this consumer's queue (through `reindex.delay.5000`), not to other queues bound to the exchange. See [Consumers](docs/consumers.md#delaying-a-message) for details.
 
 ### Middlewares
 

@@ -369,6 +369,132 @@ RSpec.describe Lepus::Consumer do
     end
   end
 
+  describe "#delay!" do
+    let(:connection) { instance_double(Bunny::Session) }
+    let(:channel) { instance_double(Bunny::Channel, connection: connection) }
+    let(:consumer_class) do
+      Class.new(Lepus::Consumer) do
+        configure(queue: "jobs", exchange: "jobs_exchange")
+
+        def perform(_message)
+          delay!(300)
+        end
+      end
+    end
+    let(:instance) { consumer_class.new }
+    let(:metadata) do
+      instance_double(
+        Bunny::MessageProperties,
+        content_type: "application/json",
+        content_encoding: nil,
+        headers: {"tenant" => "a"},
+        delivery_mode: 2,
+        priority: nil,
+        correlation_id: "corr-1",
+        reply_to: nil,
+        expiration: "60000",
+        message_id: "msg-1",
+        timestamp: nil,
+        type: nil,
+        user_id: nil,
+        app_id: nil,
+        cluster_id: nil
+      )
+    end
+    let(:payload) { '{"id":1}' }
+
+    before do
+      Lepus::Delay.reset!
+      Lepus::Producers::Hooks.reset!
+      instance.instance_variable_set(:@_handler_channel, channel)
+      allow(channel).to receive(:exchange).and_return(instance_double(Bunny::Exchange))
+      allow(channel).to receive(:queue_declare)
+      allow(channel).to receive(:basic_publish)
+      allow(connection).to receive(:with_channel).and_yield(channel)
+    end
+
+    after { Lepus::Delay.reset! }
+
+    it "re-publishes the raw message to the consumer delay queue and acks" do
+      expect(instance.process_delivery(delivery_info, metadata, payload)).to eq(:ack)
+
+      expect(channel).to have_received(:queue_declare).with(
+        "jobs.delay.300",
+        durable: true,
+        arguments: Lepus::Delay.queue_args_for_queue("jobs", 300)
+      )
+      expect(channel).to have_received(:basic_publish).with(
+        payload,
+        "",
+        "jobs.delay.300",
+        {
+          headers: {"tenant" => "a", "x-lepus-delayed-count" => 1},
+          content_type: "application/json",
+          correlation_id: "corr-1",
+          message_id: "msg-1",
+          delivery_mode: 2,
+          persistent: true
+        }
+      )
+    end
+
+    it "increments the delayed count header" do
+      allow(metadata).to receive(:headers).and_return("x-lepus-delayed-count" => 2)
+
+      instance.process_delivery(delivery_info, metadata, payload)
+
+      expect(channel).to have_received(:basic_publish).with(
+        payload, "", "jobs.delay.300", hash_including(headers: {"x-lepus-delayed-count" => 3})
+      )
+    end
+
+    it "publishes the payload as received, before middlewares change it" do
+      consumer_class.use(:json)
+
+      instance.process_delivery(delivery_info, metadata, payload)
+
+      expect(channel).to have_received(:basic_publish).with(payload, "", "jobs.delay.300", anything)
+    end
+
+    it "publishes through the producer connection when there is no handler channel" do
+      instance.instance_variable_set(:@_handler_channel, nil)
+      allow(Lepus.config.producer_config).to receive(:with_connection).and_yield(connection)
+      allow(connection).to receive(:with_channel).and_yield(channel)
+
+      expect(instance.process_delivery(delivery_info, metadata, payload)).to eq(:ack)
+
+      expect(channel).to have_received(:basic_publish).with(payload, "", "jobs.delay.300", anything)
+    end
+
+    it "rejects the message without publishing when the delay is not in the consumer delays" do
+      consumer_class.configure(queue: "jobs", exchange: "jobs_exchange", delays: [1000])
+
+      expect(instance.process_delivery(delivery_info, metadata, payload)).to eq(:reject)
+      expect(channel).not_to have_received(:basic_publish)
+    end
+
+    it "publishes when the delay is in the consumer delays" do
+      consumer_class.configure(queue: "jobs", exchange: "jobs_exchange", delays: [300, 1000])
+
+      expect(instance.process_delivery(delivery_info, metadata, payload)).to eq(:ack)
+      expect(channel).to have_received(:basic_publish).with(payload, "", "jobs.delay.300", anything)
+    end
+
+    it "raises when called outside of a delivery" do
+      expect { instance.send(:delay!, 300) }.to raise_error(Lepus::Error, /while processing a message/)
+    end
+
+    it "clears the current delivery after processing" do
+      instance.process_delivery(delivery_info, metadata, payload)
+
+      expect(Thread.current[described_class::CURRENT_DELIVERY_KEY]).to be_nil
+    end
+
+    it "is aliased as delay" do
+      expect(instance.method(:delay)).to eq(instance.method(:delay!))
+    end
+  end
+
   describe "#publish_message" do
     let(:test_producer_class) do
       Class.new(Lepus::Producer) do

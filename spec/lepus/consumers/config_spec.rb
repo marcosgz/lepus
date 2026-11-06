@@ -102,6 +102,19 @@ RSpec.describe Lepus::Consumers::Config do
     end
   end
 
+  describe "#delay_values" do
+    it "is nil by default" do
+      expect(described_class.new(queue: "jobs").delay_values).to be_nil
+    end
+
+    it "normalizes the delays option and keeps it out of options" do
+      config = described_class.new(queue: "jobs", delays: [300_000, 60_000])
+
+      expect(config.delay_values).to eq([60_000, 300_000])
+      expect(config.options).not_to have_key(:delays)
+    end
+  end
+
   describe "#worker_name" do
     it "returns the default process name" do
       expect(config.worker_name).to eq("default")
@@ -321,6 +334,50 @@ RSpec.describe Lepus::Consumers::Config do
             durable: true
           }
         ])
+      end
+    end
+  end
+
+  describe "#retry_queue_name" do
+    it "returns nil when retry_queue is not set" do
+      expect(config.retry_queue_name).to be_nil
+    end
+
+    context "when the retry_queue is set as true" do
+      let(:options) { {queue: "queue-name", retry_queue: true} }
+
+      it "returns the default name" do
+        expect(config.retry_queue_name).to eq("queue-name.retry")
+      end
+    end
+
+    context "when the retry_queue has a name" do
+      let(:options) { {queue: "queue-name", retry_queue: "custom-retry"} }
+
+      it "returns the configured name" do
+        expect(config.retry_queue_name).to eq("custom-retry")
+      end
+    end
+  end
+
+  describe "#error_queue_name" do
+    it "returns nil when error_queue is not set" do
+      expect(config.error_queue_name).to be_nil
+    end
+
+    context "when the error_queue is set as true" do
+      let(:options) { {queue: "queue-name", error_queue: true} }
+
+      it "returns the default name" do
+        expect(config.error_queue_name).to eq("queue-name.error")
+      end
+    end
+
+    context "when the error_queue has a name" do
+      let(:options) { {queue: "queue-name", error_queue: {name: "custom-error"}} }
+
+      it "returns the configured name" do
+        expect(config.error_queue_name).to eq("custom-error")
       end
     end
   end

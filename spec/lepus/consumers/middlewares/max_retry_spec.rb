@@ -144,6 +144,24 @@ RSpec.describe Lepus::Consumers::Middlewares::MaxRetry do
     end
   end
 
+  context "when the message was delayed many times" do
+    let(:metadata) do
+      instance_double(
+        Bunny::MessageProperties,
+        headers: {
+          "x-lepus-delayed-count" => 5,
+          "x-death" => [
+            {"count" => 5, "reason" => "expired", "queue" => "my_queue.delay.300", "routing-keys" => ["my_queue.delay.300"]}
+          ]
+        }
+      )
+    end
+
+    it "does not count delays as retries" do
+      expect(middleware.call(message, downstream)).to eq(:downstream)
+    end
+  end
+
   context "when rejected entries have no count" do
     let(:metadata) do
       instance_double(
@@ -246,7 +264,6 @@ RSpec.describe Lepus::Consumers::Middlewares::MaxRetry do
 
       before do
         message.consumer_class = consumer_class
-        allow(consumer_class.config).to receive(:error_queue_name).and_return(nil)
       end
 
       it "raises InvalidConsumerConfigError" do

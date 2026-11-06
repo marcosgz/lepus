@@ -4,7 +4,7 @@ module Lepus
   module Producers
     # Definition class for producer-specific settings
     class Definition
-      attr_reader :publish_options, :connection
+      attr_reader :publish_options, :connection, :delay_values
 
       def initialize(options = {})
         opts = Lepus::Primitive::Hash.new(options).deep_symbolize_keys
@@ -17,6 +17,8 @@ module Lepus
         @publish_options = Lepus::Publisher::DEFAULT_PUBLISH_OPTIONS.merge(opts.delete(:publish) || {})
 
         @connection = (opts.delete(:connection) || Lepus::Configuration::DEFAULT_CONNECTION).to_sym
+
+        @delay_values = Lepus::Delay.normalize_all(opts.delete(:delays))
 
         # Store any remaining options for future use
         @options = opts

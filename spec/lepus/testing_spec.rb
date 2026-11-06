@@ -163,6 +163,38 @@ RSpec.describe Lepus::Testing do
     end
   end
 
+  describe "delay and expiration recording" do
+    it "records the normalized delay and expiration on the target exchange" do
+      TestProducer1.publish("message", routing_key: "a.b", delay: 1500.4, expiration: "60000")
+
+      message = described_class.exchange("test_exchange_1").messages.first
+      expect(message).to include(routing_key: "a.b", delay: 1500, expiration: "60000")
+      expect(TestProducer1.messages.size).to eq(1)
+    end
+
+    it "records nil delay when the message is not delayed" do
+      TestProducer1.publish("message")
+
+      expect(described_class.exchange("test_exchange_1").messages.first[:delay]).to be_nil
+    end
+
+    it "records consumer delays on the default exchange routed to the consumer queue" do
+      consumer_class = Class.new(Lepus::Consumer) do
+        configure(queue: "jobs", exchange: "jobs_exchange")
+
+        def perform(_message)
+          delay!(300)
+        end
+      end
+
+      expect(described_class.consumer_perform(consumer_class, {"id" => 1})).to eq(:ack)
+
+      message = described_class.exchange("").messages.last
+      expect(message).to include(routing_key: "jobs", delay: 300, payload: MultiJson.dump("id" => 1))
+      expect(message[:headers]).to include("x-lepus-delayed-count" => 1)
+    end
+  end
+
   describe ".producer_messages" do
     it "returns messages for a specific producer" do
       Lepus::Producers.enable!(TestProducerForMessages)

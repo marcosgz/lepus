@@ -9,6 +9,7 @@ module Lepus
     DEFAULT_RECOVER_FROM_CONNECTION_CLOSE = true
     DEFAULT_CONSUMERS_DIRECTORY = Pathname.new("app/consumers")
     DEFAULT_CONNECTION = :default
+    DEFAULT_DELAY_QUEUE_EXPIRES = 3_600_000
 
     # @return [String] the connection string for RabbitMQ.
     attr_accessor :rabbitmq_url
@@ -60,6 +61,10 @@ module Lepus
     #   prometheus_exporter collector for delivery and publish latency.
     attr_accessor :prometheus_buckets
 
+    # @return [Integer, nil] milliseconds an unused delay queue is kept beyond its delay before
+    #   RabbitMQ deletes it (x-expires = delay + this value). nil disables x-expires.
+    attr_accessor :delay_queue_expires
+
     DEFAULT_PROMETHEUS_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10].freeze
 
     def initialize
@@ -75,6 +80,7 @@ module Lepus
       @application_name = nil
       @management_api_url = nil
       @prometheus_buckets = DEFAULT_PROMETHEUS_BUCKETS
+      @delay_queue_expires = DEFAULT_DELAY_QUEUE_EXPIRES
     end
 
     # Builds the process registry backend based on configuration.

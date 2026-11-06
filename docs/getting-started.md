@@ -57,7 +57,7 @@ The `perform` method returns a symbol indicating disposition:
 - `:ack` — acknowledge; RabbitMQ removes the message.
 - `:reject` — reject; message is dropped (or routed to a dead-letter exchange if configured).
 - `:requeue` — reject and requeue for another delivery attempt.
-- `:nack` — negative-ack without requeue (similar to `:reject`).
+- `:nack` — negative-ack and requeue (like `:requeue`).
 
 `ack!`, `reject!`, `requeue!`, `nack!` are also available as helper methods.
 

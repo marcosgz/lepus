@@ -77,7 +77,7 @@ Track retry count via RabbitMQ `x-death` headers and route to an error queue aft
 use :max_retry, retries: 5, error_queue: 'orders.error'
 ```
 
-Requires the consumer's `configure` to declare a `retry_queue:` so requeued messages loop through a delay queue.
+Requires the consumer's `configure` to declare a `retry_queue:` so rejected messages (`:reject` or a raised error) loop through the retry queue.
 
 ### `:exception_logger`
 

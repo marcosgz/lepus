@@ -135,6 +135,95 @@ RSpec.describe Lepus::Publisher do
     end
   end
 
+  describe "#channel_publish with delay" do
+    let(:connection) { instance_double(Bunny::Session) }
+    let(:channel) { instance_double(Bunny::Channel, connection: connection) }
+    let(:exchange) { instance_double(Bunny::Exchange) }
+
+    before do
+      Lepus::Delay.reset!
+      allow(channel).to receive(:exchange).and_return(exchange)
+      allow(channel).to receive(:exchange_declare)
+      allow(channel).to receive(:queue_declare)
+      allow(channel).to receive(:queue_bind)
+      allow(channel).to receive(:basic_publish)
+      allow(exchange).to receive(:publish)
+      allow(connection).to receive(:with_channel).and_yield(channel)
+    end
+
+    after { Lepus::Delay.reset! }
+
+    it "publishes to the delayed exchange with the delay header and the original routing key" do
+      publisher.channel_publish(channel, {key: "value"}, routing_key: "user.created", headers: {"tenant" => "a"}, delay: 500)
+
+      expect(channel).to have_received(:exchange).with(exchange_name, described_class::DEFAULT_EXCHANGE_OPTIONS)
+      expect(exchange).not_to have_received(:publish)
+      expect(channel).to have_received(:queue_declare).with(
+        "test_exchange.delayed.500",
+        durable: true,
+        arguments: Lepus::Delay.queue_args_for_exchange(exchange_name, 500)
+      )
+      expect(channel).to have_received(:basic_publish).with(
+        MultiJson.dump(key: "value"),
+        "test_exchange.delayed",
+        "user.created",
+        {
+          headers: {"tenant" => "a", "lepus-delay" => 500},
+          persistent: true,
+          content_type: "application/json"
+        }
+      )
+    end
+
+    it "accepts objects responding to in_milliseconds" do
+      publisher.channel_publish(channel, "msg", delay: Struct.new(:in_milliseconds).new(1000))
+
+      expect(channel).to have_received(:basic_publish).with(
+        "msg", "test_exchange.delayed", nil, hash_including(headers: {"lepus-delay" => 1000})
+      )
+    end
+
+    it "raises for invalid delays before publishing" do
+      expect {
+        publisher.channel_publish(channel, "msg", delay: -1)
+      }.to raise_error(ArgumentError)
+
+      expect(channel).not_to have_received(:basic_publish)
+    end
+
+    it "instruments the delay" do
+      allow(Lepus).to receive(:instrument).and_call_original
+
+      publisher.channel_publish(channel, "msg", routing_key: "a", delay: 500)
+
+      expect(Lepus).to have_received(:instrument).with(:publish, exchange: exchange_name, routing_key: "a", delay: 500)
+    end
+
+    context "with the default exchange" do
+      let(:publisher) { described_class.new("") }
+
+      it "publishes to the delay queue of the routing key queue" do
+        publisher.channel_publish(channel, "msg", routing_key: "jobs", delay: 300)
+
+        expect(channel).to have_received(:queue_declare).with(
+          "jobs.delay.300",
+          durable: true,
+          arguments: Lepus::Delay.queue_args_for_queue("jobs", 300)
+        )
+        expect(channel).not_to have_received(:exchange_declare)
+        expect(channel).to have_received(:basic_publish).with(
+          "msg", "", "jobs.delay.300", {persistent: true, content_type: "text/plain"}
+        )
+      end
+
+      it "requires a routing key" do
+        expect {
+          publisher.channel_publish(channel, "msg", delay: 300)
+        }.to raise_error(ArgumentError, /routing_key/)
+      end
+    end
+  end
+
   describe "#publish" do
     let(:options) { {expiration: 60} }
 
