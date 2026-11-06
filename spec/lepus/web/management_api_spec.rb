@@ -223,6 +223,18 @@ RSpec.describe Lepus::Web::ManagementAPI do
 
       expect(described_class.new.vhost).to eq("/")
     end
+
+    it "percent-decodes the vhost and keeps a plus sign" do
+      allow(Lepus.config).to receive(:rabbitmq_url).and_return("amqp://rabbit-host:5672/a+b")
+
+      expect(described_class.new.vhost).to eq("a+b")
+    end
+
+    it "decodes an encoded slash" do
+      allow(Lepus.config).to receive(:rabbitmq_url).and_return("amqp://rabbit-host:5672/%2F")
+
+      expect(described_class.new.vhost).to eq("/")
+    end
   end
 
   describe "#bindings" do

@@ -131,7 +131,7 @@ module Lepus
 
       def derive_vhost
         path = parse_rabbitmq_uri&.path.to_s.delete_prefix("/")
-        path.empty? ? "/" : URI.decode_www_form_component(path)
+        path.empty? ? "/" : URI::DEFAULT_PARSER.unescape(path)
       end
 
       def credentials
