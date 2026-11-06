@@ -75,8 +75,7 @@ export function overview(root, { meta }) {
   const connectionsHost = h("div");
 
   root.append(
-    headline,
-    subline,
+    h("header", { class: "intro" }, headline, subline),
     status,
     empty,
     mapHost,
@@ -152,8 +151,11 @@ export function overview(root, { meta }) {
     }
     const station = map.find(name);
     if (!station) return;
-    station.scrollIntoView({ block: "center", behavior: reducedMotion.matches ? "auto" : "smooth" });
+    const svgTop = station.ownerSVGElement.getBoundingClientRect().top + window.scrollY;
+    const bandTop = map.bandTop(name) ?? 0;
+    window.scrollTo({ top: Math.max(0, svgTop + bandTop - 24), behavior: reducedMotion.matches ? "auto" : "smooth" });
     station.focus({ preventScroll: true });
+    map.flash(name);
   }
 
   function drawMap() {

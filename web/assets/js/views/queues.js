@@ -40,6 +40,12 @@ function chevron() {
   return s("svg", { class: "q-chevron", viewBox: "0 0 12 12", width: 12, height: 12, "aria-hidden": "true" }, s("path", { d: "M4.5 2.5 8 6l-3.5 3.5" }));
 }
 
+function pin() {
+  return s("svg", { class: "q-pin", viewBox: "0 0 12 12", width: 12, height: 12, "aria-hidden": "true" },
+    s("path", { d: "M6 11s3.5-3.4 3.5-6A3.5 3.5 0 0 0 2.5 5c0 2.6 3.5 6 3.5 6Z" }),
+    s("circle", { cx: 6, cy: 5, r: 1.2 }));
+}
+
 function num(n, cls) {
   const shown = compact(n);
   const exact = count(n);
@@ -400,13 +406,24 @@ export class QueueTable {
             }, chevron())
             : h("span", { class: "q-toggle" }),
           h("div", { class: "q-id" },
-            h("a", {
-              class: "q-name",
-              href: "#map",
-              title: "Show on map",
-              "data-focus-key": `${queue.name}|map`,
-              onclick: (event) => { event.preventDefault(); this.onShow(queue.name); }
-            }, queue.name),
+            h("span", { class: "q-title" },
+              queue.kids.length
+                ? h("button", {
+                  type: "button",
+                  class: "q-name",
+                  "aria-expanded": String(open),
+                  "data-focus-key": `${queue.name}|name`,
+                  onclick: () => this.toggle(this.open, OPEN_KEY, queue.name)
+                }, queue.name)
+                : h("span", { class: "q-name" }, queue.name),
+              h("button", {
+                type: "button",
+                class: "q-map",
+                title: "Show on map",
+                "aria-label": `Show ${queue.name} on the map`,
+                "data-focus-key": `${queue.name}|map`,
+                onclick: () => this.onShow(queue.name)
+              }, pin())),
             sub ? h("span", { class: "q-app" }, sub) : null))),
       h("td", { "data-label": "Ready" }, num(queue.ready, rising ? "q-ready is-backlog" : "q-ready"),
         rising && queue.backlog_rate > 0.05 ? h("span", { class: "q-trend" }, `+${perSecond(queue.backlog_rate)}`) : null),

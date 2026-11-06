@@ -166,6 +166,21 @@ export class TopologyMap {
     return key ? [...this.stations.querySelectorAll("[data-key]")].find((node) => node.dataset.key === key) : null;
   }
 
+  // Distance from the top of the drawing to the band that holds a station.
+  bandTop(key) {
+    const placed = this.geo && this.geo.bands.find((bandGeo) => bandGeo.rows.some(({ row }) => row.key === key));
+    return placed ? placed.top : null;
+  }
+
+  // Marks a station for a moment; the mark outlives the redraws in between.
+  flash(key) {
+    clearTimeout(this.flashTimer);
+    this.flashKey = key;
+    const mark = (on) => { const node = this.find(key); if (node) node.classList.toggle("is-flash", on); };
+    mark(true);
+    this.flashTimer = setTimeout(() => { mark(false); this.flashKey = null; }, 2400);
+  }
+
   // Swaps the new drawing in. A focused station stays the same element, only
   // brought up to date, so a poll neither moves focus nor makes a screen
   // reader announce it again.
@@ -312,7 +327,7 @@ export class TopologyMap {
 
     const states = ["m-station", quiet ? "is-quiet" : "", row.rising ? "is-backlog" : ""].join(" ").trim();
     const consumerStates = ["m-station", quiet ? "is-quiet" : "", noConsumer ? "is-idle" : "", row.stopped ? "is-stopped" : ""].join(" ").trim();
-    const group = s("a", { class: "m-row", href: "#queues", "data-key": row.key, "aria-label": this.describe(band, row).join(". ") });
+    const group = s("a", { class: row.key === this.flashKey ? "m-row is-flash" : "m-row", href: "#queues", "data-key": row.key, "aria-label": this.describe(band, row).join(". ") });
     const hit = s("rect", { class: "m-hit", x: qx - 16, y: y - 26, width: capR - qx + 16, height: 46, rx: 6 });
     const station = s("g", { class: states },
       s("circle", { class: "m-dot", cx: qx, cy: y, r: 7 }));
