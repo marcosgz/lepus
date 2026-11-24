@@ -77,4 +77,4 @@ OrdersProducer.publish({ order_id: 42, total: 99.99 }, routing_key: 'order.creat
 
 ## License
 
-MIT.
+GPL-3.0-or-later.
